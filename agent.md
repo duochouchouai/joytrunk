@@ -6,7 +6,7 @@
 
 ## 1. 项目概述
 
-- **项目名**：JoyTrunk，中文名 **喜象 Agent**。产品定义见 [product.md](product.md)。
+- **项目名**：JoyTrunk。产品定义见 [product.md](product.md)。
 - **一句话**：JoyTrunk 是一款部署在用户本地的、7×24 小时运行的智能体员工；负责人通过即时通讯与员工交互完成日常工作，支持多员工、员工生存法则与可选社交能力。
 - **目标用户**：不熟悉 AI 技术但希望使用智能体的用户，开箱即用、无需复杂配置。
 - **运行平台**：JoyTrunk **支持 Linux 与 Windows 双平台**；cli 与本地 gateway 可在两种系统上安装运行，配置与 workspace 路径按平台解析（见 §4.2）。
