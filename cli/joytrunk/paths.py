@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 
 
+def get_cli_root() -> Path:
+    """CLI 项目根目录（joytrunk 包所在目录的上一级）。开发时即 cli/，用于解析 cli/.env。"""
+    return Path(__file__).resolve().parent.parent
+
+
 def get_joytrunk_root() -> Path:
     """JoyTrunk 本地根目录。可通过环境变量 JOYTRUNK_ROOT 覆盖（测试用）。"""
     if os.environ.get("JOYTRUNK_ROOT"):

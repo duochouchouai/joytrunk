@@ -11,6 +11,8 @@ MESSAGES = {
     "onboard.config": "配置文件: {path}",
     "onboard.workspace": "工作区: {path}",
     "onboard.next": "在浏览器打开 **{url}** 进行员工配置与网页管理。\n若尚未启动本地服务，请先执行：`joytrunk gateway`",
+    "onboard.env_found_prompt": "在 cli 目录下发现 .env（含 API Key 等），是否导入到 config.json？(y/n) ",
+    "onboard.env_imported": "已从 .env 导入配置到 config.json。",
     "gateway.not_found": "未找到 cli 内 gateway。若从源码运行，请确认 {path} 存在；",
     "gateway.upgrade": "若已 pip 安装，请升级：pip install -U joytrunk",
     "gateway.server_missing": "gateway/server.js 不存在。",

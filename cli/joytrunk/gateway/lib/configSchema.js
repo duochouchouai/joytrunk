@@ -1,13 +1,12 @@
 /**
- * JoyTrunk config.json 默认结构（仿 nanobot：gateway / agents / channels / providers）
- * 与 cli/config_schema.py 约定一致，键为 camelCase。员工与负责人均存于 config.json，不使用 store.json。
+ * JoyTrunk 全局 config.json 默认结构：仅保留全局配置。
+ * 每位员工作为独立 agent，使用各自 workspace/employees/<id>/config.json 覆盖全局配置。
  */
 
 const DEFAULT_CONFIG = {
   version: 1,
   joytrunkRoot: null,
   ownerId: null,
-  employees: [],
   gateway: { host: 'localhost', port: 32890 },
   agents: { defaults: { defaultEmployeeId: null, model: 'gpt-3.5-turbo', maxTokens: 2048, temperature: 0.1 } },
   channels: { cli: { enabled: true }, web: { enabled: true }, feishu: { enabled: false }, telegram: { enabled: false }, qq: { enabled: false } },
@@ -22,12 +21,10 @@ function migrateFromLegacy(data) {
   const custom = raw && typeof raw === 'object' ? { apiKey: raw.apiKey ?? '', apiBase: raw.apiBase ?? raw.baseUrl ?? null, model: raw.model ?? 'gpt-3.5-turbo' } : DEFAULT_CONFIG.providers.custom;
   const providers = data.providers && typeof data.providers === 'object' ? { ...data.providers, custom } : { joytrunk: {}, custom };
   const channels = data.channels && typeof data.channels === 'object' ? data.channels : DEFAULT_CONFIG.channels;
-  const employees = Array.isArray(data.employees) ? data.employees : [];
   return {
     version: data.version ?? 1,
     joytrunkRoot: data.joytrunkRoot ?? null,
     ownerId: data.ownerId ?? null,
-    employees,
     gateway: { host: gateway.host ?? 'localhost', port: gateway.port ?? 32890 },
     agents: { defaults: agents.defaults },
     channels,

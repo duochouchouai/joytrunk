@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 import webbrowser
 from pathlib import Path
 
@@ -21,6 +22,18 @@ console = Console()
 
 GATEWAY_PORT = 32890
 GATEWAY_URL = f"http://localhost:{GATEWAY_PORT}"
+
+
+def _safe_text_for_console(text: str) -> str:
+    """避免 Windows 控制台 GBK 等编码无法输出 emoji/生僻字导致 UnicodeEncodeError。"""
+    if not text:
+        return text
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        return text.encode(enc, errors="replace").decode(enc)
+    except Exception:
+        return text.encode("utf-8", errors="replace").decode("utf-8")
+
 
 # 官方命令指南 URL（可经环境变量 JOYTRUNK_DOCS_URL 覆盖）
 DOCS_OFFICIAL_URL = os.environ.get("JOYTRUNK_DOCS_URL", "https://joytrunk.com/docs/cli")
@@ -60,6 +73,26 @@ def onboard_cmd() -> None:
     console.print("  ", t("onboard.config", path=f"[cyan]{root / 'config.json'}[/cyan]"))
     console.print("  ", t("onboard.workspace", path=f"[cyan]{root / 'workspace'}[/cyan]"))
     console.print()
+    # 若 cli 目录下存在有效 .env，提示是否导入到 config.json
+    from joytrunk import paths
+    from joytrunk.env_loader import offer_import_env_from_cli_dotenv
+    from joytrunk import config_store
+
+    def prompt_yes_no() -> bool:
+        try:
+            answer = console.input("[yellow]" + t("onboard.env_found_prompt") + "[/yellow]").strip().lower()
+            return answer.startswith("y") or answer == "yes"
+        except (EOFError, KeyboardInterrupt):
+            return False
+
+    did_import = offer_import_env_from_cli_dotenv(
+        get_cli_root=paths.get_cli_root,
+        load_config=config_store.load_config,
+        save_config=config_store.save_config,
+        prompt_yes_no=prompt_yes_no,
+    )
+    if did_import:
+        console.print("[green]✓[/green]", t("onboard.env_imported"))
     console.print(Markdown(t("onboard.next", url=GATEWAY_URL)))
 
 
@@ -246,7 +279,7 @@ def chat_cmd(
         try:
             async def _progress(s: str) -> None:
                 if s:
-                    console.print("[dim]  [/dim]" + s[:200] + ("…" if len(s) > 200 else ""))
+                    console.print("[dim]  [/dim]" + _safe_text_for_console(s[:200]) + ("…" if len(s) > 200 else ""))
 
             reply, usage = asyncio.run(
                 run_employee_loop(
@@ -257,7 +290,7 @@ def chat_cmd(
                     on_progress=_progress,
                 )
             )
-            console.print("[bold]" + t("chat.employee") + "[/bold]", reply)
+            console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply))
             if usage:
                 console.print(
                     "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"

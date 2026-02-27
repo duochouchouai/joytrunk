@@ -7,6 +7,15 @@ import pytest
 from joytrunk import paths
 
 
+def test_get_cli_root_is_parent_of_joytrunk_package():
+    """get_cli_root() 返回 joytrunk 包目录的上一级。"""
+    cli_root = paths.get_cli_root()
+    assert cli_root is not None
+    assert hasattr(cli_root, "resolve")
+    # 可编辑安装时 cli_root 下应有 joytrunk 包
+    assert (cli_root / "joytrunk" / "paths.py").exists()
+
+
 def test_get_joytrunk_root_uses_env(monkeypatch, tmp_path):
     monkeypatch.setenv("JOYTRUNK_ROOT", str(tmp_path / "custom"))
     root = paths.get_joytrunk_root()

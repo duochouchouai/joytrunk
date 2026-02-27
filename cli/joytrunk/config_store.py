@@ -1,6 +1,7 @@
 """
-本地 config.json 读写：员工与负责人均存于 config.json，不使用 store.json。
-供 chat / employee 命令直接读写，gateway 也可共用同一文件。
+全局 config.json 仅保留全局配置；每位员工作为独立 agent，使用各自
+workspace/employees/<employee_id>/config.json（覆盖全局配置）。
+员工列表由扫描 workspace/employees/ 下各目录的 config.json 得到。
 """
 
 from __future__ import annotations
@@ -9,38 +10,66 @@ import json
 import shutil
 import uuid
 from pathlib import Path
+from datetime import datetime, timezone
 
 from joytrunk import paths
-from joytrunk.config_schema import migrate_from_legacy
+from joytrunk.config_schema import migrate_from_legacy, DEFAULT_CONFIG
 
 BUNDLED_TEMPLATES = Path(__file__).resolve().parent / "templates"
 
 
 def load_config() -> dict:
-    """加载并迁移 config.json。"""
+    """加载全局 config.json 并迁移；若存在旧版 employees 数组则迁移到各员工 config.json。"""
     p = paths.get_config_path()
     if not p.exists():
         return migrate_from_legacy(None)
     try:
         raw = json.loads(p.read_text(encoding="utf-8"))
-        return migrate_from_legacy(raw)
+        config = migrate_from_legacy(raw)
+        if isinstance(raw.get("employees"), list) and len(raw["employees"]) > 0:
+            _migrate_employees_to_per_agent_config(raw["employees"])
+            save_config(config)
+        return config
     except Exception:
         return migrate_from_legacy(None)
 
 
+def _migrate_employees_to_per_agent_config(employees: list[dict]) -> None:
+    """将旧版全局 employees 数组的每项写入对应员工目录的 config.json。"""
+    workspace_employees = paths.get_workspace_root() / "employees"
+    workspace_employees.mkdir(parents=True, exist_ok=True)
+    for e in employees:
+        if not isinstance(e, dict) or not e.get("id"):
+            continue
+        eid = e["id"]
+        emp_dir = paths.get_employee_dir(eid)
+        cfg_path = emp_dir / "config.json"
+        if cfg_path.exists():
+            continue
+        emp_dir.mkdir(parents=True, exist_ok=True)
+        emp_cfg = {k: v for k, v in e.items()}
+        if "agents" not in emp_cfg:
+            emp_cfg["agents"] = {}
+        if "providers" not in emp_cfg:
+            emp_cfg["providers"] = {}
+        cfg_path.write_text(json.dumps(emp_cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        if not (emp_dir / "memory").exists():
+            (emp_dir / "memory").mkdir(parents=True, exist_ok=True)
+        if not (emp_dir / "skills").exists():
+            (emp_dir / "skills").mkdir(parents=True, exist_ok=True)
+
+
 def save_config(config: dict) -> None:
-    """写回 config.json。"""
+    """写回全局 config.json（仅全局配置）。"""
     root = paths.get_joytrunk_root()
     root.mkdir(parents=True, exist_ok=True)
     p = paths.get_config_path()
-    p.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    out = {k: v for k, v in config.items() if k in DEFAULT_CONFIG}
+    p.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def ensure_owner_id() -> str:
-    """
-    若 config 中无 ownerId，则生成并写入；返回当前 ownerId。
-    不调用 gateway。
-    """
+    """若全局 config 中无 ownerId，则生成并写入；返回当前 ownerId。"""
     config = load_config()
     oid = config.get("ownerId")
     if oid and isinstance(oid, str) and oid.strip():
@@ -54,18 +83,31 @@ def ensure_owner_id() -> str:
 
 
 def list_employees_from_config(owner_id: str | None = None) -> list[dict]:
-    """从 config 读取员工列表；若传 owner_id 则只返回该负责人的员工。"""
-    config = load_config()
-    employees = config.get("employees") or []
-    if not isinstance(employees, list):
+    """从各员工目录的 config.json 读取员工列表；若传 owner_id 则只返回该负责人的员工。"""
+    emp_root = paths.get_workspace_root() / "employees"
+    if not emp_root.exists():
         return []
-    if owner_id:
-        return [e for e in employees if isinstance(e, dict) and e.get("ownerId") == owner_id]
-    return employees
+    result = []
+    for d in emp_root.iterdir():
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        cfg_path = d / "config.json"
+        if not cfg_path.exists():
+            continue
+        try:
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if owner_id and data.get("ownerId") != owner_id:
+            continue
+        result.append({"id": data.get("id") or d.name, **data})
+    return result
 
 
 def _copy_templates_to_employee(employee_id: str) -> None:
-    """将包内 templates 复制到员工目录（与 gateway employeeWorkspace 行为一致）。"""
+    """将包内 templates 复制到员工目录。"""
     emp_dir = paths.get_employee_dir(employee_id)
     if not BUNDLED_TEMPLATES.exists():
         emp_dir.mkdir(parents=True, exist_ok=True)
@@ -91,15 +133,13 @@ def _copy_templates_to_employee(employee_id: str) -> None:
 
 def create_employee_in_config(owner_id: str, name: str, **kwargs) -> dict:
     """
-    在 config 中新增员工并写回；创建员工 workspace 目录并复制模板。
-    返回新建员工对象 { id, ownerId, name, ... }。
+    创建员工：在 workspace/employees/<id>/ 下写入 config.json（身份 + 可选 agents/providers 覆盖），
+    并复制模板。不写入全局 config。
     """
-    config = load_config()
-    employees = config.get("employees") or []
-    if not isinstance(employees, list):
-        employees = []
     eid = str(uuid.uuid4())
-    emp = {
+    emp_dir = paths.get_employee_dir(eid)
+    emp_dir.mkdir(parents=True, exist_ok=True)
+    emp_cfg = {
         "id": eid,
         "ownerId": owner_id,
         "name": name or "新员工",
@@ -109,35 +149,48 @@ def create_employee_in_config(owner_id: str, name: str, **kwargs) -> dict:
         "businessModule": kwargs.get("businessModule"),
         "focus": kwargs.get("focus"),
         "status": "active",
-        "createdAt": None,
+        "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "agents": kwargs.get("agents") or {},
+        "providers": kwargs.get("providers") or {},
     }
-    employees.append(emp)
-    config["employees"] = employees
-    save_config(config)
+    cfg_path = emp_dir / "config.json"
+    cfg_path.write_text(json.dumps(emp_cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     _copy_templates_to_employee(eid)
-    return emp
+    return emp_cfg
 
 
 def update_employee_in_config(employee_id: str, owner_id: str, **kwargs) -> dict | None:
-    """更新 config 中某员工字段并写回。允许的键：name, persona, role, specialty, businessModule, focus, status。"""
-    config = load_config()
-    employees = config.get("employees") or []
-    allowed = {"name", "persona", "role", "specialty", "businessModule", "focus", "status"}
-    for i, e in enumerate(employees):
-        if isinstance(e, dict) and e.get("id") == employee_id and e.get("ownerId") == owner_id:
-            for k, v in kwargs.items():
-                if k in allowed:
-                    employees[i][k] = v
-            config["employees"] = employees
-            save_config(config)
-            return employees[i]
-    return None
+    """更新该员工目录下的 config.json。允许的键：name, persona, role, specialty, businessModule, focus, status；以及 agents、providers 用于覆盖全局。"""
+    emp_dir = paths.get_employee_dir(employee_id)
+    cfg_path = emp_dir / "config.json"
+    if not cfg_path.exists():
+        return None
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict) or data.get("ownerId") != owner_id:
+        return None
+    allowed = {"name", "persona", "role", "specialty", "businessModule", "focus", "status", "agents", "providers"}
+    for k, v in kwargs.items():
+        if k in allowed:
+            data[k] = v
+    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return data
 
 
 def find_employee_in_config(employee_id: str, owner_id: str | None = None) -> dict | None:
-    """从 config 中按 id 查找员工；若传 owner_id 则需匹配 ownerId。"""
-    employees = list_employees_from_config(owner_id) if owner_id else list_employees_from_config()
-    for e in employees:
-        if isinstance(e, dict) and e.get("id") == employee_id:
-            return e
-    return None
+    """从该员工目录的 config.json 读取；若传 owner_id 则需匹配。"""
+    emp_dir = paths.get_employee_dir(employee_id)
+    cfg_path = emp_dir / "config.json"
+    if not cfg_path.exists():
+        return None
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if owner_id and data.get("ownerId") != owner_id:
+        return None
+    return data

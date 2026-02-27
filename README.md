@@ -21,12 +21,13 @@
 
 ---
 
-## Install and quick start (planned)
+## Install and quick start
 
-Install from PyPI (when published):
+Install from PyPI (when published) or from repo:
 
 ```bash
 pip install joytrunk
+# or from repo: cd cli && pip install -e ".[dev]"
 ```
 
 Then:
@@ -35,10 +36,11 @@ Then:
    ```bash
    joytrunk onboard
    ```
-2. **Web management**: Open **http://localhost:32890** to manage employees, team, and settings (start the local service first if required, e.g. `joytrunk gateway` or `joytrunk serve`).
-3. **CLI**: Use the `joytrunk` CLI to talk to a chosen employee as one of the channels.
+2. **Chat with employees** (no gateway required): Run `joytrunk chat` — TUI lists employees (last option: add new); select one to start a conversation. Employees and owner are stored in **per-employee config** under `~/.joytrunk/workspace/employees/<id>/config.json`; the **global** `~/.joytrunk/config.json` holds only global settings (ownerId, gateway, agents.defaults, channels, providers).
+3. **Manage employees**: `joytrunk employee` (TUI), `joytrunk employee list`, `joytrunk employee new`, `joytrunk employee set <id> --name ...`
+4. **Optional — Web management**: Start `joytrunk gateway` and open **http://localhost:32890** to manage employees, team, and settings in the browser.
 
-Config and workspace paths are the same on both platforms: **Linux/macOS** use `~/.joytrunk`; **Windows** use `%USERPROFILE%\.joytrunk` (e.g. `$env:USERPROFILE\.joytrunk` in PowerShell).
+Paths: **Linux/macOS** use `~/.joytrunk`; **Windows** use `%USERPROFILE%\.joytrunk` (e.g. `$env:USERPROFILE\.joytrunk` in PowerShell).
 
 ---
 
@@ -51,11 +53,11 @@ Config and workspace paths are the same on both platforms: **Linux/macOS** use `
 
 ## Architecture
 
-- **CLI** (Python): Full local client — `joytrunk` entry point, `joytrunk onboard`, `joytrunk gateway` (starts the **local management backend** on port 32890), `joytrunk docs` (open command guide), `joytrunk chat`, `joytrunk status`. The CLI package **includes and starts** the local gateway (owner/employee/team CRUD, config/workspace, agent API).
+- **CLI** (Python): Full local client — `joytrunk` entry point, `joytrunk onboard`, **`joytrunk chat`** (TUI: list/select or add employees from per-employee config; no gateway required), **`joytrunk employee`** (list/new/set employees), `joytrunk gateway` (starts the **local management backend** on port 32890 for web/UI), `joytrunk status`, `joytrunk language`, `joytrunk docs`. The CLI reads/writes **global** `config.json` (global settings only) and **per-employee** `workspace/employees/<id>/config.json` (each employee as an independent agent; overrides global).
 - **Vue** (local management UI): Web IM and admin (employees, team, settings). Served at **http://localhost:32890** when the **CLI** runs `joytrunk gateway`; talks to the local gateway only. Binding a JoyTrunk account uses the **official backend** (nodejs) for IM sync.
 - **Node.js** (official backend): Cloud services — user registration, JoyTrunk IM backend, **LLM Router** (default model MINIMAX-M2.1), billing. Separate from the local 32890 gateway; used when the user links an account or uses Router for LLM.
 
-The **local** stack is self-contained: install the CLI, run `joytrunk gateway`, and open http://localhost:32890 for the Vue UI. The **official website** (product intro, sign-up, CLI docs, Router/billing) is a separate deployment (vue + nodejs as the ops tool).
+The **local** stack is self-contained: install the CLI, run `joytrunk onboard` and `joytrunk chat` (no gateway needed for CLI); optionally run `joytrunk gateway` and open http://localhost:32890 for the Vue UI.
 
 ---
 
@@ -63,7 +65,7 @@ The **local** stack is self-contained: install the CLI, run `joytrunk gateway`, 
 
 | Directory | Role |
 |-----------|------|
-| **cli/** | Python 包 `joytrunk`：CLI 入口、`joytrunk onboard`、**`joytrunk gateway`**（启动本地后端并**内嵌本地管理 UI**，端口 32890）、`joytrunk docs`、`joytrunk chat`、`joytrunk status`。安装：`pip install -e ./cli`。**本地管理界面源码在 cli/joytrunk/ui/**，构建产出在 gateway/static/。 |
+| **cli/** | Python 包 `joytrunk`：CLI 入口、`joytrunk onboard`、**`joytrunk chat`**（TUI 选员工/新建，不依赖 gateway）、**`joytrunk employee`**（list/new/set）、`joytrunk gateway`（启动本地后端 + 内嵌管理 UI，端口 32890）、`joytrunk status`、`joytrunk language`、`joytrunk docs`。全局配置在 `config.json`，每位员工独立 `workspace/employees/<id>/config.json`。安装：`pip install -e ./cli`。本地管理界面源码在 cli/joytrunk/ui/，构建产出在 gateway/static/。 |
 | **vue/** | **仅官网**：Vue 3 + Vite，产品页、下载/文档/定价、手机验证码登录、云端 IM。开发：`npm run dev`（端口 32892）；构建：`npm run build`。 |
 | **nodejs/** | JoyTrunk 官方后端（用户注册、IM、LLM Router、计费）。`npm install && npm start`（默认 32891）。 |
 
@@ -107,8 +109,8 @@ conda activate joytrunk
 cd cli && pip install -e ".[dev]" && joytrunk onboard
 ```
 
-- **Run CLI**: `joytrunk`, `joytrunk docs` (open command guide), `joytrunk status`, `joytrunk chat <employee-id>`
-- **Run local gateway**: `joytrunk gateway` (starts the built-in backend on 32890; installs Node deps on first run)
+- **Run CLI**: `joytrunk`, `joytrunk docs` (open command guide), `joytrunk status`, **`joytrunk chat`** (TUI: list/select or add employee, then converse; no gateway required), **`joytrunk employee`** (list/new/set)
+- **Run local gateway** (optional, for web UI): `joytrunk gateway` (starts the built-in backend on 32890; installs Node deps on first run)
 - **Run tests**: `pytest -v` (from `cli/`)
 
 ### 2. Local gateway (32890)
@@ -151,9 +153,9 @@ npm start
 
 ### Full stack (local)
 
-1. 在 **cli** 目录构建本地 UI（可选，否则 gateway 首次启动时会自动构建）：`cd cli/joytrunk/ui && npm install && npm run build`
-2. 启动 **本地 gateway**：`joytrunk gateway`
-3. 浏览器打开 **http://localhost:32890** 使用本地管理界面；用 `joytrunk chat` 与员工对话。
+1. **CLI only** (no gateway): `joytrunk onboard` → `joytrunk chat` (TUI lists/creates employees from per-employee config).
+2. **With web UI**: 在 **cli** 目录构建本地 UI（可选）：`cd cli/joytrunk/ui && npm install && npm run build`；启动 **joytrunk gateway**；浏览器打开 **http://localhost:32890**。
+3. 用 `joytrunk chat` 与员工对话（可不启动 gateway）；gateway 与 CLI 共用同一套 per-employee config。
 
 ### Conventions and more
 

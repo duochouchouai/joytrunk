@@ -1,17 +1,15 @@
 """
-JoyTrunk config.json schema（仿 nanobot 的 config 结构，与 nodejs 约定一致）。
-JSON 键使用 camelCase；本模块提供默认结构与键名常量。
+JoyTrunk 全局 config.json schema：仅保留全局配置（与 nodejs 约定一致）。
+每位员工作为独立 agent，使用各自 workspace/employees/<id>/config.json 覆盖全局配置。
 """
 
-# 默认 config 结构（仿 nanobot：gateway / agents / channels / providers）
-# 所有配置（含员工列表）均在 config.json，不使用 store.json
+# 默认全局 config 结构（不含员工列表；员工列表由各员工目录下的 config.json 构成）
 DEFAULT_CONFIG = {
     "version": 1,
     "joytrunkRoot": None,
     "ownerId": None,
-    "employees": [],  # [{ id, ownerId, name, persona?, role?, specialty?, ... }]
     "cli": {
-        "locale": "zh",  # CLI 界面语言：zh（中文）、en（英文）
+        "locale": "zh",
     },
     "gateway": {
         "host": "127.0.0.1",
@@ -44,15 +42,12 @@ DEFAULT_CONFIG = {
 
 # 兼容旧版：曾用 gatewayPort / defaultEmployeeId / customLLM 平铺在顶层
 def migrate_from_legacy(data: dict) -> dict:
-    """将旧版 config 迁移到新 schema（仿 nanobot 的 agents/channels/providers/gateway）。"""
+    """将旧版 config 迁移到新 schema；全局 config 不包含 employees（员工由各自 config.json 表示）。"""
     if not isinstance(data, dict):
         return dict(DEFAULT_CONFIG)
     out = {}
     for k, v in DEFAULT_CONFIG.items():
-        if k == "employees":
-            raw = data.get("employees")
-            out["employees"] = raw if isinstance(raw, list) else []
-        elif k == "gateway":
+        if k == "gateway":
             out["gateway"] = {
                 "host": data.get("gateway", {}).get("host") if isinstance(data.get("gateway"), dict) else "127.0.0.1",
                 "port": data.get("gateway", {}).get("port") if isinstance(data.get("gateway"), dict) else data.get("gatewayPort", 32890),

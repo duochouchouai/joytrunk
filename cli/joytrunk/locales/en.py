@@ -11,6 +11,8 @@ MESSAGES = {
     "onboard.config": "Config: {path}",
     "onboard.workspace": "Workspace: {path}",
     "onboard.next": "Open **{url}** in browser for staff and settings.\nIf the local server is not running, run: `joytrunk gateway`",
+    "onboard.env_found_prompt": "Found .env in cli directory (API keys etc.). Import into config.json? (y/n) ",
+    "onboard.env_imported": "Imported config from .env into config.json.",
     "gateway.not_found": "Gateway not found under cli. If running from source, ensure {path} exists;",
     "gateway.upgrade": "If installed via pip, upgrade: pip install -U joytrunk",
     "gateway.server_missing": "gateway/server.js not found.",

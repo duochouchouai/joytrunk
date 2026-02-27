@@ -147,34 +147,34 @@ flowchart LR
 ### 4.2 配置与工作区路径
 
 - **根路径**：JoyTrunk 本地根（单机对应本机所有员工）。在 **Linux/macOS** 下为 `~/.joytrunk`，在 **Windows** 下为 `%USERPROFILE%\.joytrunk`（PowerShell 中即 `$env:USERPROFILE\.joytrunk`）。实现时使用**平台无关**方式解析用户主目录（如 Node 的 `os.homedir()`、Python 的 `Path.home()`），避免写死 `~` 或反斜杠。**无需用户「绑定负责人」**：gateway 首次 API 请求时自动创建本地默认上下文并写入 config，CLI 与网页即可创建员工、对话。
-- **配置文件**：`~/.joytrunk/config.json`（通用写法）；Windows 下等价于 `%USERPROFILE%\.joytrunk\config.json`。**所有配置（含员工列表、ownerId）均在此文件**，**不使用 store.json**。schema 在 JoyTrunk 代码库内定义，cli 与本地 gateway 统一约定。
-- **config.json 结构（仿 nanobot）**：统一采用 `version`、`joytrunkRoot`、`ownerId`、**`employees`**（员工数组）、`gateway`（`host`/`port`）、`agents.defaults`、`channels`、`providers`。旧版字段自动迁移。cli 的 `config_schema.py` 与本地 gateway 的 configSchema 保持一致；读写时均经迁移函数保证兼容。
-- **workspace 根**：`~/.joytrunk/workspace` 为本机工作区根目录；Windows 下等价于 `%USERPROFILE%\.joytrunk\workspace`。主 config 可被各员工目录下的 `config.json` 覆盖，见 §4.3 每员工子目录中的 config.json。
+- **配置文件**：**全局** `~/.joytrunk/config.json` **仅保留全局配置**（如 ownerId、gateway、agents.defaults、channels、providers、cli.locale 等），**不包含员工列表**。**每位员工作为独立 agent**，各自使用 **`~/.joytrunk/workspace/employees/<employee_id>/config.json`**，用于存放该员工的身份信息（id、ownerId、name、persona、role 等）及可选的 `agents`、`providers` 覆盖项（覆盖全局配置）。员工列表由扫描 `workspace/employees/` 下各目录并读取其 `config.json` 得到。不使用 store.json。schema 在 JoyTrunk 代码库内定义，cli 与本地 gateway 统一约定。
+- **全局 config.json 结构**：`version`、`joytrunkRoot`、`ownerId`、`gateway`（`host`/`port`）、`agents.defaults`、`channels`、`providers`、`cli`。**无 employees 字段**。旧版若含 employees 数组，首次加载时会自动迁移到各员工目录的 config.json 并写回全局 config。
+- **workspace 根**：`~/.joytrunk/workspace` 为本机工作区根目录。各员工目录下的 config.json 见 §4.3。
 
 ### 4.3 多员工下的 ~/.joytrunk/workspace 设定
 
 本机可拥有多名员工（多 Agent），每名员工有独立人格、记忆与技能。workspace 需支持**多员工隔离**，同时保留本机级共享配置与可选共享资源。以下路径在 **Linux 与 Windows** 上含义相同；实现时使用路径拼接库（如 Node 的 `path.join`）以保证两平台路径分隔符正确。
 
 - **多员工子目录**：`~/.joytrunk/workspace/employees/<employee_id>/`
-  - `<employee_id>` 与 **本地 gateway** 分配/存储一致（如 UUID），由**本地 gateway**（cli 内）分配，cli/vue 通过配置或 API 获取。
+  - `<employee_id>` 由 CLI 或 gateway 创建员工时分配（如 UUID）；**员工列表**由扫描该目录下子文件夹、并读取各子目录中的 **config.json** 得到（不存于全局 config）。
 - **每员工子目录**（仿 nanobot 单 agent，创建员工时从 **JoyTrunk 包内/捆绑模板** 复制初始化）：
-  - **模板**：`SOUL.md`（员工人格）、`USER.md`（负责人/用户画像）、`AGENTS.md`（员工指令与生存法则）、`TOOLS.md`（工具说明）、`HEARTBEAT.md`（周期任务）；模板**仅存在于 joytrunk 包内**（**cli 包内 `joytrunk/templates`** 与 **cli 内本地 gateway 的捆绑 templates**），**workspace 下不设 templates**；创建员工时由**本地 gateway**从捆绑模板复制到该员工目录。
-  - **memory/**：该员工的**私有**记忆与历史（`MEMORY.md`、`HISTORY.md` 等），**不与其他员工共享**。构建上下文时与**团队共享记忆**（`workspace/memory/`）合并：先拼共享再拼本员工，共同组成长期记忆。
-  - **skills/**：该员工**私有**技能或对共享技能的同名覆盖。加载时先加载共享 `workspace/skills/`，再加载本目录；同名时本目录覆盖共享。
-  - **config.json**（可选，覆盖主配置）：路径为 `~/.joytrunk/workspace/employees/<employee_id>/config.json`。可覆盖主 config 的 `agents.defaults`（如 `model`、`maxTokens`、`temperature`）与 `providers.custom`（该员工专用自有 LLM）。合并规则：主配置打底，员工 config 中出现的键覆盖主配置；仅支持 `agents`、`providers` 两个顶层键。创建员工时由**本地 gateway**写入空 `{}`；通过 **GET/PATCH `/api/employees/:id/config`** 读写；agent 回复时使用合并后的配置决定模型与 endpoint。
+  - **每个员工都有一个 config.json**（路径：`~/.joytrunk/workspace/employees/<employee_id>/config.json`）：该文件即**该员工作为独立 agent 的配置**，包含（1）身份字段：`id`、`ownerId`、`name`、`persona`、`role`、`specialty`、`status`、`createdAt` 等；（2）可选覆盖：`agents`、`providers`，用于覆盖全局 config 的对应部分。合并规则：**全局 config 打底，员工 config 中的 `agents`、`providers` 覆盖全局**；agent 回复时通过 `get_merged_config_for_employee(employee_id)` 得到合并后的配置。创建员工时由 CLI 或 gateway 写入该文件并复制模板；gateway 提供 **GET/PATCH `/api/employees/:id/config`** 读写员工级覆盖。
+  - **模板**：`SOUL.md`、`USER.md`、`AGENTS.md`、`TOOLS.md`、`HEARTBEAT.md`；模板仅存于 joytrunk 包内；创建员工时由 CLI 或 gateway 从捆绑模板复制到该员工目录。
+  - **memory/**：该员工的私有记忆与历史；与团队共享 `workspace/memory/` 合并后参与上下文。
+  - **skills/**：该员工私有技能；加载时先共享 `workspace/skills/` 再本目录，同名本目录覆盖。
   - 单员工能力与 nanobot 对齐：人格、记忆、指令等由上述模板与目录支撑；agent 回复时读取员工 SOUL/AGENTS 等构建上下文。
-- **负责人级共享**（内部仍用 owner 做数据归属，对用户不强调「绑定」）：
-  - `~/.joytrunk/config.json`：全局配置（含通道、LLM、默认员工等）。
-  - `~/.joytrunk/workspace/memory/`（可选）：**团队共享记忆**，如 `MEMORY.md`、`HISTORY.md` 等；所有员工可见。
-  - `~/.joytrunk/workspace/skills/`（可选）：**团队共享技能**，所有员工默认可见。
-  - **模板仅存于 joytrunk**：创建员工时由**本地 gateway**从该捆绑模板复制到 `workspace/employees/<employee_id>/`，workspace 下不设 `templates/`。
-- **onboard 行为**：`joytrunk onboard` 创建 `~/.joytrunk`、`~/.joytrunk/workspace`、`workspace/skills`、`workspace/memory`（**不创建** `workspace/templates`）；**员工目录**在「创建员工」时由**本地 gateway**创建并从 joytrunk 捆绑模板复制。
-- **与本地 gateway 的对应**：**本地 gateway**（cli 内）若启动，与 CLI **共用同一 config.json**（员工、ownerId 等）；agent 调度通过 employee_id 解析路径 `~/.joytrunk/workspace/employees/<employee_id>/`。**CLI 的 chat、employee、status 不依赖 gateway**：直接读写 config.json；选择员工后对话时若使用 JoyTrunk Router 才需 gateway 或可访问 Router。
+- **负责人级共享**：
+  - **`~/.joytrunk/config.json`**：**仅全局配置**（通道、默认 LLM、gateway、ownerId 等），不包含员工列表。
+  - `~/.joytrunk/workspace/memory/`（可选）：团队共享记忆；所有员工可见。
+  - `~/.joytrunk/workspace/skills/`（可选）：团队共享技能；所有员工默认可见。
+- **onboard 行为**：`joytrunk onboard` 创建 `~/.joytrunk`、`~/.joytrunk/workspace`、`workspace/skills`、`workspace/memory`；**员工目录**在「创建员工」时由 CLI 或 gateway 创建，并写入该员工的 config.json 及从 joytrunk 捆绑模板复制文件。
+- **与本地 gateway 的对应**：全局 config 仅存 ownerId 等全局配置；**员工数据**来自各 `workspace/employees/<id>/config.json`，gateway 与 CLI 均通过扫描该目录及读取各 config.json 获取员工列表。CLI 的 chat、employee、status 不依赖 gateway；选择员工后对话时若使用 JoyTrunk Router 才需 gateway 或可访问 Router。
 
 ### 4.4 onboard
 
 - 在 cli 内实现创建 config、workspace、**workspace/skills**、**workspace/memory**（不创建 workspace/templates）；模板仅存于 joytrunk 包内，员工子目录在**创建员工时**由**本地 gateway**从捆绑模板复制初始化。
 - onboard 完成后可**提示用户**在浏览器打开 **http://localhost:32890** 进行员工配置与网页管理（若服务已启动或需先执行某子命令启动，在提示中说明）。
+- **cli 目录下的 .env**：onboard 时若在 **cli 主目录**（joytrunk 包所在目录的上一级，即仓库中的 `cli/`，**非** workspace）发现有效的 `.env` 文件（至少包含一个可导入变量且值非空，如 `OPENAI_API_KEY`、`JOYTRUNK_ROUTER_URL` 等），会提示用户是否将其中 API Key 等配置导入到全局 `~/.joytrunk/config.json`，便于本地测试；导入写入 `providers.custom` 与 `providers.joytrunk`。变量说明见 `cli/.env.example`。
 - 设计时可参考 nanobot、openclaw 的 onboard 交互与目录结构，但不调用其代码。
 
 ### 4.5 大模型接入与计费
