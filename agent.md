@@ -73,6 +73,25 @@ flowchart LR
 - **发布**：PyPI 包 `joytrunk`；本地管理默认 **http://localhost:32890**。
 - **TUI**：**python-clack**（已移除 Textual）。↑↓ 移动、Enter 确定、空格多选（可选）。语言选择、员工选择/新建、对话循环在 `joytrunk/tui/clack_flows.py`（run_language_picker、run_chat_entry、run_chat_loop）。
 
+### 3.4 会话历史与发给大模型的消息
+
+- **历史来源**：`load_history(employee_id, session_key)` 从 `workspace/employees/<id>/sessions/<session_key>.json` 读取该会话已落盘消息（user/assistant/tool）。CLI 对话的 session_key 为 `cli:direct`。
+- **条数限制**：`MEMORY_WINDOW = 50`（`loop.py`）。历史超过 50 条时只取**最近 50 条**（`history[-50:]`），按条数截断、不按轮数。
+- **消息拼接顺序**（`context.build_messages`）：**system**（人格/生存法则/长期记忆/技能） + **history**（上述最近 50 条） + **user（runtime）**（时间、channel、chat_id） + **user（当前用户输入）**。同一轮内若模型返回 tool_calls，会在内存中往 messages 后追加 assistant 与 tool 消息，再次请求大模型时带上整段 messages，不再重新读文件。
+- **落盘**：每轮结束后 `append_turn(employee_id, session_key, messages, skip_count)` 将本轮的 runtime user、当前 user、assistant、tool 等追加进 session 文件；`skip_count = 1 + len(history)` 表示从「当前 turn 的第一条 user（runtime）」起算本轮。tool 消息的 content 超过 500 字会截断后写入（`session.TOOL_RESULT_MAX_CHARS`）。
+
+### 3.5 运行日志（debug）
+
+- **路径**：`workspace/employees/<id>/logs/agent.jsonl`，JSONL 格式（每行一条 JSON）。
+- **字段**：`ts`（ISO 8601 UTC）、`event`、`employee_id`、`run_id`（本轮循环唯一 ID）、`payload`（事件相关数据）。事件类型含：loop_start、iteration、llm_request（发给大模型的 messages 快照）、llm_response（大模型回复与 tool_calls）、tool_calls、tool_result（含结果全文截断）、final_reply、loop_done、append_turn_done 等。
+- **Gateway API**：`GET /api/employees/:id/logs` 返回 `{ entries: [...] }`（最新在前）。仅本地 gateway 提供；前端员工页有「日志」入口。
+- **本地管理 UI**：员工列表每行有「日志」链接，进入后可按**时间排序**（最新在前/最早在前）、**事件类型**多选、**Run ID** 与**关键词**筛选，便于 debug。
+
+### 3.6 本地管理 UI 开发
+
+- **构建**：`cli/joytrunk/ui` 下 `npm run build` 产出到 `cli/joytrunk/gateway/static`，由 `joytrunk gateway` 提供。
+- **热更新**：终端 1 运行 `joytrunk gateway`（API）；终端 2 运行 `cd cli/joytrunk/ui && npm run dev`（Vite 端口 32893，`/api` 代理到 32890）。浏览器打开 http://localhost:32893 即可热更新调试，无需每次 build。
+
 ---
 
 ## 4. 开发约定
@@ -95,6 +114,8 @@ flowchart LR
 
 | 时间 | Agent | 任务 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
+| 2025-02-27 | Cursor Agent | 运行日志（JSONL、事件类型、llm_request/llm_response 等）、gateway GET logs、UI 日志页与排序/筛选 | 已完成 | run_log、loop 打点；cli/joytrunk/ui 与 vue 日志视图、filter/sort。 |
+| 2025-02-27 | Cursor Agent | 会话历史与消息拼接规则文档化、agent.md 更新 | 已完成 | §3.4 历史/MEMORY_WINDOW/build_messages；§3.5 运行日志；§3.6 本地 UI 开发。 |
 | 2025-02-27 | Cursor Agent | 配置统一 config.json、chat/employee 不连 gateway、每员工独立 config.json 覆盖全局 | 已完成 | config_store、gateway store 读写 config；员工扫描 workspace/employees/；agent.md 已更新。 |
 | 2025-02-27 | Cursor Agent | cli/.env 与 onboard 导入 | 已完成 | paths.get_cli_root、env_loader、onboard 提示导入；.env.example、README、agent.md。 |
 | 2025-02-27 | Cursor Agent | CLI 界面 python-clack、移除 Textual | 已完成 | clack_flows：language_picker、chat_entry、chat_loop；依赖仅 python-clack。 |
