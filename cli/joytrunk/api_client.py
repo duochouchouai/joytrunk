@@ -1,4 +1,4 @@
-"""调用本地 gateway API（负责人/员工/聊天）。"""
+"""调用本地 gateway API（本地员工/聊天）。员工归属本地，无需「绑定负责人」；gateway 首次请求时自动创建本地上下文。"""
 
 import json
 from pathlib import Path
@@ -34,6 +34,18 @@ def get_owner_id():
     return _load_config().get("ownerId")
 
 
+def ensure_owner_via_gateway() -> str | None:
+    """
+    通过调用 gateway GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
+    返回本地的 ownerId（供 API 使用）。若 gateway 未启动或请求失败则返回 None。
+    """
+    try:
+        api_get("/api/owners/me", owner_id=None)
+    except Exception:
+        return None
+    return _load_config().get("ownerId")
+
+
 def get_default_employee_id():
     c = _load_config()
     agents = c.get("agents") or {}
@@ -63,6 +75,12 @@ def api_post(path: str, json_body: dict, owner_id: str | None = None):
 
 def list_employees(owner_id: str):
     return api_get("/api/employees", owner_id=owner_id)
+
+
+def create_employee(owner_id: str, name: str, **kwargs):
+    """POST /api/employees，创建员工。kwargs 可为 persona, role, specialty。"""
+    body = {"name": name or "新员工", **kwargs}
+    return api_post("/api/employees", body, owner_id=owner_id)
 
 
 def chat(owner_id: str, employee_id: str, content: str):

@@ -16,6 +16,7 @@ from joytrunk.paths import (
     get_workspace_skills,
 )
 from joytrunk.onboard import run_onboard
+from joytrunk.i18n import has_language_config
 
 
 def test_get_joytrunk_root_uses_home(monkeypatch) -> None:
@@ -49,3 +50,24 @@ def test_run_onboard_creates_dirs_and_config() -> None:
             config = json.load(f)
         assert config["joytrunkRoot"] == str(tmp_path.resolve())
         assert config.get("gateway", {}).get("port") == 32890
+        assert config.get("cli", {}).get("locale") == "zh"
+
+
+def test_run_onboard_with_initial_locale() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        with patch.object(paths, "get_joytrunk_root", return_value=tmp_path):
+            root = run_onboard(initial_locale="en")
+        assert root == tmp_path
+        with open(tmp_path / "config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+        assert config.get("cli", {}).get("locale") == "en"
+
+
+def test_has_language_config(joytrunk_root) -> None:
+    assert has_language_config() is False
+    config_path = paths.get_config_path()
+    config_path.write_text('{"cli": {"locale": "zh"}}', encoding="utf-8")
+    assert has_language_config() is True
+    config_path.write_text('{"cli": {"locale": "en"}}', encoding="utf-8")
+    assert has_language_config() is True

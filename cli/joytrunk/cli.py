@@ -1,4 +1,4 @@
-"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk gateway / joytrunk docs / joytrunk status。"""
+"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk gateway / joytrunk docs / joytrunk status / joytrunk language。"""
 
 import os
 import subprocess
@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 
 from joytrunk import __version__
+from joytrunk.i18n import get_locale, has_language_config, locale_display_name, reset_locale_cache, set_locale, t
 
 app = typer.Typer(
     name="joytrunk",
@@ -25,14 +26,25 @@ GATEWAY_URL = f"http://localhost:{GATEWAY_PORT}"
 DOCS_OFFICIAL_URL = os.environ.get("JOYTRUNK_DOCS_URL", "https://joytrunk.com/docs/cli")
 
 
+def _run_tui_inline(textual_app):
+    """在当前终端内联运行 TUI（不占满屏，类似 OpenClaw）。Windows 或不支持时回退为全屏。"""
+    try:
+        return textual_app.run(inline=True)
+    except (TypeError, Exception):
+        return textual_app.run()
+
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         console.print(
             "[bold]JoyTrunk[/bold]（喜象 Agent）[dim] v{}[/dim]\n"
-            "本地智能体员工 · 负责人通过即时通讯与员工交互\n"
-            "使用 [cyan]joytrunk --help[/cyan] 查看命令，[cyan]joytrunk onboard[/cyan] 初始化配置与工作区。"
-            .format(__version__)
+            "{}\n"
+            "{}".format(
+                __version__,
+                t("main.tagline"),
+                t("main.help_hint", help_cmd="[cyan]joytrunk --help[/cyan]", onboard_cmd="[cyan]joytrunk onboard[/cyan]"),
+            )
         )
         raise typer.Exit(0)
 
@@ -42,18 +54,21 @@ def onboard_cmd() -> None:
     """初始化本地配置与工作区（创建 ~/.joytrunk、config、workspace）。"""
     from joytrunk.onboard import run_onboard
 
-    root = run_onboard()
-    console.print("[green]✓[/green] JoyTrunk 工作区已就绪：")
-    console.print(f"  根目录: [cyan]{root}[/cyan]")
-    console.print(f"  配置文件: [cyan]{root / 'config.json'}[/cyan]")
-    console.print(f"  工作区: [cyan]{root / 'workspace'}[/cyan]")
+    initial_locale = None
+    if not has_language_config():
+        from joytrunk.tui.language_picker import LanguagePickerApp
+        result = _run_tui_inline(LanguagePickerApp())
+        initial_locale = result if result in ("zh", "en") else "zh"
+
+    root = run_onboard(initial_locale=initial_locale)
+    if initial_locale is not None:
+        reset_locale_cache()
+    console.print("[green]✓[/green]", t("onboard.ready"))
+    console.print("  ", t("onboard.root", path=f"[cyan]{root}[/cyan]"))
+    console.print("  ", t("onboard.config", path=f"[cyan]{root / 'config.json'}[/cyan]"))
+    console.print("  ", t("onboard.workspace", path=f"[cyan]{root / 'workspace'}[/cyan]"))
     console.print()
-    console.print(
-        Markdown(
-            "在浏览器打开 **" + GATEWAY_URL + "** 进行员工配置与网页管理。\n"
-            "若尚未启动本地服务，请先执行：`joytrunk gateway`"
-        )
-    )
+    console.print(Markdown(t("onboard.next", url=GATEWAY_URL)))
 
 
 @app.command("gateway")
@@ -61,21 +76,18 @@ def gateway_cmd(
     port: int = typer.Option(GATEWAY_PORT, "--port", "-p", help="监听端口"),
 ) -> None:
     """启动本地常驻服务（cli 内本地管理后端），绑定 32890，提供网页管理界面与 API。"""
-    # 优先使用 cli 包内的 gateway（joytrunk/gateway/），与 nodejs 解耦
     gateway_dir = Path(__file__).resolve().parent / "gateway"
     if not (gateway_dir / "package.json").exists():
-        console.print(
-            "[red]未找到 cli 内 gateway。[/red] 若从源码运行，请确认 [cyan]joytrunk/gateway/[/cyan] 存在；"
-        )
-        console.print("若已 pip 安装，请升级：pip install -U joytrunk")
+        console.print("[red]" + t("gateway.not_found", path="[cyan]joytrunk/gateway/[/cyan]") + "[/red]")
+        console.print(t("gateway.upgrade"))
         raise typer.Exit(1)
     server_js = gateway_dir / "server.js"
     if not server_js.exists():
-        console.print("[red]gateway/server.js 不存在。[/red]")
+        console.print("[red]" + t("gateway.server_missing") + "[/red]")
         raise typer.Exit(1)
     node_modules = gateway_dir / "node_modules"
     if not node_modules.exists():
-        console.print("[dim]正在安装 gateway 依赖…[/dim]")
+        console.print("[dim]" + t("gateway.installing") + "[/dim]")
         try:
             subprocess.run(
                 ["npm", "install", "--omit=dev"],
@@ -84,18 +96,18 @@ def gateway_cmd(
                 check=True,
                 capture_output=True,
             )
-        except subprocess.CalledProcessError as e:
-            console.print("[red]npm install 失败。[/red] 请确保已安装 Node.js 并加入 PATH。")
+        except subprocess.CalledProcessError:
+            console.print("[red]" + t("gateway.npm_failed") + "[/red]")
             raise typer.Exit(1)
     try:
         env = dict(os.environ)
         env["PORT"] = str(port)
         subprocess.run(["node", "server.js"], cwd=str(gateway_dir), env=env)
     except FileNotFoundError:
-        console.print("[red]未找到 node。[/red] 请确保已安装 Node.js 并加入 PATH。")
+        console.print("[red]" + t("gateway.node_missing") + "[/red]")
         raise typer.Exit(1)
     except Exception as e:
-        console.print(f"[red]启动失败:[/red] {e}")
+        console.print("[red]" + t("gateway.start_failed", error=e) + "[/red]")
         raise typer.Exit(1)
 
 
@@ -108,13 +120,13 @@ def docs_cmd(
     docs_dir = Path(__file__).resolve().parent / "docs"
     if path_only:
         if not docs_dir.exists():
-            console.print("[red]未找到文档目录。[/red] 请确认 joytrunk 包已正确安装。")
+            console.print("[red]" + t("docs.docs_not_found") + "[/red]")
             raise typer.Exit(1)
         console.print(str(docs_dir))
         return
     if local:
         if not docs_dir.exists():
-            console.print("[red]未找到文档目录。[/red] 请确认 joytrunk 包已正确安装。")
+            console.print("[red]" + t("docs.docs_not_found") + "[/red]")
             raise typer.Exit(1)
         import http.server
         import socketserver
@@ -123,7 +135,7 @@ def docs_cmd(
         with socketserver.TCPServer(("127.0.0.1", port), http.server.SimpleHTTPRequestHandler) as httpd:
             port = httpd.socket.getsockname()[1]
             url = f"http://127.0.0.1:{port}/"
-            console.print(f"本地文档: [link={url}]{url}[/link] （Ctrl+C 停止）")
+            console.print("[dim]" + t("docs.local_serving", url=url) + "[/dim]")
             webbrowser.open(url)
             try:
                 httpd.serve_forever()
@@ -131,89 +143,107 @@ def docs_cmd(
                 pass
         return
     webbrowser.open(DOCS_OFFICIAL_URL)
-    console.print(f"已在浏览器打开命令指南: [link={DOCS_OFFICIAL_URL}]{DOCS_OFFICIAL_URL}[/link]")
+    console.print(t("docs.opened", url=f"[link={DOCS_OFFICIAL_URL}]{DOCS_OFFICIAL_URL}[/link]"))
 
 
 @app.command("status")
 def status_cmd() -> None:
-    """查看运行状态、已绑定渠道、当前员工列表等。"""
+    """查看运行状态、当前员工列表等。"""
     from joytrunk.paths import get_config_path, get_joytrunk_root
-    from joytrunk.api_client import get_owner_id, get_base_url, list_employees
+    from joytrunk.api_client import get_owner_id, get_base_url, list_employees, ensure_owner_via_gateway
 
     root = get_joytrunk_root()
     if not root.exists():
-        console.print("[yellow]尚未初始化。[/yellow] 请先执行： [cyan]joytrunk onboard[/cyan]")
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
     config_path = get_config_path()
     if not config_path.exists():
-        console.print("[yellow]配置文件不存在。[/yellow] 请执行： [cyan]joytrunk onboard[/cyan]")
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
     gateway_url = get_base_url()
-    console.print(f"JoyTrunk 根目录: [cyan]{root}[/cyan]")
-    console.print(f"本地管理页: [link={gateway_url}]{gateway_url}[/link]")
-    owner_id = get_owner_id()
+    console.print(t("status.root", path=f"[cyan]{root}[/cyan]"))
+    console.print(t("status.gateway", url=f"[link={gateway_url}]{gateway_url}[/link]"))
+    owner_id = get_owner_id() or ensure_owner_via_gateway()
     if owner_id:
         try:
             employees = list_employees(owner_id)
             if employees:
-                console.print("当前员工：")
+                console.print(t("status.employees"))
                 for e in employees:
                     console.print(f"  - [cyan]{e['id']}[/cyan] {e.get('name', '')}")
             else:
-                console.print("当前无员工，请在网页管理后台创建。")
+                console.print(t("status.no_employees"))
         except Exception:
-            console.print("无法连接 gateway，请先执行 [cyan]joytrunk gateway[/cyan] 启动服务。")
+            console.print("[yellow]" + t("status.gateway_unreachable", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
     else:
-        console.print("尚未绑定负责人，请在网页管理后台注册/登录。")
+        console.print("[yellow]" + t("status.no_owner", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
 
 
 @app.command("chat")
 def chat_cmd(
     employee_id: str = typer.Argument(None, help="员工 ID（不填则从配置或列表选择）"),
+    no_tui: bool = typer.Option(False, "--no-tui", help="使用传统单行输入模式，不启动互动式 TUI"),
 ) -> None:
-    """与指定员工对话（CLI 渠道）。始终使用员工智能体：意图+提示词+历史 → 大模型（自有或 JoyTrunk Router）→ 执行返回的工具调用。需先启动 gateway。"""
+    """与指定员工对话（CLI 渠道）。不填员工 ID 时进入 TUI 显示员工列表或引导新建；--no-tui 为传统单行模式。"""
     import asyncio
     from joytrunk.api_client import get_owner_id, get_default_employee_id, list_employees, get_base_url
     from joytrunk.agent.loop import run_employee_loop
 
+    # 未指定员工且使用 TUI：直接进入入口 TUI（显示列表 / 未绑定 / 无员工引导）
+    if employee_id is None and not no_tui:
+        from joytrunk.tui import ChatEntryTuiApp
+        _run_tui_inline(ChatEntryTuiApp())
+        return
+
     owner_id = get_owner_id()
     if not owner_id:
-        console.print("[yellow]尚未绑定负责人。[/yellow] 请先打开 [link={}]{}[/link] 注册/登录。".format(get_base_url(), get_base_url()))
+        owner_id = ensure_owner_via_gateway()
+    if not owner_id:
+        console.print("[yellow]" + t("chat.no_owner", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
     try:
         employees = list_employees(owner_id)
     except Exception as e:
-        console.print(f"[red]无法连接 gateway:[/red] {e}。请先执行 [cyan]joytrunk gateway[/cyan]。")
+        console.print("[red]" + t("chat.gateway_error", error=e, cmd="[cyan]joytrunk gateway[/cyan]") + "[/red]")
         raise typer.Exit(1)
     if not employees:
-        console.print("[yellow]当前无员工。[/yellow] 请在网页管理后台创建员工后再对话。")
+        console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
         raise typer.Exit(1)
     eid = employee_id
+    name = ""
     if not eid:
         default_eid = get_default_employee_id()
         if default_eid and any(e["id"] == default_eid for e in employees):
             eid = default_eid
             name = next((e.get("name") or e["id"] for e in employees if e["id"] == eid), eid)
-            console.print("与员工 [cyan]{}[/cyan] 对话（配置默认）。输入 /exit 退出。".format(name))
+            console.print(t("chat.with_employee_default", name=f"[cyan]{name}[/cyan]"))
         elif len(employees) == 1:
             eid = employees[0]["id"]
-            console.print("与员工 [cyan]{}[/cyan] 对话。输入 /exit 退出。".format(employees[0].get("name", eid)))
+            name = employees[0].get("name", eid)
+            console.print(t("chat.with_employee", name=f"[cyan]{name}[/cyan]"))
         else:
-            console.print("请指定员工 ID：")
+            console.print(t("chat.specify_employee"))
             for e in employees:
-                console.print("  [cyan]{}[/cyan] {}".format(e["id"], e.get("name", "")))
-            console.print("示例: joytrunk chat <员工ID>")
+                console.print(f"  [cyan]{e['id']}[/cyan] {e.get('name', '')}")
+            console.print(t("chat.example"))
             raise typer.Exit(0)
     else:
         if not any(e["id"] == eid for e in employees):
-            console.print("[red]未找到员工 {}[/red]".format(eid))
+            console.print("[red]" + t("chat.employee_not_found", id=eid) + "[/red]")
             raise typer.Exit(1)
+        name = next((e.get("name") or e["id"] for e in employees if e["id"] == eid), eid)
 
-    console.print("[dim]员工智能体：意图+提示词+历史 → 大模型 → 执行工具。大模型为自有或 JoyTrunk Router。[/dim]")
-    console.print("输入消息后回车发送，/exit 退出。")
+    if not no_tui:
+        from joytrunk.tui import ChatTuiApp
+        app = ChatTuiApp(employee_id=eid, owner_id=owner_id, employee_name=name or eid)
+        _run_tui_inline(app)
+        return
+
+    console.print("[dim]" + t("chat.agent_hint") + "[/dim]")
+    console.print(t("chat.prompt"))
     while True:
         try:
-            text = console.input("[bold]你>[/bold] ").strip()
+            text = console.input("[bold]" + t("chat.you") + "[/bold] ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if not text:
@@ -234,16 +264,43 @@ def chat_cmd(
                     on_progress=_progress,
                 )
             )
-            console.print("[bold]员工>[/bold]", reply)
+            console.print("[bold]" + t("chat.employee") + "[/bold]", reply)
             if usage:
                 console.print(
-                    "[dim]用量: 输入 {} / 输出 {} tokens[/dim]".format(
-                        usage.get("prompt_tokens", 0),
-                        usage.get("completion_tokens", 0),
-                    )
+                    "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
                 )
         except Exception as ex:
-            console.print("[red]发送失败:[/red]", ex)
+            console.print("[red]" + t("chat.send_failed", error=ex) + "[/red]")
+
+
+@app.command("language")
+def language_cmd(
+    locale_code: str = typer.Argument(None, help="zh（中文）或 en（English）；不填则进入 TUI 选择"),
+) -> None:
+    """配置 CLI 界面语言（中文 / 英文）。不填参数时进入 TUI：↑↓ 移动、Enter 确定。"""
+    from joytrunk.i18n import SUPPORTED
+
+    if locale_code is None or locale_code.strip() == "":
+        from joytrunk.tui.language_picker import LanguagePickerApp
+        result = _run_tui_inline(LanguagePickerApp())
+        if result in ("zh", "en"):
+            set_locale(result)
+            reset_locale_cache()
+            name = locale_display_name(result)
+            console.print("[green]" + t("language.set", name=name, code=result) + "[/green]")
+        else:
+            code = get_locale()
+            name = locale_display_name(code)
+            console.print(t("language.current", name=name, code=code))
+            console.print("[dim]" + t("language.usage") + "[/dim]")
+        return
+    code = locale_code.strip().lower()
+    if code not in SUPPORTED:
+        console.print("[red]" + t("language.invalid", code=code) + "[/red]")
+        raise typer.Exit(1)
+    set_locale(code)
+    name = locale_display_name(code)
+    console.print("[green]" + t("language.set", name=name, code=code) + "[/green]")
 
 
 def run_app() -> None:

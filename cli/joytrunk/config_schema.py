@@ -8,6 +8,9 @@ DEFAULT_CONFIG = {
     "version": 1,
     "joytrunkRoot": None,
     "ownerId": None,
+    "cli": {
+        "locale": "zh",  # CLI 界面语言：zh（中文）、en（英文）
+    },
     "gateway": {
         "host": "localhost",
         "port": 32890,
@@ -78,6 +81,10 @@ def migrate_from_legacy(data: dict) -> dict:
             }
         elif k == "channels":
             out["channels"] = data.get("channels") if isinstance(data.get("channels"), dict) else dict(DEFAULT_CONFIG["channels"])
+        elif k == "cli":
+            out["cli"] = data.get("cli") if isinstance(data.get("cli"), dict) else dict(DEFAULT_CONFIG["cli"])
+            if "locale" not in out["cli"] or out["cli"]["locale"] not in ("zh", "en"):
+                out["cli"]["locale"] = DEFAULT_CONFIG["cli"]["locale"]
         else:
             out[k] = data.get(k, v)
     return out
