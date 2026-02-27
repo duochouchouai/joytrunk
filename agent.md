@@ -142,13 +142,13 @@ flowchart LR
 ### 4.1 入口命令
 
 - **入口命令**：`joytrunk` 由 **pip 安装的 Python 包** 提供（在 cli 项目中实现，通过 `pyproject.toml` 等 entry_points 注册）。
-- **子命令**：`joytrunk onboard`（初始化配置与工作区，可引导用户打开本地管理页）、`joytrunk docs`（打开命令指南：默认官网，`--local` 本地查看，`--path` 打印文档目录）、**`joytrunk chat`**（默认进入互动式 TUI：员工列表 / 新建后直接对话）、`joytrunk gateway`（启动本地管理后端，默认 32890）、`joytrunk status`、`joytrunk language [zh|en]` 等。
+- **子命令**：`joytrunk onboard`（初始化配置与工作区，可引导用户打开本地管理页）、`joytrunk docs`（打开命令指南：默认官网，`--local` 本地查看，`--path` 打印文档目录）、**`joytrunk chat`**（默认 TUI：从 config.json 读取员工列表，最后一项为「新建员工」，选择后进入对话；不连接 gateway）、**`joytrunk employee`**（查看/新增/设置员工，均读写 config.json）、`joytrunk gateway`（启动本地管理后端，仅保留供网页/UI）、`joytrunk status`（从 config.json 读取员工列表）、`joytrunk language [zh|en]` 等。
 
 ### 4.2 配置与工作区路径
 
 - **根路径**：JoyTrunk 本地根（单机对应本机所有员工）。在 **Linux/macOS** 下为 `~/.joytrunk`，在 **Windows** 下为 `%USERPROFILE%\.joytrunk`（PowerShell 中即 `$env:USERPROFILE\.joytrunk`）。实现时使用**平台无关**方式解析用户主目录（如 Node 的 `os.homedir()`、Python 的 `Path.home()`），避免写死 `~` 或反斜杠。**无需用户「绑定负责人」**：gateway 首次 API 请求时自动创建本地默认上下文并写入 config，CLI 与网页即可创建员工、对话。
-- **配置文件**：`~/.joytrunk/config.json`（通用写法）；Windows 下等价于 `%USERPROFILE%\.joytrunk\config.json`。schema 在 JoyTrunk 代码库内定义，**cli 与本地 gateway** 统一约定（若本地 gateway 仍用 Node，可写「与 cli 包内 Node 实现一致」）。
-- **config.json 结构（仿 nanobot）**：统一采用 `version`、`joytrunkRoot`、`ownerId`、`gateway`（`host`/`port`）、`agents.defaults`（`defaultEmployeeId`、`model`、`maxTokens`、`temperature`）、`channels`（`cli`/`web`/`feishu`/`telegram`/`qq` 等）、`providers`（`joytrunk`、`custom`：`apiKey`/`apiBase`/`model`）。旧版字段自动迁移：`gatewayPort` → `gateway.port`，`customLLM` → `providers.custom`，`baseUrl` → `apiBase`，`defaultEmployeeId` → `agents.defaults.defaultEmployeeId`。cli 的 `config_schema.py` 与**本地 gateway** 的 configSchema 保持一致；读写时均经迁移函数保证兼容。
+- **配置文件**：`~/.joytrunk/config.json`（通用写法）；Windows 下等价于 `%USERPROFILE%\.joytrunk\config.json`。**所有配置（含员工列表、ownerId）均在此文件**，**不使用 store.json**。schema 在 JoyTrunk 代码库内定义，cli 与本地 gateway 统一约定。
+- **config.json 结构（仿 nanobot）**：统一采用 `version`、`joytrunkRoot`、`ownerId`、**`employees`**（员工数组）、`gateway`（`host`/`port`）、`agents.defaults`、`channels`、`providers`。旧版字段自动迁移。cli 的 `config_schema.py` 与本地 gateway 的 configSchema 保持一致；读写时均经迁移函数保证兼容。
 - **workspace 根**：`~/.joytrunk/workspace` 为本机工作区根目录；Windows 下等价于 `%USERPROFILE%\.joytrunk\workspace`。主 config 可被各员工目录下的 `config.json` 覆盖，见 §4.3 每员工子目录中的 config.json。
 
 ### 4.3 多员工下的 ~/.joytrunk/workspace 设定
@@ -169,7 +169,7 @@ flowchart LR
   - `~/.joytrunk/workspace/skills/`（可选）：**团队共享技能**，所有员工默认可见。
   - **模板仅存于 joytrunk**：创建员工时由**本地 gateway**从该捆绑模板复制到 `workspace/employees/<employee_id>/`，workspace 下不设 `templates/`。
 - **onboard 行为**：`joytrunk onboard` 创建 `~/.joytrunk`、`~/.joytrunk/workspace`、`workspace/skills`、`workspace/memory`（**不创建** `workspace/templates`）；**员工目录**在「创建员工」时由**本地 gateway**创建并从 joytrunk 捆绑模板复制。
-- **与本地 gateway 的对应**：**本地 gateway**（cli 内）存储员工、团队元数据（含 employee_id）；agent 调度通过 employee_id 解析路径 `~/.joytrunk/workspace/employees/<employee_id>/`。CLI 入口 TUI 或 `joytrunk chat <id>` 选择员工后，向**本地 gateway**传 employee_id；**首次请求时 gateway 自动创建本地上下文**，用户无需单独「绑定负责人」。
+- **与本地 gateway 的对应**：**本地 gateway**（cli 内）若启动，与 CLI **共用同一 config.json**（员工、ownerId 等）；agent 调度通过 employee_id 解析路径 `~/.joytrunk/workspace/employees/<employee_id>/`。**CLI 的 chat、employee、status 不依赖 gateway**：直接读写 config.json；选择员工后对话时若使用 JoyTrunk Router 才需 gateway 或可访问 Router。
 
 ### 4.4 onboard
 
@@ -208,7 +208,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
   - **语言选择**（如 onboard 或 `joytrunk language` 无参数时）：展示「中文 (zh)」「English (en)」两项列表，↑↓ 移动、Enter 确定，无需用户输入字符。
   - **员工选择**（`joytrunk chat`）：展示员工列表，↑↓ 移动、Enter 进入与该员工的对话。
   - **主菜单**（可选）：无子命令时展示「与员工对话 / 启动 gateway / 状态 / 语言 / 文档 / 退出」等，↑↓ + Enter 进入对应功能。
-- **实现**：**入口交互**（语言选择、员工选择/新建）基于 **python-clack**（`joytrunk/tui/clack_flows.py`），使用 `select`、`text`、`intro`/`outro` 等实现列表选择与键位约定；**对话界面**（选员工后的聊天屏）仍基于 **Textual**（`ChatTuiApp`/`ChatScreen`），保持内联 TUI 风格。
+- **实现**：CLI 互动式界面**技术栈已确定为 python-clack**，**已移除 Textual**。全部交互（语言选择、员工选择/新建、对话循环）均在 `joytrunk/tui/clack_flows.py` 中实现：`run_language_picker`（select）、`run_chat_entry`（select/text、新建员工）、`run_chat_loop`（text 输入、spinner 等待、log 输出回复与用量）。依赖仅含 **python-clack**（无 textual）。
 
 ---
 
@@ -219,7 +219,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
   - 技术路径确定（cli / vue / nodejs 独立实现，nanobot 仅作参考）。
   - agent.md 蓝图撰写（本文档）。
   - **CLI 互动式 TUI**：`joytrunk chat` 默认进入 TUI，显示本地员工列表（或无员工时引导新建）；新建员工后**直接进入该员工对话**下达指令；无需「绑定负责人」，先启动 `joytrunk gateway` 即可；**语言选择**（onboard 无语言配置时、`joytrunk language` 无参数时）采用 **↑↓ 移动、Enter 确定** 的 TUI（§4.8）；`joytrunk language [zh|en]` 仍支持命令行参数直接设置。
-  - **TUI 技术实现**：入口交互（语言选择、员工选择/新建）使用 **python-clack**（`joytrunk/tui/clack_flows.py`：`run_language_picker`、`run_chat_entry`）；选员工后的对话界面仍使用 **Textual**（`ChatTuiApp`/`ChatScreen`）。cli 依赖含 `python-clack`、`textual`。
+  - **TUI 技术栈**：CLI 互动式界面**全部使用 python-clack**，**已移除 Textual**。语言选择、员工选择/新建、对话循环均在 `joytrunk/tui/clack_flows.py`（`run_language_picker`、`run_chat_entry`、`run_chat_loop`）；cli 依赖仅含 `python-clack`（无 textual）。
 - **待办**（按实现技术逻辑排序，供各 agent 按分工更新）：
   1. **基础设施**：创建 cli/、vue/、nodejs/ 目录与各自项目脚手架；pip 包与 CLI 骨架（pyproject.toml、entry_points、`joytrunk` / `joytrunk onboard` 占位）；实现 `joytrunk onboard` 创建 ~/.joytrunk、config、workspace；本地服务可在 32890 提供占位页或 API。 ✅ 已完成（见协作标注）
   2. **后端基础**：实现 **cli 内本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32890 API）；**nodejs** 为 JoyTrunk 官方后端（注册用户、IM、LLM Router、计费与用量）。 ✅ 已完成
@@ -236,7 +236,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 - **员工生存法则**：在系统提示词、模板、技能中统一贯彻（见 [product.md](product.md) §8、§9）：不得向任何非负责人泄露负责人宿主机工作状态或敏感信息；仅可在个人隐私脱敏前提下帮助他人。
 - **术语统一**：文档与代码中统一使用「负责人」「员工」「JoyTrunk 团队」等术语。
 - **nanobot**：本仓库内现有 nanobot 代码仅作**参考与学习**，JoyTrunk 的实现不依赖、不调用 nanobot；目标是在架构与体验上超越 nanobot。
-- **CLI 技术选型**：`joytrunk` CLI 以 **Python** 实现，以满足 **pip 分发**；包结构需包含 `joytrunk` 控制台入口（如 `pyproject.toml` 的 entry_points）。由 Python 包**启动** cli 内的本地后端（如 Node 子进程或 Python HTTP 服务），绑定 32890；**nodejs/** 目录用于 JoyTrunk 官方后端（注册用户、IM、LLM Router），与本地 32890 解耦。**TUI 入口**（语言选择、员工选择/新建）使用 **python-clack**（select/text/intro/outro）；**对话界面**使用 **Textual**（ChatTuiApp/ChatScreen）。
+- **CLI 技术选型**：`joytrunk` CLI 以 **Python** 实现，以满足 **pip 分发**；包结构需包含 `joytrunk` 控制台入口（如 `pyproject.toml` 的 entry_points）。由 Python 包**启动** cli 内的本地后端（如 Node 子进程或 Python HTTP 服务），绑定 32890；**nodejs/** 目录用于 JoyTrunk 官方后端（注册用户、IM、LLM Router），与本地 32890 解耦。**CLI 互动式界面技术栈已确定为 python-clack**（select/text/intro/outro/log/spinner），**已移除 Textual**。
 - **测试约定**：不强制测试与实现的先后顺序；根据任务选择最高效方式（如接口清晰时先测后实现，探索/UI 时先实现后补测）。完成标准：功能实现 + 对应测试存在 + 运行子项目测试命令全部通过。cli/vue/nodejs 各子项目须具备可运行的测试套件，并在项目内文档中写明测试命令（如 `npm test`）。单元测试覆盖核心逻辑与 API；关键流程建议有集成或 e2e；不强制覆盖率，但新功能须有对应测试。
 - **终端与命令示例**：文档与命令示例默认面向 **Windows + PowerShell**；路径、环境变量、多行命令与脚本均按 PowerShell 书写（如换行续行用反引号 `` ` ``，环境变量用 `$env:变量名`）；针对 Linux/macOS 时单独注明。新写或修订的说明与 Agent 生成的命令应以 PowerShell 为准。JoyTrunk **产品** 需在 **Linux 与 Windows** 上均可运行；实现时注意路径解析、换行符、可选 shell 调用的跨平台差异。若文档面向 Linux 用户，可注明「Linux/macOS 下请使用 bash 及 `~/.joytrunk`」。
 - **开发环境（Windows）**：统一使用 **conda 环境 `joytrunk`**。创建与激活示例（PowerShell）：
@@ -270,3 +270,5 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 | 2025-02-27 | Cursor Agent | **CLI 无需绑定负责人、多智能体、TUI 与新建后直接对话** | 已完成 | 产品表述改为「本地多智能体 · 创建员工、直接下达指令」；`joytrunk chat` 默认进入入口 TUI（员工列表 / 无员工时新建）；新建员工后直接 push ChatScreen 下达指令；status/chat 提示改为「请先启动 joytrunk gateway」；api_client 增加 ensure_owner_via_gateway、create_employee；agent.md 已同步更新。 |
 | 2025-02-27 | Cursor Agent | **TUI 操作方案（§4.8）与语言选择 TUI** | 已完成 | agent.md 新增 §4.8 TUI 操作方案（类 Claude Code/Open Code：↑↓ 移动、Enter 确定、空格多选）；实现 LanguagePickerApp（joytrunk/tui/language_picker.py），onboard 无语言配置时及 `joytrunk language` 无参数时进入 TUI 选择 zh/en；测试更新为 mock LanguagePickerApp。 |
 | 2025-02-27 | Cursor Agent | **使用 python-clack 实现 TUI（language / chat 入口）** | 已完成 | 依赖增加 python-clack；新增 joytrunk/tui/clack_flows.py（run_language_picker、run_chat_entry）；onboard / language / chat 无参数时走 clack 流程（select/text）；选员工后仍启动 Textual ChatTuiApp。§4.8、§5、§6 已更新；测试 test_clack_flows、test_cli_onboard 已适配。 |
+| 2025-02-27 | Cursor Agent | **CLI 界面技术栈确定为 python-clack，移除 Textual** | 已完成 | 全部 TUI 改为 python-clack：新增 run_chat_loop（text/spinner/log 对话循环）；删除 chat_app.py、entry_app.py、language_picker.py、panel_style.py；移除 textual 依赖；删除 test_tui_entry.py。§4.8、§5、§6 已更新为「技术栈已确定，仅 python-clack」。 |
+| 2025-02-27 | Cursor Agent | **配置统一 config.json、chat/employee 不连 gateway、gateway 仅保留** | 已完成 | 所有配置（含员工、ownerId）放入 config.json，移除 store.json。chat：从 config 读员工，TUI 最后一项「新建员工」，不连 gateway。employee：list/new/set 均读写 config。gateway store 改为读写 config.json。新增 config_store.py、employee set；docs 与 agent.md 已更新。 |

@@ -4,15 +4,17 @@ JSON 键使用 camelCase；本模块提供默认结构与键名常量。
 """
 
 # 默认 config 结构（仿 nanobot：gateway / agents / channels / providers）
+# 所有配置（含员工列表）均在 config.json，不使用 store.json
 DEFAULT_CONFIG = {
     "version": 1,
     "joytrunkRoot": None,
     "ownerId": None,
+    "employees": [],  # [{ id, ownerId, name, persona?, role?, specialty?, ... }]
     "cli": {
         "locale": "zh",  # CLI 界面语言：zh（中文）、en（英文）
     },
     "gateway": {
-        "host": "localhost",
+        "host": "127.0.0.1",
         "port": 32890,
     },
     "agents": {
@@ -47,9 +49,12 @@ def migrate_from_legacy(data: dict) -> dict:
         return dict(DEFAULT_CONFIG)
     out = {}
     for k, v in DEFAULT_CONFIG.items():
-        if k == "gateway":
+        if k == "employees":
+            raw = data.get("employees")
+            out["employees"] = raw if isinstance(raw, list) else []
+        elif k == "gateway":
             out["gateway"] = {
-                "host": data.get("gateway", {}).get("host") if isinstance(data.get("gateway"), dict) else "localhost",
+                "host": data.get("gateway", {}).get("host") if isinstance(data.get("gateway"), dict) else "127.0.0.1",
                 "port": data.get("gateway", {}).get("port") if isinstance(data.get("gateway"), dict) else data.get("gatewayPort", 32890),
             }
         elif k == "agents":

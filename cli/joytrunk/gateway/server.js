@@ -18,7 +18,7 @@ const employeeConfig = require('./lib/employeeConfig');
 const app = express();
 const cfg = config.loadConfig();
 const PORT = Number(process.env.PORT) || (cfg.gateway && cfg.gateway.port) || 32890;
-const HOST = (cfg.gateway && cfg.gateway.host) || 'localhost';
+const HOST = (cfg.gateway && cfg.gateway.host) || '127.0.0.1';
 
 app.use(cors());
 app.use(express.json());
@@ -274,6 +274,16 @@ if (fs.existsSync(path.join(STATIC_DIR, 'index.html'))) {
   });
 }
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`JoyTrunk gateway listening on http://${HOST}:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n端口 ${PORT} 已被占用。可能已有 JoyTrunk gateway 在运行。`);
+    console.error(`解决：关闭占用端口的进程，或使用其他端口：joytrunk gateway --port <端口号>\n`);
+  } else {
+    console.error('JoyTrunk gateway 启动失败:', err.message);
+  }
+  process.exit(1);
 });

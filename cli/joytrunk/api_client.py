@@ -25,7 +25,9 @@ def _load_config():
 def get_base_url():
     c = _load_config()
     g = c.get("gateway") or {}
-    host = g.get("host") or "localhost"
+    host = g.get("host") or "127.0.0.1"
+    if host in ("localhost", "::1"):
+        host = "127.0.0.1"
     port = g.get("port") or DEFAULT_PORT
     return f"http://{host}:{port}"
 
@@ -34,16 +36,16 @@ def get_owner_id():
     return _load_config().get("ownerId")
 
 
-def ensure_owner_via_gateway() -> str | None:
+def ensure_owner_via_gateway() -> tuple[str | None, str | None]:
     """
     通过调用 gateway GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
-    返回本地的 ownerId（供 API 使用）。若 gateway 未启动或请求失败则返回 None。
+    返回 (ownerId, None)；失败时返回 (None, 错误信息)。
     """
     try:
         api_get("/api/owners/me", owner_id=None)
-    except Exception:
-        return None
-    return _load_config().get("ownerId")
+    except Exception as e:
+        return (None, str(e))
+    return (_load_config().get("ownerId"), None)
 
 
 def get_default_employee_id():

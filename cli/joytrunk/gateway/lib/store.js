@@ -1,39 +1,28 @@
 /**
- * 本地 JSON 存储：负责人、员工。MVP 单机单用户，数据落盘 ~/.joytrunk/data/store.json
+ * 员工与负责人数据：从 config.json 读写，与 CLI config_store 共用同一文件，不再使用 store.json。
  */
 
-const fs = require('fs');
-const path = require('path');
+const config = require('./config');
 const { getJoytrunkRoot } = require('./paths');
 
-const DATA_DIR = () => path.join(getJoytrunkRoot(), 'data');
-const STORE_FILE = () => path.join(DATA_DIR(), 'store.json');
-
-function ensureDataDir() {
-  const dir = DATA_DIR();
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
-}
-
 function load() {
-  ensureDataDir();
-  const file = STORE_FILE();
-  if (!fs.existsSync(file)) {
-    return { owners: [], employees: [] };
-  }
-  const raw = fs.readFileSync(file, 'utf8');
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { owners: [], employees: [] };
-  }
+  const c = config.loadConfig();
+  const owners = c.ownerId
+    ? [{ id: c.ownerId, name: '本地负责人', email: null }]
+    : [];
+  const employees = Array.isArray(c.employees) ? c.employees : [];
+  return { owners, employees };
 }
 
 function save(data) {
-  ensureDataDir();
-  fs.writeFileSync(STORE_FILE(), JSON.stringify(data, null, 2), 'utf8');
+  const c = config.loadConfig();
+  if (data.owners && data.owners.length > 0) {
+    c.ownerId = data.owners[0].id;
+  }
+  if (Array.isArray(data.employees)) {
+    c.employees = data.employees;
+  }
+  config.saveConfig(c);
 }
 
 function getOwners() {
@@ -53,7 +42,6 @@ function findEmployeeById(id) {
 }
 
 function createOwner(payload) {
-  const data = load();
   const id = require('uuid').v4();
   const owner = {
     id,
@@ -61,8 +49,7 @@ function createOwner(payload) {
     email: payload.email || null,
     createdAt: new Date().toISOString(),
   };
-  data.owners.push(owner);
-  save(data);
+  config.setOwnerInConfig(owner.id);
   return owner;
 }
 

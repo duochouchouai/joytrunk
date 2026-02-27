@@ -26,14 +26,6 @@ GATEWAY_URL = f"http://localhost:{GATEWAY_PORT}"
 DOCS_OFFICIAL_URL = os.environ.get("JOYTRUNK_DOCS_URL", "https://joytrunk.com/docs/cli")
 
 
-def _run_tui_inline(textual_app):
-    """在当前终端内联运行 TUI（不占满屏，类似 OpenClaw）。Windows 或不支持时回退为全屏。"""
-    try:
-        return textual_app.run(inline=True)
-    except (TypeError, Exception):
-        return textual_app.run()
-
-
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
@@ -148,9 +140,10 @@ def docs_cmd(
 
 @app.command("status")
 def status_cmd() -> None:
-    """查看运行状态、当前员工列表等。"""
+    """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 gateway）。"""
     from joytrunk.paths import get_config_path, get_joytrunk_root
-    from joytrunk.api_client import get_owner_id, get_base_url, list_employees, ensure_owner_via_gateway
+    from joytrunk.api_client import get_base_url
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
 
     root = get_joytrunk_root()
     if not root.exists():
@@ -163,20 +156,14 @@ def status_cmd() -> None:
     gateway_url = get_base_url()
     console.print(t("status.root", path=f"[cyan]{root}[/cyan]"))
     console.print(t("status.gateway", url=f"[link={gateway_url}]{gateway_url}[/link]"))
-    owner_id = get_owner_id() or ensure_owner_via_gateway()
-    if owner_id:
-        try:
-            employees = list_employees(owner_id)
-            if employees:
-                console.print(t("status.employees"))
-                for e in employees:
-                    console.print(f"  - [cyan]{e['id']}[/cyan] {e.get('name', '')}")
-            else:
-                console.print(t("status.no_employees"))
-        except Exception:
-            console.print("[yellow]" + t("status.gateway_unreachable", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id)
+    if employees:
+        console.print(t("status.employees"))
+        for e in employees:
+            console.print(f"  - [cyan]{e.get('id')}[/cyan] {e.get('name', '')}")
     else:
-        console.print("[yellow]" + t("status.no_owner", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
+        console.print(t("status.no_employees"))
 
 
 @app.command("chat")
@@ -184,33 +171,34 @@ def chat_cmd(
     employee_id: str = typer.Argument(None, help="员工 ID（不填则从配置或列表选择）"),
     no_tui: bool = typer.Option(False, "--no-tui", help="使用传统单行输入模式，不启动互动式 TUI"),
 ) -> None:
-    """与指定员工对话（CLI 渠道）。不填员工 ID 时进入 TUI 显示员工列表或引导新建；--no-tui 为传统单行模式。"""
+    """与指定员工对话（CLI 渠道）。不连接 gateway，从 config.json 与 workspace 读取设置；不填员工 ID 时进入 TUI 显示员工列表（最后一项为新建员工）并选择后进入对话。"""
     import asyncio
-    from joytrunk.api_client import ensure_owner_via_gateway, get_base_url, get_default_employee_id, get_owner_id, list_employees
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.api_client import get_default_employee_id
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
     from joytrunk.agent.loop import run_employee_loop
 
-    # 未指定员工且使用 TUI：使用 python-clack 选择/新建员工，再进入对话 TUI
+    # 未指定员工且使用 TUI：使用 python-clack 选择/新建员工，再进入对话循环
     if employee_id is None and not no_tui:
-        from joytrunk.tui import ChatTuiApp
-        from joytrunk.tui.clack_flows import run_chat_entry
+        from joytrunk.tui.clack_flows import run_chat_entry, run_chat_loop
 
         triple = run_chat_entry()
         if triple:
             eid, oid, name = triple
-            _run_tui_inline(ChatTuiApp(employee_id=eid, owner_id=oid, employee_name=name))
+            run_chat_loop(eid, oid, name)
         return
 
-    owner_id = get_owner_id()
-    if not owner_id:
-        owner_id = ensure_owner_via_gateway()
-    if not owner_id:
-        console.print("[yellow]" + t("chat.no_owner", cmd="[cyan]joytrunk gateway[/cyan]") + "[/yellow]")
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
-    try:
-        employees = list_employees(owner_id)
-    except Exception as e:
-        console.print("[red]" + t("chat.gateway_error", error=e, cmd="[cyan]joytrunk gateway[/cyan]") + "[/red]")
+    config_path = get_config_path()
+    if not config_path.exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
+
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id)
     if not employees:
         console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
         raise typer.Exit(1)
@@ -218,9 +206,9 @@ def chat_cmd(
     name = ""
     if not eid:
         default_eid = get_default_employee_id()
-        if default_eid and any(e["id"] == default_eid for e in employees):
+        if default_eid and any(e.get("id") == default_eid for e in employees):
             eid = default_eid
-            name = next((e.get("name") or e["id"] for e in employees if e["id"] == eid), eid)
+            name = next((e.get("name") or e["id"] for e in employees if e.get("id") == eid), eid)
             console.print(t("chat.with_employee_default", name=f"[cyan]{name}[/cyan]"))
         elif len(employees) == 1:
             eid = employees[0]["id"]
@@ -229,31 +217,31 @@ def chat_cmd(
         else:
             console.print(t("chat.specify_employee"))
             for e in employees:
-                console.print(f"  [cyan]{e['id']}[/cyan] {e.get('name', '')}")
+                console.print(f"  [cyan]{e.get('id')}[/cyan] {e.get('name', '')}")
             console.print(t("chat.example"))
             raise typer.Exit(0)
     else:
-        if not any(e["id"] == eid for e in employees):
+        if not any(e.get("id") == eid for e in employees):
             console.print("[red]" + t("chat.employee_not_found", id=eid) + "[/red]")
             raise typer.Exit(1)
-        name = next((e.get("name") or e["id"] for e in employees if e["id"] == eid), eid)
+        name = next((e.get("name") or e["id"] for e in employees if e.get("id") == eid), eid)
 
     if not no_tui:
-        from joytrunk.tui import ChatTuiApp
-        app = ChatTuiApp(employee_id=eid, owner_id=owner_id, employee_name=name or eid)
-        _run_tui_inline(app)
+        from joytrunk.tui.clack_flows import run_chat_loop
+
+        run_chat_loop(eid, owner_id, name or eid)
         return
 
     console.print("[dim]" + t("chat.agent_hint") + "[/dim]")
     console.print(t("chat.prompt"))
     while True:
         try:
-            text = console.input("[bold]" + t("chat.you") + "[/bold] ").strip()
+            text_input = console.input("[bold]" + t("chat.you") + "[/bold] ").strip()
         except (EOFError, KeyboardInterrupt):
             break
-        if not text:
+        if not text_input:
             continue
-        if text.lower() in ("/exit", "/quit", "exit", "quit"):
+        if text_input.lower() in ("/exit", "/quit", "exit", "quit"):
             break
         try:
             async def _progress(s: str) -> None:
@@ -264,7 +252,7 @@ def chat_cmd(
                 run_employee_loop(
                     eid,
                     owner_id,
-                    text,
+                    text_input,
                     session_key="cli:direct",
                     on_progress=_progress,
                 )
@@ -276,6 +264,125 @@ def chat_cmd(
                 )
         except Exception as ex:
             console.print("[red]" + t("chat.send_failed", error=ex) + "[/red]")
+
+
+# employee 命令组：列出/新建/设置员工，无子命令时进入 clack 菜单（均从 config.json 读写，不连接 gateway）
+employee_app = typer.Typer(
+    name="employee",
+    help="员工管理：查看、新建、设置员工（config.json）。无子命令时进入互动菜单。",
+    no_args_is_help=False,
+)
+
+
+@employee_app.callback(invoke_without_command=True)
+def employee_callback(ctx: typer.Context) -> None:
+    """无子命令时进入员工管理 TUI 菜单（列出/新建/退出）。"""
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_employee_menu
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    config_path = get_config_path()
+    if not config_path.exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    run_employee_menu(owner_id)
+
+
+@employee_app.command("list")
+def employee_list_cmd() -> None:
+    """列出当前所有员工（从 config.json 读取，非交互）。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id)
+    if not employees:
+        console.print("[yellow]" + t("status.no_employees") + "[/yellow]")
+        return
+    console.print(t("status.employees"))
+    for e in employees:
+        console.print(f"  - [cyan]{e.get('id')}[/cyan] {e.get('name', '')}")
+
+
+@employee_app.command("new")
+def employee_new_cmd() -> None:
+    """新建员工（clack 输入名称后写入 config.json）。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_new_employee
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    result = run_new_employee(owner_id, skip_intro=False)
+    if not result:
+        raise typer.Exit(1)
+
+
+@employee_app.command("set")
+def employee_set_cmd(
+    employee_id: str = typer.Argument(..., help="员工 ID"),
+    name: str = typer.Option(None, "--name", "-n", help="员工名称"),
+    persona: str = typer.Option(None, help="人格描述"),
+    role: str = typer.Option(None, help="职责"),
+    specialty: str = typer.Option(None, help="专长"),
+) -> None:
+    """设置员工属性（写入 config.json）。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, find_employee_in_config, update_employee_in_config
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    emp = find_employee_in_config(employee_id, owner_id)
+    if not emp:
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    kwargs = {}
+    if name is not None:
+        kwargs["name"] = name
+    if persona is not None:
+        kwargs["persona"] = persona
+    if role is not None:
+        kwargs["role"] = role
+    if specialty is not None:
+        kwargs["specialty"] = specialty
+    if not kwargs:
+        console.print("[yellow]请至少指定一个要修改的选项（如 --name）。[/yellow]")
+        raise typer.Exit(1)
+    updated = update_employee_in_config(employee_id, owner_id, **kwargs)
+    if updated:
+        console.print("[green]✓[/green]", t("employee.updated", id=employee_id))
+    else:
+        console.print("[red]更新失败。[/red]")
+        raise typer.Exit(1)
+
+
+app.add_typer(employee_app)
 
 
 @app.command("language")

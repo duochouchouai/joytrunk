@@ -39,14 +39,15 @@ def test_run_language_picker_returns_none_on_cancel():
 
 
 def test_run_chat_entry_returns_none_when_no_gateway():
-    """run_chat_entry 在 ensure_owner_via_gateway 返回 None 时返回 None。"""
+    """run_chat_entry 在无员工且用户取消选择时返回 None。"""
     from joytrunk.tui.clack_flows import run_chat_entry
 
     with patch("joytrunk.tui.clack_flows.intro"):
-        with patch("joytrunk.tui.clack_flows.outro"):
-            with patch("joytrunk.tui.clack_flows.ensure_owner_via_gateway", return_value=None):
-                with patch("joytrunk.tui.clack_flows.get_base_url", side_effect=Exception()):
-                    result = run_chat_entry()
+        with patch("joytrunk.tui.clack_flows.ensure_owner_id", return_value="owner-1"):
+            with patch("joytrunk.tui.clack_flows.list_employees_from_config", return_value=[]):
+                with patch("joytrunk.tui.clack_flows.select", return_value=None):
+                    with patch("joytrunk.tui.clack_flows.is_cancel", return_value=True):
+                        result = run_chat_entry()
     assert result is None
 
 
@@ -55,13 +56,29 @@ def test_run_chat_entry_returns_triple_when_employee_selected():
     from joytrunk.tui.clack_flows import run_chat_entry
 
     with patch("joytrunk.tui.clack_flows.intro"):
-        with patch("joytrunk.tui.clack_flows.ensure_owner_via_gateway", return_value="owner-1"):
-            with patch("joytrunk.tui.clack_flows.get_owner_id", return_value="owner-1"):
-                with patch(
-                    "joytrunk.tui.clack_flows.list_employees",
-                    return_value=[{"id": "emp-1", "name": "测试员工"}],
-                ):
-                    with patch("joytrunk.tui.clack_flows.select", return_value="emp-1"):
-                        with patch("joytrunk.tui.clack_flows.is_cancel", return_value=False):
-                            result = run_chat_entry()
+        with patch("joytrunk.tui.clack_flows.ensure_owner_id", return_value="owner-1"):
+            with patch(
+                "joytrunk.tui.clack_flows.list_employees_from_config",
+                return_value=[{"id": "emp-1", "name": "测试员工"}],
+            ):
+                with patch("joytrunk.tui.clack_flows.select", return_value="emp-1"):
+                    with patch("joytrunk.tui.clack_flows.is_cancel", return_value=False):
+                        result = run_chat_entry()
     assert result == ("emp-1", "owner-1", "测试员工")
+
+
+def test_run_new_employee_returns_triple():
+    """run_new_employee 在输入名称并创建成功时返回 (employee_id, owner_id, employee_name)。"""
+    from joytrunk.tui.clack_flows import run_new_employee
+
+    with patch("joytrunk.tui.clack_flows.intro"):
+        with patch("joytrunk.tui.clack_flows.text", return_value="新员工A"):
+            with patch("joytrunk.tui.clack_flows.is_cancel", return_value=False):
+                with patch("joytrunk.tui.clack_flows.cancel"):
+                    with patch(
+                        "joytrunk.tui.clack_flows.create_employee_in_config",
+                        return_value={"id": "emp-new", "name": "新员工A"},
+                    ):
+                        with patch("joytrunk.tui.clack_flows.log"):
+                            result = run_new_employee("owner-1", skip_intro=False)
+    assert result == ("emp-new", "owner-1", "新员工A")
