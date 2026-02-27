@@ -53,11 +53,11 @@ def main(ctx: typer.Context) -> None:
 def onboard_cmd() -> None:
     """初始化本地配置与工作区（创建 ~/.joytrunk、config、workspace）。"""
     from joytrunk.onboard import run_onboard
+    from joytrunk.tui.clack_flows import run_language_picker
 
     initial_locale = None
     if not has_language_config():
-        from joytrunk.tui.language_picker import LanguagePickerApp
-        result = _run_tui_inline(LanguagePickerApp())
+        result = run_language_picker()
         initial_locale = result if result in ("zh", "en") else "zh"
 
     root = run_onboard(initial_locale=initial_locale)
@@ -186,13 +186,18 @@ def chat_cmd(
 ) -> None:
     """与指定员工对话（CLI 渠道）。不填员工 ID 时进入 TUI 显示员工列表或引导新建；--no-tui 为传统单行模式。"""
     import asyncio
-    from joytrunk.api_client import get_owner_id, get_default_employee_id, list_employees, get_base_url
+    from joytrunk.api_client import ensure_owner_via_gateway, get_base_url, get_default_employee_id, get_owner_id, list_employees
     from joytrunk.agent.loop import run_employee_loop
 
-    # 未指定员工且使用 TUI：直接进入入口 TUI（显示列表 / 未绑定 / 无员工引导）
+    # 未指定员工且使用 TUI：使用 python-clack 选择/新建员工，再进入对话 TUI
     if employee_id is None and not no_tui:
-        from joytrunk.tui import ChatEntryTuiApp
-        _run_tui_inline(ChatEntryTuiApp())
+        from joytrunk.tui import ChatTuiApp
+        from joytrunk.tui.clack_flows import run_chat_entry
+
+        triple = run_chat_entry()
+        if triple:
+            eid, oid, name = triple
+            _run_tui_inline(ChatTuiApp(employee_id=eid, owner_id=oid, employee_name=name))
         return
 
     owner_id = get_owner_id()
@@ -279,10 +284,10 @@ def language_cmd(
 ) -> None:
     """配置 CLI 界面语言（中文 / 英文）。不填参数时进入 TUI：↑↓ 移动、Enter 确定。"""
     from joytrunk.i18n import SUPPORTED
+    from joytrunk.tui.clack_flows import run_language_picker
 
     if locale_code is None or locale_code.strip() == "":
-        from joytrunk.tui.language_picker import LanguagePickerApp
-        result = _run_tui_inline(LanguagePickerApp())
+        result = run_language_picker()
         if result in ("zh", "en"):
             set_locale(result)
             reset_locale_cache()

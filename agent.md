@@ -208,7 +208,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
   - **语言选择**（如 onboard 或 `joytrunk language` 无参数时）：展示「中文 (zh)」「English (en)」两项列表，↑↓ 移动、Enter 确定，无需用户输入字符。
   - **员工选择**（`joytrunk chat`）：展示员工列表，↑↓ 移动、Enter 进入与该员工的对话。
   - **主菜单**（可选）：无子命令时展示「与员工对话 / 启动 gateway / 状态 / 语言 / 文档 / 退出」等，↑↓ + Enter 进入对应功能。
-- **实现**：基于 **Textual**（Python TUI 框架），使用 `OptionList` 等组件实现列表与键位绑定；与现有 `joytrunk chat` 入口 TUI、对话 TUI 保持一致风格。
+- **实现**：**入口交互**（语言选择、员工选择/新建）基于 **python-clack**（`joytrunk/tui/clack_flows.py`），使用 `select`、`text`、`intro`/`outro` 等实现列表选择与键位约定；**对话界面**（选员工后的聊天屏）仍基于 **Textual**（`ChatTuiApp`/`ChatScreen`），保持内联 TUI 风格。
 
 ---
 
@@ -219,6 +219,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
   - 技术路径确定（cli / vue / nodejs 独立实现，nanobot 仅作参考）。
   - agent.md 蓝图撰写（本文档）。
   - **CLI 互动式 TUI**：`joytrunk chat` 默认进入 TUI，显示本地员工列表（或无员工时引导新建）；新建员工后**直接进入该员工对话**下达指令；无需「绑定负责人」，先启动 `joytrunk gateway` 即可；**语言选择**（onboard 无语言配置时、`joytrunk language` 无参数时）采用 **↑↓ 移动、Enter 确定** 的 TUI（§4.8）；`joytrunk language [zh|en]` 仍支持命令行参数直接设置。
+  - **TUI 技术实现**：入口交互（语言选择、员工选择/新建）使用 **python-clack**（`joytrunk/tui/clack_flows.py`：`run_language_picker`、`run_chat_entry`）；选员工后的对话界面仍使用 **Textual**（`ChatTuiApp`/`ChatScreen`）。cli 依赖含 `python-clack`、`textual`。
 - **待办**（按实现技术逻辑排序，供各 agent 按分工更新）：
   1. **基础设施**：创建 cli/、vue/、nodejs/ 目录与各自项目脚手架；pip 包与 CLI 骨架（pyproject.toml、entry_points、`joytrunk` / `joytrunk onboard` 占位）；实现 `joytrunk onboard` 创建 ~/.joytrunk、config、workspace；本地服务可在 32890 提供占位页或 API。 ✅ 已完成（见协作标注）
   2. **后端基础**：实现 **cli 内本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32890 API）；**nodejs** 为 JoyTrunk 官方后端（注册用户、IM、LLM Router、计费与用量）。 ✅ 已完成
@@ -235,7 +236,7 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 - **员工生存法则**：在系统提示词、模板、技能中统一贯彻（见 [product.md](product.md) §8、§9）：不得向任何非负责人泄露负责人宿主机工作状态或敏感信息；仅可在个人隐私脱敏前提下帮助他人。
 - **术语统一**：文档与代码中统一使用「负责人」「员工」「JoyTrunk 团队」等术语。
 - **nanobot**：本仓库内现有 nanobot 代码仅作**参考与学习**，JoyTrunk 的实现不依赖、不调用 nanobot；目标是在架构与体验上超越 nanobot。
-- **CLI 技术选型**：`joytrunk` CLI 以 **Python** 实现，以满足 **pip 分发**；包结构需包含 `joytrunk` 控制台入口（如 `pyproject.toml` 的 entry_points）。由 Python 包**启动** cli 内的本地后端（如 Node 子进程或 Python HTTP 服务），绑定 32890；**nodejs/** 目录用于 JoyTrunk 官方后端（注册用户、IM、LLM Router），与本地 32890 解耦。
+- **CLI 技术选型**：`joytrunk` CLI 以 **Python** 实现，以满足 **pip 分发**；包结构需包含 `joytrunk` 控制台入口（如 `pyproject.toml` 的 entry_points）。由 Python 包**启动** cli 内的本地后端（如 Node 子进程或 Python HTTP 服务），绑定 32890；**nodejs/** 目录用于 JoyTrunk 官方后端（注册用户、IM、LLM Router），与本地 32890 解耦。**TUI 入口**（语言选择、员工选择/新建）使用 **python-clack**（select/text/intro/outro）；**对话界面**使用 **Textual**（ChatTuiApp/ChatScreen）。
 - **测试约定**：不强制测试与实现的先后顺序；根据任务选择最高效方式（如接口清晰时先测后实现，探索/UI 时先实现后补测）。完成标准：功能实现 + 对应测试存在 + 运行子项目测试命令全部通过。cli/vue/nodejs 各子项目须具备可运行的测试套件，并在项目内文档中写明测试命令（如 `npm test`）。单元测试覆盖核心逻辑与 API；关键流程建议有集成或 e2e；不强制覆盖率，但新功能须有对应测试。
 - **终端与命令示例**：文档与命令示例默认面向 **Windows + PowerShell**；路径、环境变量、多行命令与脚本均按 PowerShell 书写（如换行续行用反引号 `` ` ``，环境变量用 `$env:变量名`）；针对 Linux/macOS 时单独注明。新写或修订的说明与 Agent 生成的命令应以 PowerShell 为准。JoyTrunk **产品** 需在 **Linux 与 Windows** 上均可运行；实现时注意路径解析、换行符、可选 shell 调用的跨平台差异。若文档面向 Linux 用户，可注明「Linux/macOS 下请使用 bash 及 `~/.joytrunk`」。
 - **开发环境（Windows）**：统一使用 **conda 环境 `joytrunk`**。创建与激活示例（PowerShell）：
@@ -268,3 +269,4 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 | 2025-02-26 | Cursor Agent | 自有 LLM 接入 + 前端设置（用量、自有 LLM 配置、恢复默认） | 已完成 | nodejs: agent.reply 支持 OpenAI 兼容 API，system 从 SOUL/AGENTS/MEMORY 构建；chat 返回 usage。vue: 设置区块展示用量、API Key/Base URL/模型、保存与恢复默认。 |
 | 2025-02-27 | Cursor Agent | **CLI 无需绑定负责人、多智能体、TUI 与新建后直接对话** | 已完成 | 产品表述改为「本地多智能体 · 创建员工、直接下达指令」；`joytrunk chat` 默认进入入口 TUI（员工列表 / 无员工时新建）；新建员工后直接 push ChatScreen 下达指令；status/chat 提示改为「请先启动 joytrunk gateway」；api_client 增加 ensure_owner_via_gateway、create_employee；agent.md 已同步更新。 |
 | 2025-02-27 | Cursor Agent | **TUI 操作方案（§4.8）与语言选择 TUI** | 已完成 | agent.md 新增 §4.8 TUI 操作方案（类 Claude Code/Open Code：↑↓ 移动、Enter 确定、空格多选）；实现 LanguagePickerApp（joytrunk/tui/language_picker.py），onboard 无语言配置时及 `joytrunk language` 无参数时进入 TUI 选择 zh/en；测试更新为 mock LanguagePickerApp。 |
+| 2025-02-27 | Cursor Agent | **使用 python-clack 实现 TUI（language / chat 入口）** | 已完成 | 依赖增加 python-clack；新增 joytrunk/tui/clack_flows.py（run_language_picker、run_chat_entry）；onboard / language / chat 无参数时走 clack 流程（select/text）；选员工后仍启动 Textual ChatTuiApp。§4.8、§5、§6 已更新；测试 test_clack_flows、test_cli_onboard 已适配。 |

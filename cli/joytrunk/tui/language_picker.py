@@ -32,13 +32,13 @@ class LanguagePickerApp(App[str | None]):
         layout: vertical;
         align: left top;
         padding: 0;
-        background: $surface 0%;
+        background: transparent;
     }
 
     Screen:inline {
         align: left top;
-        background: $surface 0%;
         padding: 0;
+        background: transparent;
     }
 
     #lang-panel {
@@ -47,9 +47,9 @@ class LanguagePickerApp(App[str | None]):
         height: auto;
         padding: 0;
         margin: 0;
-        background: $surface 0%;
         align-horizontal: left;
         align-vertical: top;
+        background: transparent;
     }
 
     #lang-content {
@@ -57,8 +57,8 @@ class LanguagePickerApp(App[str | None]):
         height: auto;
         padding: 0;
         margin: 0;
-        background: $surface 0%;
         color: $text;
+        background: transparent;
     }
     """
 

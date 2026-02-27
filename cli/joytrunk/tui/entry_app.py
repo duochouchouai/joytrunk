@@ -42,13 +42,13 @@ class ChatEntryTuiApp(App[None]):
         layout: vertical;
         align: left top;
         padding: 0;
-        background: $surface 0%;
+        background: transparent;
     }
 
     Screen:inline {
         align: left top;
-        background: $surface 0%;
         padding: 0;
+        background: transparent;
     }
 
     #entry-content {
@@ -59,9 +59,9 @@ class ChatEntryTuiApp(App[None]):
         layout: vertical;
         padding: 0;
         margin: 0;
-        background: $surface 0%;
         align-horizontal: left;
         align-vertical: top;
+        background: transparent;
     }
 
     #entry-panel-top {
@@ -69,7 +69,7 @@ class ChatEntryTuiApp(App[None]):
         height: auto;
         padding: 0;
         margin: 0;
-        background: $surface 0%;
+        background: transparent;
     }
 
     #entry-actions {
@@ -108,7 +108,7 @@ class ChatEntryTuiApp(App[None]):
         height: auto;
         padding: 0;
         margin: 0;
-        background: $surface 0%;
+        background: transparent;
     }
     """
 

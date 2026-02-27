@@ -8,17 +8,17 @@ import pytest
 
 
 def test_onboard_cmd_prompts_language_when_no_config(joytrunk_root):
-    """当 has_language_config() 为 False 时，启动语言选择 TUI，选择后传入 run_onboard(initial_locale=...)。"""
+    """当 has_language_config() 为 False 时，调用 run_language_picker，选择后传入 run_onboard(initial_locale=...)。"""
     from joytrunk.cli import onboard_cmd
     from joytrunk.i18n import reset_locale_cache
 
     reset_locale_cache()
     with patch("joytrunk.cli.has_language_config", return_value=False) as m_has:
-        with patch("joytrunk.tui.language_picker.LanguagePickerApp") as m_picker:
-            m_picker.return_value.run.return_value = "en"
+        with patch("joytrunk.tui.clack_flows.run_language_picker", return_value="en") as m_picker:
             with patch("joytrunk.onboard.run_onboard", return_value=Path(joytrunk_root)) as m_onboard:
                 onboard_cmd()
     m_has.assert_called_once()
+    m_picker.assert_called_once()
     m_onboard.assert_called_once_with(initial_locale="en")
 
 
@@ -37,14 +37,13 @@ def test_onboard_cmd_no_prompt_when_has_language_config(joytrunk_root):
 
 
 def test_onboard_cmd_invalid_input_defaults_to_zh(joytrunk_root):
-    """TUI 返回非 zh/en 或 None 时使用默认 zh。"""
+    """run_language_picker 返回非 zh/en 或 None 时使用默认 zh。"""
     from joytrunk.cli import onboard_cmd
     from joytrunk.i18n import reset_locale_cache
 
     reset_locale_cache()
     with patch("joytrunk.cli.has_language_config", return_value=False):
-        with patch("joytrunk.tui.language_picker.LanguagePickerApp") as m_picker:
-            m_picker.return_value.run.return_value = None
+        with patch("joytrunk.tui.clack_flows.run_language_picker", return_value=None):
             with patch("joytrunk.onboard.run_onboard", return_value=Path(joytrunk_root)) as m_onboard:
                 onboard_cmd()
     m_onboard.assert_called_once_with(initial_locale="zh")
