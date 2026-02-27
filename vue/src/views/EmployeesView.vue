@@ -28,9 +28,12 @@
       <h2 class="card-title">{{ t('employees.list') }}</h2>
       <p v-if="!team" class="muted">{{ t('common.loading') }}</p>
       <ul v-else-if="team.employees.length" class="emp-list">
-        <li v-for="e in team.employees" :key="e.id">
-          <span class="emp-name">{{ e.name }}</span>
-          <span v-if="e.persona || e.role" class="muted">{{ [e.persona, e.role].filter(Boolean).join(' · ') }}</span>
+        <li v-for="e in team.employees" :key="e.id" class="emp-row">
+          <div class="emp-info">
+            <span class="emp-name">{{ e.name }}</span>
+            <span v-if="e.persona || e.role" class="muted">{{ [e.persona, e.role].filter(Boolean).join(' · ') }}</span>
+          </div>
+          <router-link :to="`/app/employees/${e.id}/logs`" class="emp-logs-link">{{ t('employees.viewLogs') }}</router-link>
         </li>
       </ul>
       <p v-else class="muted">{{ t('employees.noEmployees') }}</p>
@@ -106,6 +109,10 @@ async function createEmp() {
 .emp-list { list-style: none; padding: 0; margin: 0; }
 .emp-list li { padding: 0.5rem 0; border-bottom: 1px solid var(--jt-border); display: flex; flex-direction: column; gap: 0.15rem; }
 .emp-list li:last-child { border-bottom: none; }
+.emp-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.emp-info { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
 .emp-name { font-weight: 500; }
+.emp-logs-link { color: var(--jt-primary); font-size: 0.875rem; text-decoration: none; white-space: nowrap; }
+.emp-logs-link:hover { text-decoration: underline; }
 .muted { font-size: 0.875rem; color: var(--jt-text-muted); }
 </style>
