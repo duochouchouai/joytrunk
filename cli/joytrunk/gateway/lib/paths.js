@@ -25,6 +25,16 @@ function getEmployeeDir(employeeId) {
   return path.join(getWorkspaceRoot(), 'employees', employeeId);
 }
 
+/** 员工运行时日志目录；agent.jsonl 位于此目录下 */
+function getEmployeeLogDir(employeeId) {
+  return path.join(getEmployeeDir(employeeId), 'logs');
+}
+
+/** 员工 agent 结构化日志文件路径 */
+function getAgentLogPath(employeeId) {
+  return path.join(getEmployeeLogDir(employeeId), 'agent.jsonl');
+}
+
 /** 员工级 config.json 路径（可覆盖主 config）；无则继承主配置 */
 function getEmployeeConfigPath(employeeId) {
   return path.join(getEmployeeDir(employeeId), 'config.json');
@@ -45,6 +55,8 @@ module.exports = {
   getConfigPath,
   getWorkspaceRoot,
   getEmployeeDir,
+  getEmployeeLogDir,
+  getAgentLogPath,
   getEmployeeConfigPath,
   getSharedMemoryDir,
   getSharedSkillsDir,

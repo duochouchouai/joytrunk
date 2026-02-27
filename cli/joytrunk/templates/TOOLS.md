@@ -1,5 +1,6 @@
 # Tool Usage Notes（工具使用说明）
 
+当你需要读文件、写文件、列目录或执行命令时，请使用系统通过 function calling 提供的对应工具（如 read_file、write_file、list_dir、exec、edit_file、web_search 等）。
 工具签名由系统通过 function calling 提供。
 本文件记录非显而易见的约束与用法。
 

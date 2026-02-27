@@ -40,6 +40,7 @@ export const api = {
     get: (id) => request('GET', `/api/employees/${id}`),
     update: (id, body) => request('PATCH', `/api/employees/${id}`, body),
     chat: (id, body) => request('POST', `/api/employees/${id}/chat`, body),
+    logs: (id) => request('GET', `/api/employees/${id}/logs`),
   },
   teams: { current: () => request('GET', '/api/teams/current') },
   config: () => request('GET', '/api/config'),

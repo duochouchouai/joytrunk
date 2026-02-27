@@ -8,7 +8,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { getEmployeeDir } = require('./lib/paths');
+const { getEmployeeDir, getAgentLogPath } = require('./lib/paths');
 const store = require('./lib/store');
 const config = require('./lib/config');
 const agent = require('./lib/agent');
@@ -134,6 +134,33 @@ app.patch('/api/employees/:id/config', (req, res) => {
     out.providers = { ...out.providers, custom: { ...out.providers.custom, apiKey: '***' } };
   }
   res.json(out);
+});
+
+// ---------- 员工运行时日志（结构化 JSONL，供前端 debug）----------
+app.get('/api/employees/:id/logs', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const emp = store.findEmployeeById(req.params.id);
+  if (!emp || emp.ownerId !== ownerId) return res.status(404).json({ error: '员工不存在' });
+  const logPath = getAgentLogPath(req.params.id);
+  let entries = [];
+  try {
+    if (fs.existsSync(logPath)) {
+      const raw = fs.readFileSync(logPath, 'utf-8');
+      const lines = raw.split('\n').filter((line) => line.trim());
+      entries = lines.map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+      // 最新在前
+      entries.reverse();
+    }
+  } catch (e) {
+    return res.status(500).json({ error: e.message || '读取日志失败' });
+  }
+  res.json({ entries });
 });
 
 // ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）----------

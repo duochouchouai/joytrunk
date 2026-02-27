@@ -53,6 +53,46 @@ def test_parse_response_empty_choices():
     assert r.tool_calls == []
 
 
+def test_parse_response_tool_calls_no_content():
+    """Assistant message with only tool_calls and no content (content key missing or null)."""
+    data = {
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": "c1",
+                    "type": "function",
+                    "function": {"name": "list_dir", "arguments": '{"path": "."}'},
+                }],
+            },
+        }],
+        "usage": {},
+    }
+    r = _parse_response(data)
+    assert r.content == ""
+    assert r.has_tool_calls is True
+    assert r.tool_calls[0].name == "list_dir"
+    assert r.tool_calls[0].arguments == {"path": "."}
+
+
+def test_parse_response_arguments_malformed_trailing_comma():
+    """Arguments with trailing comma (common LLM mistake) are repaired."""
+    data = {
+        "choices": [{
+            "message": {
+                "content": "",
+                "tool_calls": [{
+                    "id": "c2",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"path": "a.txt",}'},
+                }],
+            },
+        }],
+    }
+    r = _parse_response(data)
+    assert r.tool_calls[0].arguments == {"path": "a.txt"}
+
+
 @pytest.mark.asyncio
 async def test_chat_calls_url():
     resp_json = {

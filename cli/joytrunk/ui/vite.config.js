@@ -9,4 +9,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   base: '/',
+  server: {
+    port: 32893,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:32890',
+        changeOrigin: true,
+      },
+    },
+  },
 })

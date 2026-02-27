@@ -39,3 +39,8 @@ def get_workspace_memory() -> Path:
 def get_employee_dir(employee_id: str) -> Path:
     """某员工的 workspace 子目录：~/.joytrunk/workspace/employees/<employee_id>"""
     return get_workspace_root() / "employees" / employee_id
+
+
+def get_employee_log_dir(employee_id: str) -> Path:
+    """员工运行时日志目录：~/.joytrunk/workspace/employees/<employee_id>/logs"""
+    return get_employee_dir(employee_id) / "logs"

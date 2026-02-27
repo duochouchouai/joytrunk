@@ -121,3 +121,58 @@ class ListDirTool(Tool):
             return f"Error: {e}"
         except Exception as e:
             return f"Error listing directory: {str(e)}"
+
+
+def _edit_not_found_message(old_text: str, path: str) -> str:
+    """Simple error when old_text is not found in file."""
+    return f"Error: old_text not found in {path}. Provide the exact string to replace."
+
+
+class EditFileTool(Tool):
+    """Edit a file by replacing old_text with new_text. Same path rules as read_file/write_file."""
+
+    def __init__(self, workspace: Path, allowed_dir: Path | None, employee_id: str):
+        self._workspace = workspace
+        self._allowed_dir = allowed_dir
+        self._employee_id = employee_id
+
+    @property
+    def name(self) -> str:
+        return "edit_file"
+
+    @property
+    def description(self) -> str:
+        return "Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path to edit"},
+                "old_text": {"type": "string", "description": "Exact text to find and replace"},
+                "new_text": {"type": "string", "description": "Text to replace with"},
+            },
+            "required": ["path", "old_text", "new_text"],
+        }
+
+    async def execute(self, path: str, old_text: str, new_text: str, **kwargs: Any) -> str:
+        try:
+            fp = _resolve_path(path, self._workspace, self._allowed_dir)
+            if not fp.exists():
+                return f"Error: File not found: {path}"
+            if not fp.is_file():
+                return f"Error: Not a file: {path}"
+            content = fp.read_text(encoding="utf-8")
+            if old_text not in content:
+                return _edit_not_found_message(old_text, path)
+            count = content.count(old_text)
+            if count > 1:
+                return f"Warning: old_text appears {count} times. Provide more context to make it unique."
+            new_content = content.replace(old_text, new_text, 1)
+            fp.write_text(new_content, encoding="utf-8")
+            return f"Successfully edited {path}"
+        except PermissionError as e:
+            return f"Error: {e}"
+        except Exception as e:
+            return f"Error editing file: {str(e)}"

@@ -3,10 +3,44 @@
 from __future__ import annotations
 
 import json
+import re
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+
+def _repair_json_arguments(s: str) -> dict[str, Any]:
+    """Try to parse JSON; on failure, try stripping trailing commas and retry."""
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        pass
+    repaired = re.sub(r",\s*([}\]])", r"\1", s.strip())
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        return {}
+
+
+def _sanitize_empty_content(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Copy messages and set assistant content to None when role is assistant, has tool_calls, and content is empty."""
+    result: list[dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content")
+        if (
+            msg.get("role") == "assistant"
+            and msg.get("tool_calls")
+            and isinstance(content, str)
+            and not content.strip()
+        ):
+            clean = deepcopy(msg)
+            clean["content"] = None
+            result.append(clean)
+        else:
+            result.append(deepcopy(msg))
+    return result
 
 
 @dataclass
@@ -45,10 +79,7 @@ def _parse_response(data: dict) -> ChatResponse:
         fn = tc.get("function") or {}
         args = fn.get("arguments")
         if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except json.JSONDecodeError:
-                args = {}
+            args = _repair_json_arguments(args)
         if not isinstance(args, dict):
             args = {}
         tool_calls.append(
@@ -86,6 +117,8 @@ async def chat(
     }
     if tools:
         body["tools"] = [{"type": "function", "function": t["function"]} for t in tools]
+        body["tool_choice"] = "auto"
+    body["messages"] = _sanitize_empty_content(body["messages"])
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
@@ -120,6 +153,8 @@ async def chat_via_router(
     }
     if tools:
         body["tools"] = [{"type": "function", "function": t["function"]} for t in tools]
+        body["tool_choice"] = "auto"
+    body["messages"] = _sanitize_empty_content(body["messages"])
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(

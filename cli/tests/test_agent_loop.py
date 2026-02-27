@@ -48,10 +48,28 @@ async def test_run_employee_loop_executes_tool_then_returns(config_with_custom_l
         tool_calls=[],
         has_tool_calls=False,
     )
-    with patch("joytrunk.agent.loop.provider_chat", new_callable=AsyncMock, side_effect=[resp_with_tool, resp_final]):
+    append_turn_calls = []
+
+    with (
+        patch("joytrunk.agent.loop.provider_chat", new_callable=AsyncMock, side_effect=[resp_with_tool, resp_final]),
+        patch("joytrunk.agent.loop.append_turn", side_effect=lambda emp, skey, msgs, skip: append_turn_calls.append((emp, skey, msgs, skip))),
+    ):
         content, usage = await run_employee_loop("emp-001", "owner-1", "读一下 SOUL", session_key="test-session2")
+
     assert "已读取" in content or "Soul" in content
     assert usage["prompt_tokens"] == 3
+    assert len(append_turn_calls) == 1
+    _emp, _skey, messages, skip_count = append_turn_calls[0]
+    # Session must contain assistant message with tool_calls and at least one tool result message
+    roles_after_skip = [m.get("role") for m in messages[skip_count:]]
+    assert "assistant" in roles_after_skip
+    assert "tool" in roles_after_skip
+    assistant_with_tools = [m for m in messages[skip_count:] if m.get("role") == "assistant" and m.get("tool_calls")]
+    assert len(assistant_with_tools) >= 1
+    tool_results = [m for m in messages[skip_count:] if m.get("role") == "tool"]
+    assert len(tool_results) >= 1
+    assert tool_results[0].get("tool_call_id") == "c1"
+    assert "Soul" in (tool_results[0].get("content") or "")
 
 
 @pytest.mark.asyncio

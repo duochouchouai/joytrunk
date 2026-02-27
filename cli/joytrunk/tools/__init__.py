@@ -4,8 +4,9 @@ from pathlib import Path
 
 from joytrunk.tools.base import Tool
 from joytrunk.tools.exec_tool import ExecTool
-from joytrunk.tools.filesystem import ListDirTool, ReadFileTool, WriteFileTool
+from joytrunk.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from joytrunk.tools.registry import ToolRegistry
+from joytrunk.tools.web import WebSearchTool
 
 __all__ = [
     "Tool",
@@ -14,6 +15,8 @@ __all__ = [
     "ReadFileTool",
     "WriteFileTool",
     "ListDirTool",
+    "EditFileTool",
+    "WebSearchTool",
     "create_default_registry",
 ]
 
@@ -21,12 +24,15 @@ __all__ = [
 def create_default_registry(
     workspace: Path, employee_id: str, restrict_to_workspace: bool = True
 ) -> ToolRegistry:
-    """创建默认工具注册表：exec、read_file、write_file、list_dir。"""
+    """创建默认工具注册表：read_file、write_file、list_dir、exec、edit_file；若配置了 BRAVE_API_KEY 则加入 web_search。"""
+    import os
+
     allowed = workspace if restrict_to_workspace else None
     reg = ToolRegistry()
     reg.register(ReadFileTool(workspace, allowed, employee_id))
     reg.register(WriteFileTool(workspace, allowed, employee_id))
     reg.register(ListDirTool(workspace, allowed, employee_id))
+    reg.register(EditFileTool(workspace, allowed, employee_id))
     reg.register(
         ExecTool(
             working_dir=str(workspace),
@@ -34,4 +40,6 @@ def create_default_registry(
             restrict_to_workspace=restrict_to_workspace,
         )
     )
+    if os.environ.get("BRAVE_API_KEY"):
+        reg.register(WebSearchTool())
     return reg

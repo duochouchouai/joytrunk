@@ -11,7 +11,6 @@ from joytrunk.tools import (
     create_default_registry,
 )
 
-
 def test_registry_register_get():
     reg = ToolRegistry()
     assert reg.get("read_file") is None
@@ -81,6 +80,26 @@ async def test_exec_tool_blocked(employee_dir):
     assert "blocked" in out or "guard" in out
 
 
+@pytest.mark.asyncio
+async def test_edit_file_tool(employee_dir):
+    from joytrunk.tools.filesystem import EditFileTool
+    (employee_dir / "f.txt").write_text("hello world", encoding="utf-8")
+    tool = EditFileTool(employee_dir, employee_dir, "emp-001")
+    out = await tool.execute(path="f.txt", old_text="world", new_text="edit_file")
+    assert "Successfully" in out
+    assert (employee_dir / "f.txt").read_text(encoding="utf-8") == "hello edit_file"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_tool_old_text_not_found(employee_dir):
+    from joytrunk.tools.filesystem import EditFileTool
+    (employee_dir / "g.txt").write_text("only this", encoding="utf-8")
+    tool = EditFileTool(employee_dir, employee_dir, "emp-001")
+    out = await tool.execute(path="g.txt", old_text="missing", new_text="x")
+    assert "Error" in out
+    assert "not found" in out
+
+
 def test_create_default_registry(employee_dir):
     from pathlib import Path
     reg = create_default_registry(Path(employee_dir), "emp-001", restrict_to_workspace=True)
@@ -89,3 +108,4 @@ def test_create_default_registry(employee_dir):
     assert "write_file" in names
     assert "list_dir" in names
     assert "exec" in names
+    assert "edit_file" in names
