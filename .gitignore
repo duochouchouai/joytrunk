@@ -21,3 +21,12 @@ poetry.lock
 botpy.log
 tests/
 skills/
+
+# JoyTrunk
+nodejs/node_modules/
+nodejs/data/
+vue/node_modules/
+vue/dist/
+cli/joytrunk/ui/node_modules/
+cli/joytrunk/gateway/static/
+cli/joytrunk/gateway/node_modules/

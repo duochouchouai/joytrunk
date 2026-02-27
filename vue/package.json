@@ -1,0 +1,23 @@
+{
+  "name": "joytrunk-vue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JoyTrunk 前端：自有 IM + 管理后台",
+  "type": "module",
+"scripts": {
+  "dev": "vite --mode official",
+  "build": "vite build --mode official",
+  "preview": "vite preview",
+  "test": "vitest run"
+},
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.4",
+    "vue-i18n": "^9.14.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "joytrunk-official",
+  "version": "0.1.0",
+  "description": "JoyTrunk 官方后端：注册用户、IM、LLM Router（与本地 32890 gateway 解耦）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  }
+}

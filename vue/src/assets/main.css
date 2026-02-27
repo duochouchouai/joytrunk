@@ -1,0 +1,41 @@
+/* JoyTrunk 全局样式：简洁、美观；支持 light/dark 主题 */
+:root,
+[data-theme="light"] {
+  --jt-bg: #f8fafc;
+  --jt-sidebar-bg: #ffffff;
+  --jt-sidebar-border: #e2e8f0;
+  --jt-card-bg: #ffffff;
+  --jt-card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --jt-text: #1e293b;
+  --jt-text-muted: #64748b;
+  --jt-primary: #0f766e;
+  --jt-primary-hover: #0d9488;
+  --jt-border: #e2e8f0;
+  --jt-radius: 8px;
+  --jt-sidebar-w: 220px;
+}
+
+[data-theme="dark"] {
+  --jt-bg: #0f172a;
+  --jt-sidebar-bg: #1e293b;
+  --jt-sidebar-border: #334155;
+  --jt-card-bg: #1e293b;
+  --jt-card-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  --jt-text: #f1f5f9;
+  --jt-text-muted: #94a3b8;
+  --jt-primary: #2dd4bf;
+  --jt-primary-hover: #5eead4;
+  --jt-border: #334155;
+  --jt-radius: 8px;
+  --jt-sidebar-w: 220px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--jt-bg);
+  color: var(--jt-text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}

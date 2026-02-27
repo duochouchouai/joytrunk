@@ -1,0 +1,20 @@
+# JoyTrunk 命令指南 — 官网可部署的静态站源
+# 构建：在 cli 目录下执行 mkdocs build，产物在 site/，可部署到官网 /docs/cli 或 docs.joytrunk.com
+site_name: JoyTrunk 命令指南
+site_description: JoyTrunk CLI 安装、命令与使用说明
+site_url: https://joytrunk.com/docs/cli
+
+docs_dir: joytrunk/docs
+site_dir: site
+
+# 仅包含 .md，index.md 为首页
+nav:
+  - 首页: index.md
+  - joytrunk onboard: onboard.md
+  - joytrunk gateway: gateway.md
+  - joytrunk chat: chat.md
+  - joytrunk status: status.md
+
+# 与 CLI 版本一致（构建时可注入）
+extra:
+  version: 0.1.0
