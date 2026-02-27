@@ -1,10 +1,13 @@
 """JoyTrunk 路径：平台无关的根目录与工作区路径。"""
 
+import os
 from pathlib import Path
 
 
 def get_joytrunk_root() -> Path:
-    """JoyTrunk 本地根目录。Linux/macOS: ~/.joytrunk，Windows: %USERPROFILE%\\.joytrunk"""
+    """JoyTrunk 本地根目录。可通过环境变量 JOYTRUNK_ROOT 覆盖（测试用）。"""
+    if os.environ.get("JOYTRUNK_ROOT"):
+        return Path(os.environ["JOYTRUNK_ROOT"]).resolve()
     return Path.home() / ".joytrunk"
 
 

@@ -150,6 +150,41 @@ app.post('/api/employees/:id/chat', async (req, res) => {
   }
 });
 
+// ---------- JoyTrunk Router 代理（未配置自有 LLM 时 CLI/前端通过此端点调用大模型）----------
+app.post('/api/llm/chat/completions', async (req, res) => {
+  const routerUrl = process.env.JOYTRUNK_ROUTER_URL || (config.loadConfig().providers && config.loadConfig().providers.joytrunk && config.loadConfig().providers.joytrunk.apiBase);
+  if (!routerUrl || typeof routerUrl !== 'string' || !routerUrl.trim()) {
+    return res.status(503).json({
+      error: 'JoyTrunk Router 未配置。请设置环境变量 JOYTRUNK_ROUTER_URL 或在配置中设置 providers.joytrunk.apiBase，或使用自有 LLM。',
+    });
+  }
+  const ownerId = req.headers['x-owner-id'] || req.headers['authorization'] || config.loadConfig().ownerId;
+  const url = routerUrl.replace(/\/$/, '') + '/chat/completions';
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(ownerId ? { 'X-Owner-Id': ownerId } : {}),
+      },
+      body: JSON.stringify(req.body || {}),
+    });
+    const text = await resp.text();
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: text || 'Router 请求失败' });
+    }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(502).json({ error: 'Router 返回非 JSON' });
+    }
+    res.json(data);
+  } catch (e) {
+    res.status(502).json({ error: e.message || '转发 JoyTrunk Router 失败' });
+  }
+});
+
 // ---------- 团队（负责人 + 全体员工）----------
 app.get('/api/teams/current', (req, res) => {
   const ownerId = getOwnerId(req);

@@ -19,8 +19,6 @@ __pycache__/
 poetry.lock
 .pytest_cache/
 botpy.log
-tests/
-skills/
 
 # JoyTrunk
 nodejs/node_modules/

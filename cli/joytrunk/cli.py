@@ -171,8 +171,10 @@ def status_cmd() -> None:
 def chat_cmd(
     employee_id: str = typer.Argument(None, help="员工 ID（不填则从配置或列表选择）"),
 ) -> None:
-    """与指定员工对话（CLI 渠道）。需先启动 gateway：joytrunk gateway。"""
-    from joytrunk.api_client import get_owner_id, get_default_employee_id, list_employees, chat, get_base_url
+    """与指定员工对话（CLI 渠道）。始终使用员工智能体：意图+提示词+历史 → 大模型（自有或 JoyTrunk Router）→ 执行返回的工具调用。需先启动 gateway。"""
+    import asyncio
+    from joytrunk.api_client import get_owner_id, get_default_employee_id, list_employees, get_base_url
+    from joytrunk.agent.loop import run_employee_loop
 
     owner_id = get_owner_id()
     if not owner_id:
@@ -206,6 +208,8 @@ def chat_cmd(
         if not any(e["id"] == eid for e in employees):
             console.print("[red]未找到员工 {}[/red]".format(eid))
             raise typer.Exit(1)
+
+    console.print("[dim]员工智能体：意图+提示词+历史 → 大模型 → 执行工具。大模型为自有或 JoyTrunk Router。[/dim]")
     console.print("输入消息后回车发送，/exit 退出。")
     while True:
         try:
@@ -217,8 +221,27 @@ def chat_cmd(
         if text.lower() in ("/exit", "/quit", "exit", "quit"):
             break
         try:
-            out = chat(owner_id, eid, text)
-            console.print("[bold]员工>[/bold]", out.get("reply", ""))
+            async def _progress(s: str) -> None:
+                if s:
+                    console.print("[dim]  [/dim]" + s[:200] + ("…" if len(s) > 200 else ""))
+
+            reply, usage = asyncio.run(
+                run_employee_loop(
+                    eid,
+                    owner_id,
+                    text,
+                    session_key="cli:direct",
+                    on_progress=_progress,
+                )
+            )
+            console.print("[bold]员工>[/bold]", reply)
+            if usage:
+                console.print(
+                    "[dim]用量: 输入 {} / 输出 {} tokens[/dim]".format(
+                        usage.get("prompt_tokens", 0),
+                        usage.get("completion_tokens", 0),
+                    )
+                )
         except Exception as ex:
             console.print("[red]发送失败:[/red]", ex)
 
