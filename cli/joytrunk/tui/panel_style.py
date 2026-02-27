@@ -78,17 +78,25 @@ def build_entry_screen_top(title: str, width: int = PANEL_WIDTH) -> list[str]:
     return [screen_top(title, width), panel_empty()]
 
 
+def _dim_frame(s: str) -> str:
+    """框线字符用 [dim] 包裹，与终端/OpenClaw 风格一致。"""
+    for char in "┌│├└─╮╯◇":
+        s = s.replace(char, f"[dim]{char}[/]")
+    return s
+
+
 def build_entry_message_block(header_title: str, message_body: str, width: int = PANEL_WIDTH) -> str:
     """JoyTrunk 入口首屏：┌  JoyTrunk、◇  header ──╮、│  message lines、├──╯。"""
-    lines = build_entry_screen_top("JoyTrunk", width)
+    lines = [""] + build_entry_screen_top("JoyTrunk", width)
     body_lines = [s.strip() for s in message_body.strip().split("\n") if s.strip()]
     lines.extend(build_entry_panel_section(header_title, body_lines or [" "], width))
-    return "\n".join(lines)
+    return _dim_frame("\n".join(lines))
 
 
 def build_entry_bottom(hint: str) -> str:
     """◆  hint、└"""
-    return "\n".join([panel_empty(), f"◆  {hint}", panel_empty(), screen_bottom()])
+    raw = "\n".join([panel_empty(), f"◆  {hint}", panel_empty(), screen_bottom()])
+    return _dim_frame(raw)
 
 
 # 语言选项用于 OpenClaw 风格单块渲染
@@ -99,8 +107,9 @@ LANG_OPTIONS = [
 
 
 def build_language_screen(selected_index: int, section_title: str, hint: str, width: int = PANEL_WIDTH) -> str:
-    """整屏语言选择：┌  Title、◇  Section ──╮、│  ○/● 选项、├──╯、◆  hint、└。"""
+    """整屏语言选择：┌  Title、◇  Section ──╮、│  ○/● 选项、├──╯、◆  hint、└。框线用 [dim] 更柔和。"""
     lines = [
+        "",
         screen_top(section_title, width),
         panel_empty(),
         panel_header("选择语言" if "语言" in section_title or "language" in section_title.lower() else section_title, width),
@@ -116,5 +125,10 @@ def build_language_screen(selected_index: int, section_title: str, hint: str, wi
         f"◆  {hint}",
         panel_empty(),
         screen_bottom(),
+        "",
     ])
-    return "\n".join(lines)
+    # 仅框线字符用 dim，◆ 与 ●○ 保持醒目
+    raw = "\n".join(lines)
+    for char in "┌│├└─╮╯◇":
+        raw = raw.replace(char, f"[dim]{char}[/]")
+    return raw

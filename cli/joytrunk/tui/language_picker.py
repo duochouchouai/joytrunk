@@ -30,14 +30,35 @@ class LanguagePickerApp(App[str | None]):
     CSS = """
     Screen {
         layout: vertical;
-        align: center middle;
-        background: $surface;
+        align: left top;
+        padding: 0;
+        background: $surface 0%;
+    }
+
+    Screen:inline {
+        align: left top;
+        background: $surface 0%;
+        padding: 0;
     }
 
     #lang-panel {
-        width: 74;
+        width: auto;
+        min-width: 74;
         height: auto;
-        padding: 1 0;
+        padding: 0;
+        margin: 0;
+        background: $surface 0%;
+        align-horizontal: left;
+        align-vertical: top;
+    }
+
+    #lang-content {
+        width: auto;
+        height: auto;
+        padding: 0;
+        margin: 0;
+        background: $surface 0%;
+        color: $text;
     }
     """
 
