@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable
 
 from joytrunk import paths
 from joytrunk.agent.context import ContextBuilder
-from joytrunk.agent.employee_config import get_llm_params
+from joytrunk.agent.employee_config import get_llm_params, get_memory_config
 from joytrunk.agent.provider import chat as provider_chat, chat_via_router
 from joytrunk.agent.run_log import (
     EVENT_APPEND_TURN_DONE,
@@ -60,7 +60,17 @@ async def run_employee_loop(
     history = load_history(employee_id, session_key)
     history = history[-MEMORY_WINDOW:] if len(history) > MEMORY_WINDOW else history
 
-    messages = context.build_messages(history, content.strip() or "请说你好。", channel=channel, chat_id=chat_id)
+    memory_cfg = get_memory_config(employee_id)
+    embed_client, llm_chat_fn = _memory_clients(employee_id, owner_id, params, memory_cfg)
+    if embed_client or llm_chat_fn:
+        messages = await context.build_messages_with_memory(
+            history, content.strip() or "请说你好。", channel=channel, chat_id=chat_id,
+            embed_client=embed_client, llm_chat=llm_chat_fn,
+        )
+    else:
+        messages = context.build_messages(
+            history, content.strip() or "请说你好。", channel=channel, chat_id=chat_id,
+        )
     # 本轮要落盘的消息从「当前 turn 的第一个 user（runtime）消息」开始
     skip_count = 1 + len(history)
 
@@ -209,7 +219,55 @@ async def run_employee_loop(
     )
     append_turn(employee_id, session_key, messages, skip_count)
     run_log(employee_id, EVENT_APPEND_TURN_DONE, {}, run_id=run_id)
+    if memory_cfg.get("auto_extract") and (embed_client or llm_chat_fn):
+        try:
+            from joytrunk.agent.memory.memorize import run_memorize
+            await run_memorize(
+                employee_id,
+                messages[skip_count:],
+                llm_chat=llm_chat_fn,
+                embed_client=embed_client or _dummy_embed_client(),
+                memory_types=memory_cfg.get("types") or ["profile", "event"],
+                enable_reinforcement=True,
+            )
+        except Exception as e:
+            run_log(employee_id, "memory_memorize_error", {"error": str(e)}, run_id=run_id)
     return final_content, total_usage if total_usage["prompt_tokens"] or total_usage["completion_tokens"] else None
+
+
+def _dummy_embed_client() -> Any:
+    """占位 embed：返回零向量，避免 memorize 因无 embed 报错。"""
+    class Dummy:
+        async def embed(self, inputs: list[str]) -> list[list[float]]:
+            return [[0.0] * 384 for _ in inputs]
+    return Dummy()
+
+
+def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cfg: dict) -> tuple[Any, Any]:
+    embed_client = None
+    emb = (memory_cfg.get("embedding") or {})
+    base_url = emb.get("base_url") or llm_params.get("base_url")
+    api_key = emb.get("api_key") or llm_params.get("api_key")
+    embed_model = emb.get("embed_model") or "embo-01"
+    if base_url and embed_model:
+        from joytrunk.agent.memory.embedding_client import HTTPEmbeddingClient
+        embed_client = HTTPEmbeddingClient(
+            base_url=base_url, api_key=api_key or "", embed_model=embed_model,
+        )
+    async def llm_chat(messages: list[dict]) -> str:
+        from joytrunk.agent.provider import chat as provider_chat, chat_via_router
+        if llm_params["source"] == "custom":
+            r = await provider_chat(
+                llm_params["base_url"], llm_params["api_key"], llm_params["model"], messages,
+                max_tokens=llm_params.get("max_tokens", 2048), temperature=llm_params.get("temperature", 0.1),
+            )
+        else:
+            r = await chat_via_router(
+                llm_params["gateway_base_url"], llm_params["owner_id"], llm_params["model"], messages,
+                max_tokens=llm_params.get("max_tokens", 2048), temperature=llm_params.get("temperature", 0.1),
+            )
+        return (r.content or "").strip()
+    return embed_client, llm_chat
 
 
 async def _safe_progress(

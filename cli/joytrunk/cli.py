@@ -418,6 +418,103 @@ def employee_set_cmd(
 app.add_typer(employee_app)
 
 
+# 记忆导出命令组
+memory_app = typer.Typer(
+    name="memory",
+    help="记忆管理：导出员工长期记忆为 Markdown 等。默认进入 TUI 选择员工与输出路径。",
+    no_args_is_help=False,
+)
+
+
+@memory_app.callback(invoke_without_command=True)
+def memory_callback(ctx: typer.Context) -> None:
+    """无子命令时进入记忆管理 TUI 菜单（导出记忆 / 返回）。"""
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_memory_export_flow
+    from python_clack import cancel, intro, is_cancel, select
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    intro(t("memory.tui.title"))
+    choice = select(
+        t("employee.menu.prompt"),
+        options=[
+            {"value": "export", "label": t("memory.tui.menu_export")},
+            {"value": "back", "label": t("memory.tui.menu_back")},
+        ],
+    )
+    if is_cancel(choice) or choice == "back":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    if choice == "export":
+        run_memory_export_flow(owner_id)
+
+
+@memory_app.command("export")
+def memory_export_cmd(
+    employee_id: str | None = typer.Argument(None, help="员工 ID（不填则进入 TUI 选择）"),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        path_type=Path,
+        help="输出文件路径（默认：员工目录/outputs/memory_export.md）",
+    ),
+) -> None:
+    """将指定员工的长期记忆导出为 Markdown 文件。不填员工 ID 时进入 TUI 选择员工与输出路径。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root, get_employee_dir
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.agent.memory.export_md import export_memory_to_md
+    from joytrunk.tui.clack_flows import run_memory_export_flow
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id)
+    if not employees:
+        console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
+        raise typer.Exit(1)
+
+    # 未指定员工 ID：走 TUI
+    if employee_id is None or employee_id == "":
+        run_memory_export_flow(owner_id)
+        return
+
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    emp_dir = get_employee_dir(employee_id)
+    if not emp_dir.exists():
+        console.print("[red]员工目录不存在: " + str(emp_dir) + "[/red]")
+        raise typer.Exit(1)
+    try:
+        out_path = export_memory_to_md(employee_id, output_path=output)
+        console.print("[green]✓[/green]", t("memory.export_done", path=str(out_path)))
+    except FileNotFoundError as e:
+        console.print("[red]记忆库不存在或未初始化: " + str(e) + "[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print("[red]导出失败: " + str(e) + "[/red]")
+        raise typer.Exit(1)
+
+
+app.add_typer(memory_app)
+
+
 @app.command("language")
 def language_cmd(
     locale_code: str = typer.Argument(None, help="zh（中文）或 en（English）；不填则进入 TUI 选择"),

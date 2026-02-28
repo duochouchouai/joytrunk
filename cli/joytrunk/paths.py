@@ -44,3 +44,23 @@ def get_employee_dir(employee_id: str) -> Path:
 def get_employee_log_dir(employee_id: str) -> Path:
     """员工运行时日志目录：~/.joytrunk/workspace/employees/<employee_id>/logs"""
     return get_employee_dir(employee_id) / "logs"
+
+
+def get_employee_memory_db_path(employee_id: str) -> Path:
+    """员工记忆库 SQLite 文件：~/.joytrunk/workspace/employees/<employee_id>/memory.db"""
+    return get_employee_dir(employee_id) / "memory.db"
+
+
+def get_employee_outputs_dir(employee_id: str) -> Path:
+    """员工输出目录（如记忆导出 MD）：~/.joytrunk/workspace/employees/<employee_id>/outputs"""
+    return get_employee_dir(employee_id) / "outputs"
+
+
+def get_bundled_templates_dir() -> Path:
+    """包内模板目录：joytrunk/templates/（与 config_store.BUNDLED_TEMPLATES 一致）。"""
+    return Path(__file__).resolve().parent / "templates"
+
+
+def get_bundled_defaults_dir() -> Path:
+    """包内默认种子目录：joytrunk/templates/defaults/（soul.md, user.md, agents.md, tools.md）。"""
+    return get_bundled_templates_dir() / "defaults"

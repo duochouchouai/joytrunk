@@ -78,4 +78,12 @@ MESSAGES = {
     "employee.created": "已创建员工：{name} ({id})",
     "employee.create_failed": "创建失败：{error}",
     "employee.updated": "已更新员工 {id}",
+    "memory.export_done": "记忆已导出至 {path}",
+    "memory.export_failed": "导出失败: {error}",
+    "memory.tui.title": "记忆导出",
+    "memory.tui.select_employee": "选择要导出记忆的员工",
+    "memory.tui.output_prompt": "输出路径（直接回车使用默认：员工目录/outputs/memory_export.md）",
+    "memory.tui.output_placeholder": "留空使用默认路径",
+    "memory.tui.menu_export": "导出记忆 (Markdown)",
+    "memory.tui.menu_back": "返回",
 }

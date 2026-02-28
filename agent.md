@@ -80,14 +80,22 @@ flowchart LR
 - **消息拼接顺序**（`context.build_messages`）：**system**（人格/生存法则/长期记忆/技能） + **history**（上述最近 50 条） + **user（runtime）**（时间、channel、chat_id） + **user（当前用户输入）**。同一轮内若模型返回 tool_calls，会在内存中往 messages 后追加 assistant 与 tool 消息，再次请求大模型时带上整段 messages，不再重新读文件。
 - **落盘**：每轮结束后 `append_turn(employee_id, session_key, messages, skip_count)` 将本轮的 runtime user、当前 user、assistant、tool 等追加进 session 文件；`skip_count = 1 + len(history)` 表示从「当前 turn 的第一条 user（runtime）」起算本轮。tool 消息的 content 超过 500 字会截断后写入（`session.TOOL_RESULT_MAX_CHARS`）。
 
-### 3.5 运行日志（debug）
+### 3.5 长期记忆（memU 风格）
+
+- **架构**：memU 风格移植，**每员工一个 SQLite**（`workspace/employees/<id>/memory.db`），不依赖外部 memu-py。分层：Resource（原始输入）→ MemoryItem（原子记忆 + embedding）→ MemoryCategory（主题摘要）；CategoryItem 关联 item–category。
+- **SOUL/USER/AGENTS/TOOLS 为 MemoryCategory**：员工目录下 SOUL.md、USER.md、AGENTS.md、TOOLS.md 对应 category 名 soul、user、agents、tools；首次启用或 get_store 时从 .md 内容 bootstrap 该 category 的 summary，后续由 memorize 流程更新 DB 中的 summary；build_system_prompt 时**优先从 memory.db 读上述 category 的 summary**，缺省再读磁盘 .md。
+- **memorize**：对话结束后（append_turn 之后）可配置触发：将本轮 messages 格式化为对话文本 → LLM 按 memory_type 提取条目（XML）→ 每条条目生成 embedding 写入 memory_items → 关联到 soul/user/agents/tools → 更新对应 category 的 summary（LLM 合并摘要）。
+- **retrieve**：**RAG**（query 向量 + category summary 现场 embed + item 向量 cosine_topk/salience）与 **LLM**（用 LLM 对 category/item/resource 排序）双路径，通过 `memory.retrieve.method`（`rag` | `llm`）选择。build_system_prompt 时若启用记忆则用当前用户输入做 retrieve，将召回的 items/categories 注入「本员工记忆」段落。
+- **配置**（全局或员工 config 的 `memory`）：`enabled`、`auto_extract`、`types`（如 profile/event）、`retrieve_top_k`、`embedding`（base_url、api_key、embed_model）、`retrieve.method`、`retrieve.item.ranking`（similarity|salience）、`retrieve.sufficiency_check` 等。未配置 embedding 时 memorize 仍可运行（占位零向量），检索 RAG 需配置 embedding。
+
+### 3.6 运行日志（debug）
 
 - **路径**：`workspace/employees/<id>/logs/agent.jsonl`，JSONL 格式（每行一条 JSON）。
 - **字段**：`ts`（ISO 8601 UTC）、`event`、`employee_id`、`run_id`（本轮循环唯一 ID）、`payload`（事件相关数据）。事件类型含：loop_start、iteration、llm_request（发给大模型的 messages 快照）、llm_response（大模型回复与 tool_calls）、tool_calls、tool_result（含结果全文截断）、final_reply、loop_done、append_turn_done 等。
 - **Gateway API**：`GET /api/employees/:id/logs` 返回 `{ entries: [...] }`（最新在前）。仅本地 gateway 提供；前端员工页有「日志」入口。
 - **本地管理 UI**：员工列表每行有「日志」链接，进入后可按**时间排序**（最新在前/最早在前）、**事件类型**多选、**Run ID** 与**关键词**筛选，便于 debug。
 
-### 3.6 本地管理 UI 开发
+### 3.7 本地管理 UI 开发
 
 - **构建**：`cli/joytrunk/ui` 下 `npm run build` 产出到 `cli/joytrunk/gateway/static`，由 `joytrunk gateway` 提供。
 - **热更新**：终端 1 运行 `joytrunk gateway`（API）；终端 2 运行 `cd cli/joytrunk/ui && npm run dev`（Vite 端口 32893，`/api` 代理到 32890）。浏览器打开 http://localhost:32893 即可热更新调试，无需每次 build。
