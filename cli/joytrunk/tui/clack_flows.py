@@ -173,6 +173,46 @@ def run_employee_menu(owner_id: str) -> None:
             continue
 
 
+def run_memory_export_flow(owner_id: str) -> None:
+    """
+    记忆导出 TUI：选择员工 → 可选输入输出路径 → 执行导出。
+    取消或失败时 return。
+    """
+    intro(t("memory.tui.title"))
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        log.warn(t("chat.no_employees"))
+        return
+    options = [
+        {"value": e["id"], "label": f"{e.get('name') or e['id']}  ({e['id']})"}
+        for e in employees
+    ]
+    options.append({"value": "__back__", "label": t("employee.menu.back")})
+    choice = select(t("memory.tui.select_employee"), options=options)
+    if is_cancel(choice) or choice == "__back__":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    emp = next((e for e in employees if e["id"] == choice), None)
+    if not emp:
+        return
+    employee_id = choice
+    out_prompt = t("memory.tui.output_prompt")
+    out_val = text(out_prompt, placeholder=t("memory.tui.output_placeholder"))
+    if is_cancel(out_val):
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    output_path = (out_val or "").strip() or None
+    if output_path:
+        from pathlib import Path
+        output_path = Path(output_path).resolve()
+    try:
+        from joytrunk.agent.memory.export_md import export_memory_to_md
+        out_path = export_memory_to_md(employee_id, output_path=output_path)
+        log.success(t("memory.export_done", path=str(out_path)))
+    except Exception as e:
+        log.error(t("memory.export_failed", error=str(e)))
+
+
 def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
     """
     使用 python-clack 的对话循环：intro 后循环 text() 输入，调用 run_employee_loop，用 log 输出回复与用量。

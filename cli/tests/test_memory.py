@@ -80,17 +80,22 @@ def test_get_store_creates_db(employee_dir, joytrunk_root):
     assert db_path.exists()
 
 
-def test_ensure_categories_from_md(employee_dir):
+def test_ensure_all_categories(employee_dir):
+    """get_store 会调用 ensure_all_categories：14 类存在；若员工目录有 SOUL.md/USER.md 且 DB 中对应 summary 为空则迁移。"""
     (employee_dir / "SOUL.md").write_text("我是人格", encoding="utf-8")
     (employee_dir / "USER.md").write_text("用户信息", encoding="utf-8")
-    from joytrunk.agent.memory.store import get_store, ensure_categories_from_md
+    from joytrunk.agent.memory.store import get_store, ensure_all_categories, CATEGORY_NAMES
     store = get_store("emp-001")
-    ensure_categories_from_md("emp-001", store)
+    ensure_all_categories("emp-001", store)
     store.load_existing()
+    assert len(CATEGORY_NAMES) == 14
     cat_soul = store.memory_category_repo.get_category_by_name("soul")
     cat_user = store.memory_category_repo.get_category_by_name("user")
     assert cat_soul is not None and "我是人格" in (cat_soul.summary or "")
     assert cat_user is not None and "用户信息" in (cat_user.summary or "")
+    for name in CATEGORY_NAMES:
+        cat = store.memory_category_repo.get_category_by_name(name)
+        assert cat is not None, f"missing category {name}"
 
 
 def test_store_resource_and_item(employee_dir):

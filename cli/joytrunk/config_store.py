@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 from joytrunk import paths
 from joytrunk.config_schema import migrate_from_legacy, DEFAULT_CONFIG
 
-BUNDLED_TEMPLATES = Path(__file__).resolve().parent / "templates"
-
 
 def load_config() -> dict:
     """加载全局 config.json 并迁移；若存在旧版 employees 数组则迁移到各员工 config.json。"""
@@ -107,28 +105,39 @@ def list_employees_from_config(owner_id: str | None = None) -> list[dict]:
 
 
 def _copy_templates_to_employee(employee_id: str) -> None:
-    """将包内 templates 复制到员工目录。"""
+    """将包内模板复制到员工目录：仅 SYSTEM_PROMPT.md、HEARTBEAT.md、memory/、skills/。复制完成后触发 get_store 以创建 memory.db 与 14 个 category。"""
     emp_dir = paths.get_employee_dir(employee_id)
-    if not BUNDLED_TEMPLATES.exists():
-        emp_dir.mkdir(parents=True, exist_ok=True)
-        (emp_dir / "memory").mkdir(parents=True, exist_ok=True)
-        (emp_dir / "skills").mkdir(parents=True, exist_ok=True)
-        return
+    tpl_dir = paths.get_bundled_templates_dir()
     emp_dir.mkdir(parents=True, exist_ok=True)
-    for item in BUNDLED_TEMPLATES.iterdir():
-        if item.name.startswith("."):
-            continue
-        dest = emp_dir / item.name
-        if item.is_file() and item.suffix == ".md":
-            if not dest.exists():
-                shutil.copy2(item, dest)
-        elif item.is_dir() and item.name == "memory":
-            mem_dest = emp_dir / "memory"
-            mem_dest.mkdir(parents=True, exist_ok=True)
-            for sub in item.iterdir():
-                if sub.is_file() and not (mem_dest / sub.name).exists():
-                    shutil.copy2(sub, mem_dest / sub.name)
+    (emp_dir / "memory").mkdir(parents=True, exist_ok=True)
     (emp_dir / "skills").mkdir(parents=True, exist_ok=True)
+    if not tpl_dir.exists():
+        _init_store_after_copy(employee_id)
+        return
+    # 只复制 SYSTEM_PROMPT.md、HEARTBEAT.md、memory/ 下文件
+    for name in ("SYSTEM_PROMPT.md", "HEARTBEAT.md"):
+        src = tpl_dir / name
+        if src.is_file():
+            dest = emp_dir / name
+            if not dest.exists():
+                shutil.copy2(src, dest)
+    mem_src = tpl_dir / "memory"
+    if mem_src.is_dir():
+        mem_dest = emp_dir / "memory"
+        for sub in mem_src.iterdir():
+            if sub.is_file() and not (mem_dest / sub.name).exists():
+                shutil.copy2(sub, mem_dest / sub.name)
+    _init_store_after_copy(employee_id)
+
+
+def _init_store_after_copy(employee_id: str) -> None:
+    """复制模板后调用 get_store 并 load_existing，触发 ensure_all_categories。"""
+    try:
+        from joytrunk.agent.memory import get_store
+        store = get_store(employee_id)
+        store.load_existing()
+    except Exception:
+        pass
 
 
 def create_employee_in_config(owner_id: str, name: str, **kwargs) -> dict:

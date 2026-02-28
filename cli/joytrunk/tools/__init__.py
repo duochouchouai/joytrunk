@@ -27,7 +27,7 @@ __all__ = [
 def create_default_registry(
     workspace: Path, employee_id: str, restrict_to_workspace: bool = True
 ) -> ToolRegistry:
-    """创建默认工具注册表：read_file、write_file、list_dir、exec、edit_file；若配置了 BRAVE_API_KEY 则加入 web_search；若启用记忆则加入 save_memory、search_memory。"""
+    """创建默认工具注册表：read_file、write_file、list_dir、exec、edit_file；若配置了 BRAVE_API_KEY 则加入 web_search；始终加入 save_memory、search_memory。"""
     import os
 
     allowed = workspace if restrict_to_workspace else None
@@ -46,10 +46,8 @@ def create_default_registry(
     if os.environ.get("BRAVE_API_KEY"):
         reg.register(WebSearchTool())
     try:
-        from joytrunk.agent.employee_config import get_memory_config
-        if get_memory_config(employee_id).get("enabled"):
-            reg.register(SaveMemoryTool(workspace, allowed, employee_id))
-            reg.register(SearchMemoryTool(workspace, allowed, employee_id))
+        reg.register(SaveMemoryTool(workspace, allowed, employee_id))
+        reg.register(SearchMemoryTool(workspace, allowed, employee_id))
     except Exception:
         pass
     return reg

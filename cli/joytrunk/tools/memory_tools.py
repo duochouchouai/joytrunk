@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from joytrunk.agent.memory.store import CATEGORY_NAMES
 from joytrunk.tools.base import Tool
 
 
@@ -32,8 +33,8 @@ class SaveMemoryTool(Tool):
                 "content": {"type": "string", "description": "The information to remember (concise, self-contained)."},
                 "category": {
                     "type": "string",
-                    "description": "Optional category: soul, user, agents, or tools.",
-                    "enum": ["soul", "user", "agents", "tools"],
+                    "description": "Optional category for this memory.",
+                    "enum": list(CATEGORY_NAMES),
                 },
             },
             "required": ["content"],
@@ -75,7 +76,7 @@ class SaveMemoryTool(Tool):
             vec = (await embed_client.embed([content]))[0]
             cat_names = [category] if category else ["user"]
             name_to_id = {}
-            for c in ("soul", "user", "agents", "tools"):
+            for c in CATEGORY_NAMES:
                 cat = store.memory_category_repo.get_category_by_name(c)
                 if cat:
                     name_to_id[c] = cat.id

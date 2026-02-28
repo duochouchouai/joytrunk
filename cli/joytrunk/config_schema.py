@@ -24,7 +24,6 @@ DEFAULT_CONFIG = {
         }
     },
     "memory": {
-        "enabled": True,
         "auto_extract": True,
         "types": ["profile", "event"],
         "retrieve_top_k": 10,

@@ -61,12 +61,8 @@ async def run_employee_loop(
     history = history[-MEMORY_WINDOW:] if len(history) > MEMORY_WINDOW else history
 
     memory_cfg = get_memory_config(employee_id)
-    use_memory = memory_cfg.get("enabled") is True
-    embed_client = None
-    llm_chat_fn = None
-    if use_memory:
-        embed_client, llm_chat_fn = _memory_clients(employee_id, owner_id, params, memory_cfg)
-    if use_memory and (embed_client or llm_chat_fn):
+    embed_client, llm_chat_fn = _memory_clients(employee_id, owner_id, params, memory_cfg)
+    if embed_client or llm_chat_fn:
         messages = await context.build_messages_with_memory(
             history, content.strip() or "请说你好。", channel=channel, chat_id=chat_id,
             embed_client=embed_client, llm_chat=llm_chat_fn,
@@ -223,7 +219,7 @@ async def run_employee_loop(
     )
     append_turn(employee_id, session_key, messages, skip_count)
     run_log(employee_id, EVENT_APPEND_TURN_DONE, {}, run_id=run_id)
-    if use_memory and memory_cfg.get("auto_extract") and (embed_client or llm_chat_fn):
+    if memory_cfg.get("auto_extract") and (embed_client or llm_chat_fn):
         try:
             from joytrunk.agent.memory.memorize import run_memorize
             await run_memorize(
