@@ -100,7 +100,7 @@ export default {
       sectionDownload: 'Download & install',
       installCmd: 'pip install joytrunk',
       getStarted: 'Quick start:',
-      getStartedSteps: 'joytrunk onboard → joytrunk gateway → open http://localhost:32890',
+      getStartedSteps: 'joytrunk onboard → joytrunk server → open http://localhost:32890',
       sectionCta: 'Get started',
       ctaDocs: 'Command docs',
       ctaPricing: 'Pricing',

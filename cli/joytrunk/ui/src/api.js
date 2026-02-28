@@ -1,5 +1,5 @@
 /**
- * 本地管理界面 API：与 gateway 同源（由 gateway 提供静态与 /api）
+ * 本地管理界面 API：与 server 同源（由 server 提供静态与 /api）
  */
 function getBase() {
   return ''

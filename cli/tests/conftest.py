@@ -38,7 +38,7 @@ def config_with_custom_llm(joytrunk_root):
     c = {
         "version": 1,
         "ownerId": "owner-1",
-        "gateway": {"host": "localhost", "port": 32890},
+        "server": {"host": "localhost", "port": 32890},
         "agents": {"defaults": {"model": "gpt-3.5-turbo", "maxTokens": 2048, "temperature": 0.1}},
         "providers": {
             "joytrunk": {},
@@ -56,7 +56,7 @@ def config_without_custom_llm(joytrunk_root):
     c = {
         "version": 1,
         "ownerId": "owner-1",
-        "gateway": {"host": "localhost", "port": 32890},
+        "server": {"host": "localhost", "port": 32890},
         "agents": {"defaults": {"model": "gpt-3.5-turbo", "maxTokens": 2048}},
         "providers": {"joytrunk": {}, "custom": {"apiKey": "", "apiBase": None, "model": "gpt-3.5-turbo"}},
     }

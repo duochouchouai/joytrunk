@@ -13,17 +13,17 @@ pip install joytrunk
 ## 快速开始
 
 1. **初始化配置与工作区**：`joytrunk onboard`
-2. **与员工对话**：`joytrunk chat`（从 config.json 读取员工列表，无需先启动 gateway）
+2. **与员工对话**：`joytrunk chat`（从 config.json 读取员工列表，无需先启动 server）
 3. **查看/新增/设置员工**：`joytrunk employee` 或 `joytrunk employee list` / `joytrunk employee new` / `joytrunk employee set <id> --name ...`
 4. **查看状态**：`joytrunk status`（从 config.json 读取）
-5. **可选**：`joytrunk gateway` 启动本地后端，供网页/Electron 等 UI 使用（目前仅 TUI 时可不启动）
+5. **可选**：`joytrunk server` 启动本地后端，供网页/Electron 等 UI 使用（目前仅 TUI 时可不启动）
 
 ## 命令列表
 
 | 命令 | 说明 |
 |------|------|
 | [joytrunk onboard](onboard.md) | 初始化本地配置与工作区（~/.joytrunk） |
-| [joytrunk gateway](gateway.md) | 启动本地管理后端（默认 32890，供网页/UI 使用，仅保留） |
+| [joytrunk server](server.md) | 启动本地管理后端（默认 32890，供网页/UI 使用，仅保留） |
 | [joytrunk chat](chat.md) | 与员工对话（从 config 与 workspace 读取，TUI 列出员工，最后一项为新建） |
 | [joytrunk employee](employee.md) | 查看、新增、设置员工（config.json） |
 | [joytrunk status](status.md) | 查看运行状态与员工列表（从 config.json 读取） |
@@ -34,7 +34,7 @@ pip install joytrunk
 
 ## 配置
 
-**所有配置均在 `~/.joytrunk/config.json`**，包括员工列表与负责人 ID；不再使用 store.json。CLI 的 chat、employee、status 均直接读写 config.json，无需连接 gateway。
+**所有配置均在 `~/.joytrunk/config.json`**，包括员工列表与负责人 ID；不再使用 store.json。CLI 的 chat、employee、status 均直接读写 config.json，无需连接 server。可选 `tools.web.search.apiKey`（或环境变量 BRAVE_API_KEY）启用网页搜索；`tools.mcp_servers` 可配置 MCP 服务器以扩展工具（详见 [CLI_USAGE](CLI_USAGE.md) 工具与 MCP 一节）。
 
 ## CLI 界面语言
 

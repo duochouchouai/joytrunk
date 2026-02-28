@@ -134,7 +134,7 @@ async def chat(
 
 
 async def chat_via_router(
-    gateway_base_url: str,
+    server_base_url: str,
     owner_id: str,
     model: str,
     messages: list[dict[str, Any]],
@@ -143,8 +143,8 @@ async def chat_via_router(
     max_tokens: int = 2048,
     temperature: float = 0.1,
 ) -> ChatResponse:
-    """通过 gateway 代理调用 JoyTrunk Router（未配置自有 LLM 时使用）。"""
-    url = gateway_base_url.rstrip("/") + "/api/llm/chat/completions"
+    """通过 server 代理调用 JoyTrunk Router（未配置自有 LLM 时使用）。"""
+    url = server_base_url.rstrip("/") + "/api/llm/chat/completions"
     body: dict[str, Any] = {
         "model": model or "gpt-3.5-turbo",
         "messages": messages,

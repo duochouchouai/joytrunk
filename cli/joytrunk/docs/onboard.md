@@ -15,15 +15,15 @@ joytrunk onboard
 - 在用户主目录下创建 **JoyTrunk 根目录**（Linux/macOS：`~/.joytrunk`，Windows：`%USERPROFILE%\.joytrunk`）。
 - 创建 **config.json**（默认配置）与 **workspace** 目录（含 `workspace/skills`、`workspace/memory`，不创建 `workspace/templates`）。
 - 交互简洁，无需复杂配置。
-- 完成后可提示在浏览器打开 http://localhost:32890 进行员工配置与网页管理；若尚未启动本地服务，需先执行 `joytrunk gateway`。
+- 完成后可提示在浏览器打开 http://localhost:32890 进行员工配置与网页管理；若尚未启动本地服务，需先执行 `joytrunk server`。
 
 ## 后续步骤
 
-1. 执行 `joytrunk gateway` 启动本地管理后端（若未启动）。
+1. 执行 `joytrunk server` 启动本地管理后端（若未启动）。
 2. 在浏览器打开 http://localhost:32890，创建员工、团队与设置。
 3. 使用 `joytrunk chat` 与员工对话。
 
 ## 参见
 
-- [gateway](gateway.md) — 启动本地管理后端
+- [server](server.md) — 启动本地管理后端（joytrunk server）
 - [index](index.md) — 命令指南首页

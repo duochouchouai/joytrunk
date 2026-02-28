@@ -1,6 +1,6 @@
 /**
  * JoyTrunk 官方后端占位：全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量。
- * 本地管理后端（32890、负责人/员工/团队 CRUD、config/workspace）已迁移至 cli 包内 gateway，由 joytrunk gateway 启动。
+ * 本地管理后端（32890、负责人/员工/团队 CRUD、config/workspace）已迁移至 cli 包内 gateway，由 joytrunk server 启动。
  * 本服务为独立进程，端口由 PORT 或配置指定，与本地 32890 解耦。
  */
 
@@ -26,7 +26,7 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     service: 'JoyTrunk 官方后端',
-    docs: '本地管理请使用 joytrunk gateway 启动 cli 内 gateway，访问 http://localhost:32890',
+    docs: '本地管理请使用 joytrunk server 启动 cli 内 server，访问 http://localhost:32890',
   });
 });
 

@@ -7,7 +7,7 @@
 ## 1. 项目概述
 
 - **项目名**：JoyTrunk。产品定义见 [product.md](product.md)。
-- **一句话**：JoyTrunk 是一款部署在用户本地的、7×24 小时运行的多智能体员工；用户在本机创建多名员工（Agent），直接下达指令、接收结果，支持员工生存法则与可选社交能力。**无需「绑定负责人」**：本机即用，gateway 首次请求时自动创建本地上下文。
+- **一句话**：JoyTrunk 是一款部署在用户本地的、7×24 小时运行的多智能体员工；用户在本机创建多名员工（Agent），直接下达指令、接收结果，支持员工生存法则与可选社交能力。**无需「绑定负责人」**：本机即用，server 首次请求时自动创建本地上下文。
 - **目标用户**：不熟悉 AI 技术但希望使用智能体的用户，开箱即用、无需复杂配置。
 - **运行平台**：JoyTrunk **支持 Linux 与 Windows 双平台**；cli 与本地 gateway 可在两种系统上安装运行，配置与 workspace 路径按平台解析（见 §4.2）。
 - **安装与发布**：用户可通过 **`pip install joytrunk`** 安装；安装后获得 `joytrunk` 命令行入口。使用 **`joytrunk onboard`** 初始化本地配置与工作区、配置员工；本地网页管理在 **http://localhost:32890**（默认端口 32890），用于管理员工、团队与设置。
@@ -17,7 +17,7 @@
 
 ## 2. 技术栈与架构
 
-JoyTrunk 是**独立产品**，由 **cli/**、**vue/**、**nodejs/** 三个目录完整实现，**不依赖、不包含** nanobot 作为运行时代码。nanobot 仅作**学习与模仿对象**，目标是在架构与体验上超越 nanobot。架构上采用**双后端**：**本地管理后端**由 **cli** 提供并启动，监听 32890，供本地 Vue 与 CLI 使用，其实现**归属 cli**（当前在 nodejs 中的对应逻辑将迁移到 cli）；**JoyTrunk 官方后端**为 **nodejs/** 目录，实现全平台注册用户、JoyTrunk 即时通讯服务、LLM Router 等云端/官方能力。JoyTrunk **支持 Linux 与 Windows**；cli 与本地 gateway 在两平台上均可运行。JoyTrunk 以 **PyPI 包** 形式发布，包名 **`joytrunk`**，支持 `pip install joytrunk`（Linux / Windows）。**CLI 入口** 由该 Python 包提供（`joytrunk`、`joytrunk onboard` 等）；本地管理界面（Vue + 本地 gateway API）需能由该包**启动并监听 32890 端口**（例如通过 `joytrunk serve`、`joytrunk gateway` 或在 onboard 时提示启动）。
+JoyTrunk 是**独立产品**，由 **cli/**、**vue/**、**nodejs/** 三个目录完整实现，**不依赖、不包含** nanobot 作为运行时代码。nanobot 仅作**学习与模仿对象**，目标是在架构与体验上超越 nanobot。架构上采用**双后端**：**本地管理后端**由 **cli** 提供并启动，监听 32890，供本地 Vue 与 CLI 使用，其实现**归属 cli**（当前在 nodejs 中的对应逻辑将迁移到 cli）；**JoyTrunk 官方后端**为 **nodejs/** 目录，实现全平台注册用户、JoyTrunk 即时通讯服务、LLM Router 等云端/官方能力。JoyTrunk **支持 Linux 与 Windows**；cli 与本地 server 在两平台上均可运行。JoyTrunk 以 **PyPI 包** 形式发布，包名 **`joytrunk`**，支持 `pip install joytrunk`（Linux / Windows）。**CLI 入口** 由该 Python 包提供（`joytrunk`、`joytrunk onboard` 等）；本地管理界面（Vue + 本地 server API）需能由该包**启动并监听 32890 端口**（例如通过 `joytrunk server` 或在 onboard 时提示启动）。
 
 ```mermaid
 flowchart LR
@@ -52,8 +52,8 @@ flowchart LR
   API -.->|"未配置自有 LLM 时"| Router
 ```
 
-- **cli/**：以 `joytrunk` 为入口命令，`joytrunk onboard` 初始化配置与工作区；**`joytrunk chat`** 默认进入**互动式 TUI**：显示本地员工列表（或「无员工」时引导新建），选择员工后进入对话，**新建员工后直接进入该员工对话下达指令**；作为「CLI 渠道」与员工对话；**内含并启动本地管理后端**（员工/团队 CRUD、本地 config/workspace、agent 与 32890 API）；**提供 `joytrunk docs`**，文档源位于 `joytrunk/docs`；可选 `joytrunk gateway`、`joytrunk status`、`joytrunk language`。**不要求用户「绑定负责人」**：gateway 首次请求时自动创建本地上下文，本机多员工即可用。
-- **vue/**：**仅官网**前端（产品页、下载/文档/定价、手机验证码登录、云端 IM）。对接 **JoyTrunk 官方后端**（nodejs）。**本地管理界面**已迁入 **cli/joytrunk/ui**，由 `joytrunk gateway` 构建并随 32890 提供。
+- **cli/**：以 `joytrunk` 为入口命令，`joytrunk onboard` 初始化配置与工作区；**`joytrunk chat`** 默认进入**互动式 TUI**：显示本地员工列表（或「无员工」时引导新建），选择员工后进入对话，**新建员工后直接进入该员工对话下达指令**；作为「CLI 渠道」与员工对话；**内含并启动本地管理后端**（员工/团队 CRUD、本地 config/workspace、agent 与 32890 API）；**提供 `joytrunk docs`**，文档源位于 `joytrunk/docs`；可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。**不要求用户「绑定负责人」**：server 首次请求时自动创建本地上下文，本机多员工即可用。
+- **vue/**：**仅官网**前端（产品页、下载/文档/定价、手机验证码登录、云端 IM）。对接 **JoyTrunk 官方后端**（nodejs）。**本地管理界面**已迁入 **cli/joytrunk/ui**，由 `joytrunk server` 构建并随 32890 提供。
 - **nodejs/**：**JoyTrunk 官方后端**：全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量等；本地未配置自有 LLM 时由该 Router 提供大模型能力。
 
 ### 大模型接入：默认 JoyTrunk Router，支持用户可选配置自有 LLM
@@ -103,8 +103,8 @@ flowchart LR
 | 产品需求来源 | 功能细化 |
 | --- | --- |
 | 安装与注册、开箱即用（product §6、product §1） | 提供 `joytrunk` 入口命令；`joytrunk onboard` 初始化本地配置与工作区（如 `~/.joytrunk`），创建/刷新配置文件、工作区目录、模板，交互简洁、无需复杂配置。 |
-| 作为即时通讯渠道之一（product §5） | 作为「CLI 渠道」：**`joytrunk chat`** 默认进入**互动式 TUI**，显示本地员工列表（或无员工时引导新建）；选择员工后进入对话，**新建员工后直接进入该员工对话下达指令**；与**本地 gateway**（cli 内）通信。可选 `joytrunk chat <员工ID>` 指定员工，`--no-tui` 使用传统单行输入。**无需绑定负责人**：先执行 `joytrunk gateway` 启动本地服务即可。 |
-| 后台运行与待命（product §6） | 可选子命令：`joytrunk gateway` 启动 **cli 内的本地管理后端**，使员工 7×24 待命；`joytrunk status` 查看运行状态、当前员工列表（需先启动 gateway）；`joytrunk language [zh|en]` 配置 CLI 界面语言。 |
+| 作为即时通讯渠道之一（product §5） | 作为「CLI 渠道」：**`joytrunk chat`** 默认进入**互动式 TUI**，显示本地员工列表（或无员工时引导新建）；选择员工后进入对话，**新建员工后直接进入该员工对话下达指令**；与**本地 server**（cli 内）通信。可选 `joytrunk chat <员工ID>` 指定员工，`--no-tui` 使用传统单行输入。**无需绑定负责人**：先执行 `joytrunk server` 启动本地服务即可。 |
+| 后台运行与待命（product §6） | 可选子命令：`joytrunk server` 启动 **cli 内的本地管理后端**，使员工 7×24 待命；`joytrunk status` 查看运行状态、当前员工列表（需先启动 server）；`joytrunk language [zh|en]` 配置 CLI 界面语言。 |
 | 配置与多端一致 | 配置与工作区路径、schema 与 **cli 内本地 gateway** 约定一致（如 `~/.joytrunk/config.json`、`~/.joytrunk/workspace`），便于 vue 或**本地 gateway** 共用同一套配置。 |
 
 ### 3.2 Vue（前端网页：JoyTrunk 自有 IM + 管理后台）
@@ -131,7 +131,7 @@ flowchart LR
 
 ### 3.4 MVP 优先级建议（对应 product §7）
 
-- **cli**：`joytrunk onboard`、**cli 内本地管理后端**（员工/团队 CRUD、config/workspace、32890 API）、**`joytrunk chat` 互动式 TUI**（员工列表 / 新建后直接对话，无需绑定负责人）、可选 `joytrunk gateway`、`joytrunk status`、`joytrunk language`。
+- **cli**：`joytrunk onboard`、**cli 内本地管理后端**（员工/团队 CRUD、config/workspace、32890 API）、**`joytrunk chat` 互动式 TUI**（员工列表 / 新建后直接对话，无需绑定负责人）、可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。
 - **vue**：注册/登录、自有 IM 对话界面、创建并绑定至少一名员工、基础员工配置（人格/职责）；对接本地管理后端（32890），绑定账号时对接 JoyTrunk 官方后端。
 - **nodejs（JoyTrunk 官方后端）**：注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量；单通道（如先做 JoyTrunk 自有 IM 或与本地 gateway 协作）消息收发。
 
@@ -142,11 +142,11 @@ flowchart LR
 ### 4.1 入口命令
 
 - **入口命令**：`joytrunk` 由 **pip 安装的 Python 包** 提供（在 cli 项目中实现，通过 `pyproject.toml` 等 entry_points 注册）。
-- **子命令**：`joytrunk onboard`（初始化配置与工作区，可引导用户打开本地管理页）、`joytrunk docs`（打开命令指南：默认官网，`--local` 本地查看，`--path` 打印文档目录）、**`joytrunk chat`**（默认 TUI：从 config.json 读取员工列表，最后一项为「新建员工」，选择后进入对话；不连接 gateway）、**`joytrunk employee`**（查看/新增/设置员工，均读写 config.json）、`joytrunk gateway`（启动本地管理后端，仅保留供网页/UI）、`joytrunk status`（从 config.json 读取员工列表）、`joytrunk language [zh|en]` 等。
+- **子命令**：`joytrunk onboard`（初始化配置与工作区，可引导用户打开本地管理页）、`joytrunk docs`（打开命令指南：默认官网，`--local` 本地查看，`--path` 打印文档目录）、**`joytrunk chat`**（默认 TUI：从 config.json 读取员工列表，最后一项为「新建员工」，选择后进入对话；不连接 server）、**`joytrunk employee`**（查看/新增/设置员工，均读写 config.json）、`joytrunk server`（启动本地管理后端，仅保留供网页/UI）、`joytrunk status`（从 config.json 读取员工列表）、`joytrunk language [zh|en]` 等。
 
 ### 4.2 配置与工作区路径
 
-- **根路径**：JoyTrunk 本地根（单机对应本机所有员工）。在 **Linux/macOS** 下为 `~/.joytrunk`，在 **Windows** 下为 `%USERPROFILE%\.joytrunk`（PowerShell 中即 `$env:USERPROFILE\.joytrunk`）。实现时使用**平台无关**方式解析用户主目录（如 Node 的 `os.homedir()`、Python 的 `Path.home()`），避免写死 `~` 或反斜杠。**无需用户「绑定负责人」**：gateway 首次 API 请求时自动创建本地默认上下文并写入 config，CLI 与网页即可创建员工、对话。
+- **根路径**：JoyTrunk 本地根（单机对应本机所有员工）。在 **Linux/macOS** 下为 `~/.joytrunk`，在 **Windows** 下为 `%USERPROFILE%\.joytrunk`（PowerShell 中即 `$env:USERPROFILE\.joytrunk`）。实现时使用**平台无关**方式解析用户主目录（如 Node 的 `os.homedir()`、Python 的 `Path.home()`），避免写死 `~` 或反斜杠。**无需用户「绑定负责人」**：server 首次 API 请求时自动创建本地默认上下文并写入 config，CLI 与网页即可创建员工、对话。
 - **配置文件**：**全局** `~/.joytrunk/config.json` **仅保留全局配置**（如 ownerId、gateway、agents.defaults、channels、providers、cli.locale 等），**不包含员工列表**。**每位员工作为独立 agent**，各自使用 **`~/.joytrunk/workspace/employees/<employee_id>/config.json`**，用于存放该员工的身份信息（id、ownerId、name、persona、role 等）及可选的 `agents`、`providers` 覆盖项（覆盖全局配置）。员工列表由扫描 `workspace/employees/` 下各目录并读取其 `config.json` 得到。不使用 store.json。schema 在 JoyTrunk 代码库内定义，cli 与本地 gateway 统一约定。
 - **全局 config.json 结构**：`version`、`joytrunkRoot`、`ownerId`、`gateway`（`host`/`port`）、`agents.defaults`、`channels`、`providers`、`cli`。**无 employees 字段**。旧版若含 employees 数组，首次加载时会自动迁移到各员工目录的 config.json 并写回全局 config。
 - **workspace 根**：`~/.joytrunk/workspace` 为本机工作区根目录。各员工目录下的 config.json 见 §4.3。
@@ -218,14 +218,14 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
   - product.md 定稿。
   - 技术路径确定（cli / vue / nodejs 独立实现，nanobot 仅作参考）。
   - agent.md 蓝图撰写（本文档）。
-  - **CLI 互动式 TUI**：`joytrunk chat` 默认进入 TUI，显示本地员工列表（或无员工时引导新建）；新建员工后**直接进入该员工对话**下达指令；无需「绑定负责人」，先启动 `joytrunk gateway` 即可；**语言选择**（onboard 无语言配置时、`joytrunk language` 无参数时）采用 **↑↓ 移动、Enter 确定** 的 TUI（§4.8）；`joytrunk language [zh|en]` 仍支持命令行参数直接设置。
+  - **CLI 互动式 TUI**：`joytrunk chat` 默认进入 TUI，显示本地员工列表（或无员工时引导新建）；新建员工后**直接进入该员工对话**下达指令；无需「绑定负责人」，先启动 `joytrunk server` 即可；**语言选择**（onboard 无语言配置时、`joytrunk language` 无参数时）采用 **↑↓ 移动、Enter 确定** 的 TUI（§4.8）；`joytrunk language [zh|en]` 仍支持命令行参数直接设置。
   - **TUI 技术栈**：CLI 互动式界面**全部使用 python-clack**，**已移除 Textual**。语言选择、员工选择/新建、对话循环均在 `joytrunk/tui/clack_flows.py`（`run_language_picker`、`run_chat_entry`、`run_chat_loop`）；cli 依赖仅含 `python-clack`（无 textual）。
 - **待办**（按实现技术逻辑排序，供各 agent 按分工更新）：
   1. **基础设施**：创建 cli/、vue/、nodejs/ 目录与各自项目脚手架；pip 包与 CLI 骨架（pyproject.toml、entry_points、`joytrunk` / `joytrunk onboard` 占位）；实现 `joytrunk onboard` 创建 ~/.joytrunk、config、workspace；本地服务可在 32890 提供占位页或 API。 ✅ 已完成（见协作标注）
   2. **后端基础**：实现 **cli 内本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32890 API）；**nodejs** 为 JoyTrunk 官方后端（注册用户、IM、LLM Router、计费与用量）。 ✅ 已完成
   3. **前端基础**：实现 vue 注册/登录、管理后台（员工、团队）在 localhost:32890 提供。 ✅ 已完成
   4. **通道与 agent**：单通道（Web 或 CLI）消息收发与 agent 调度、员工生存法则注入。 ✅ 已完成（占位 agent + POST /api/employees/:id/chat）
-  5. **CLI 渠道**：实现 cli 作为 CLI 渠道与员工对话，可选 `joytrunk gateway`、`joytrunk status`。 ✅ 已完成（joytrunk chat、status 拉取员工列表）
+  5. **CLI 渠道**：实现 cli 作为 CLI 渠道与员工对话，可选 `joytrunk server`、`joytrunk status`。 ✅ 已完成（joytrunk chat、status 拉取员工列表）
   6. **大模型与计费**：实现双模式路由与 token 统计（**本地 gateway** 按负责人判断 Router vs 自有 LLM，解析并存储 token，仅 router 计费；自有 LLM 配置 CRUD API）；实现 **JoyTrunk 官方后端** Router 计费与前端用量/计费/自有 LLM 配置（官方后端用量/余额/账单查询 API；前端用量与计费页、自有 LLM 配置区块、「恢复默认 JoyTrunk」与用量区分展示）。 ✅ 后端占位已完成（GET /api/usage、PATCH/DELETE /api/config/custom-llm）；前端用量/计费页可后续迭代
   7. **测试**：为 cli/vue/nodejs 建立测试框架与首条测试；功能开发由上述测试约定约束（完成前测试齐全且通过）。 ✅ 已完成（nodejs: node --test；vue: vitest；cli: pytest 已有 paths/onboard 测试）
 
@@ -261,13 +261,13 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 
 | 时间 | Agent/会话 | 任务 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
-| 2025-02-26 | Cursor Agent | **实现架构拆分**：cli 内本地 gateway、nodejs 仅官方后端 | 已完成 | cli/joytrunk/gateway/：Node 本地管理后端（server.js + lib/），`joytrunk gateway` 从包内启动并 npm install 若需；nodejs/ 改为占位（GET /api/health），删除 lib/ 与旧 server；gateway 测试迁至 cli/joytrunk/gateway/tests/。Vue 仍对接 32890。 |
+| 2025-02-26 | Cursor Agent | **实现架构拆分**：cli 内本地 server、nodejs 仅官方后端 | 已完成 | cli/joytrunk/gateway/：Node 本地管理后端（server.js + lib/），`joytrunk server` 从包内启动并 npm install 若需；nodejs/ 改为占位（GET /api/health），删除 lib/ 与旧 server；gateway 测试迁至 cli/joytrunk/gateway/tests/。Vue 仍对接 32890。 |
 | 2025-02-26 | Cursor Agent | **架构拆分**：本地管理后端归属 cli 并由 CLI 启动，nodejs 为 JoyTrunk 官方后端（注册用户、IM、LLM Router） | 已完成 | 仅修改 agent.md：§2 双后端、§3 CLI/Vue/Node 职责、§4 约定、§5 待办、§6 技术选型、§7.2 协作标注。 |
 | 2025-02-26 | Cursor Agent | 基础设施：cli/vue/nodejs 脚手架、joytrunk CLI、onboard、32890 占位 | 已完成 | cli: pyproject.toml + joytrunk 包 + onboard；nodejs: Express 32890 + /api/health；vue: Vite+Vue3 占位。CLI 测试需在已安装 typer/pytest 环境中运行。 |
 | 2025-02-26 | Cursor Agent | 待办 2–7：后端、前端、通道与 agent、CLI 渠道、大模型与计费、测试 | 已完成 | nodejs: 账号/员工/团队 CRUD、config/workspace、chat API、生存法则、customLLM/usage 占位。vue: 注册/登录、团队与员工管理、与员工对话。cli: joytrunk chat、status。测试：node --test、vitest、pytest。 |
 | 2025-02-26 | Cursor Agent | 员工模板（仿 nanobot）、默认免登录、登录仅 IM、单员工能力 | 已完成 | cli: 包内 templates（SOUL/USER/AGENTS/TOOLS/HEARTBEAT、memory）；onboard 写入 workspace/templates。nodejs: 创建员工时复制 templates；getOwnerId 自动创建默认负责人。vue: 默认 dashboard，绑定账号可选。agent: 回复时读取员工 SOUL/AGENTS。agent.md 已更新。 |
 | 2025-02-26 | Cursor Agent | 自有 LLM 接入 + 前端设置（用量、自有 LLM 配置、恢复默认） | 已完成 | nodejs: agent.reply 支持 OpenAI 兼容 API，system 从 SOUL/AGENTS/MEMORY 构建；chat 返回 usage。vue: 设置区块展示用量、API Key/Base URL/模型、保存与恢复默认。 |
-| 2025-02-27 | Cursor Agent | **CLI 无需绑定负责人、多智能体、TUI 与新建后直接对话** | 已完成 | 产品表述改为「本地多智能体 · 创建员工、直接下达指令」；`joytrunk chat` 默认进入入口 TUI（员工列表 / 无员工时新建）；新建员工后直接 push ChatScreen 下达指令；status/chat 提示改为「请先启动 joytrunk gateway」；api_client 增加 ensure_owner_via_gateway、create_employee；agent.md 已同步更新。 |
+| 2025-02-27 | Cursor Agent | **CLI 无需绑定负责人、多智能体、TUI 与新建后直接对话** | 已完成 | 产品表述改为「本地多智能体 · 创建员工、直接下达指令」；`joytrunk chat` 默认进入入口 TUI（员工列表 / 无员工时新建）；新建员工后直接 push ChatScreen 下达指令；status/chat 提示改为「请先启动 joytrunk server」；api_client 增加 ensure_owner_via_gateway、create_employee；agent.md 已同步更新。 |
 | 2025-02-27 | Cursor Agent | **TUI 操作方案（§4.8）与语言选择 TUI** | 已完成 | agent.md 新增 §4.8 TUI 操作方案（类 Claude Code/Open Code：↑↓ 移动、Enter 确定、空格多选）；实现 LanguagePickerApp（joytrunk/tui/language_picker.py），onboard 无语言配置时及 `joytrunk language` 无参数时进入 TUI 选择 zh/en；测试更新为 mock LanguagePickerApp。 |
 | 2025-02-27 | Cursor Agent | **使用 python-clack 实现 TUI（language / chat 入口）** | 已完成 | 依赖增加 python-clack；新增 joytrunk/tui/clack_flows.py（run_language_picker、run_chat_entry）；onboard / language / chat 无参数时走 clack 流程（select/text）；选员工后仍启动 Textual ChatTuiApp。§4.8、§5、§6 已更新；测试 test_clack_flows、test_cli_onboard 已适配。 |
 | 2025-02-27 | Cursor Agent | **CLI 界面技术栈确定为 python-clack，移除 Textual** | 已完成 | 全部 TUI 改为 python-clack：新增 run_chat_loop（text/spinner/log 对话循环）；删除 chat_app.py、entry_app.py、language_picker.py、panel_style.py；移除 textual 依赖；删除 test_tui_entry.py。§4.8、§5、§6 已更新为「技术栈已确定，仅 python-clack」。 |

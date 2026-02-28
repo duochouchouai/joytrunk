@@ -1,4 +1,4 @@
-"""调用本地 gateway API（本地员工/聊天）。员工归属本地，无需「绑定负责人」；gateway 首次请求时自动创建本地上下文。"""
+"""调用本地 server API（本地员工/聊天）。员工归属本地，无需「绑定负责人」；server 首次请求时自动创建本地上下文。"""
 
 import json
 from pathlib import Path
@@ -24,11 +24,11 @@ def _load_config():
 
 def get_base_url():
     c = _load_config()
-    g = c.get("gateway") or {}
-    host = g.get("host") or "127.0.0.1"
+    s = c.get("server") or {}
+    host = s.get("host") or "127.0.0.1"
     if host in ("localhost", "::1"):
         host = "127.0.0.1"
-    port = g.get("port") or DEFAULT_PORT
+    port = s.get("port") or DEFAULT_PORT
     return f"http://{host}:{port}"
 
 
@@ -36,9 +36,9 @@ def get_owner_id():
     return _load_config().get("ownerId")
 
 
-def ensure_owner_via_gateway() -> tuple[str | None, str | None]:
+def ensure_owner_via_server() -> tuple[str | None, str | None]:
     """
-    通过调用 gateway GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
+    通过调用 server GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
     返回 (ownerId, None)；失败时返回 (None, 错误信息)。
     """
     try:

@@ -107,7 +107,7 @@ export default {
       sectionDownload: '下载与安装',
       installCmd: 'pip install joytrunk',
       getStarted: '快速开始：',
-      getStartedSteps: 'joytrunk onboard → joytrunk gateway → 打开 http://localhost:32890',
+      getStartedSteps: 'joytrunk onboard → joytrunk server → 打开 http://localhost:32890',
       sectionCta: '开始使用',
       ctaDocs: '命令文档',
       ctaPricing: '计费说明',

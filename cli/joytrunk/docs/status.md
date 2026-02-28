@@ -1,6 +1,6 @@
 # joytrunk status
 
-查看运行状态、当前员工列表等。**从 config.json 读取**，无需启动 gateway。
+查看运行状态、当前员工列表等。**从 config.json 读取**，无需启动 server。
 
 ## 用法
 
@@ -18,5 +18,5 @@ joytrunk status
 
 - [onboard](onboard.md) — 初始化配置与工作区
 - [employee](employee.md) — 查看、新增、设置员工
-- [gateway](gateway.md) — 启动本地管理后端（可选）
+- [server](server.md) — 启动本地管理后端（joytrunk server，可选）
 - [index](index.md) — 命令指南首页
