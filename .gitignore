@@ -27,3 +27,5 @@ vue/dist/
 cli/joytrunk/ui/node_modules/
 cli/joytrunk/gateway/static/
 cli/joytrunk/gateway/node_modules/
+
+deps/
