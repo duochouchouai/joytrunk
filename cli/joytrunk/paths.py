@@ -44,3 +44,8 @@ def get_employee_dir(employee_id: str) -> Path:
 def get_employee_log_dir(employee_id: str) -> Path:
     """员工运行时日志目录：~/.joytrunk/workspace/employees/<employee_id>/logs"""
     return get_employee_dir(employee_id) / "logs"
+
+
+def get_employee_memory_db_path(employee_id: str) -> Path:
+    """员工记忆库 SQLite 文件：~/.joytrunk/workspace/employees/<employee_id>/memory.db"""
+    return get_employee_dir(employee_id) / "memory.db"

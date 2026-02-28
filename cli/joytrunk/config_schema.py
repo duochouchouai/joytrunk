@@ -23,6 +23,24 @@ DEFAULT_CONFIG = {
             "temperature": 0.1,
         }
     },
+    "memory": {
+        "enabled": True,
+        "auto_extract": True,
+        "types": ["profile", "event"],
+        "retrieve_top_k": 10,
+        "embedding": {
+            "base_url": "https://api.minimaxi.com/v1",
+            "api_key": "",
+            "embed_model": "embo-01",
+        },
+        "retrieve": {
+            "method": "rag",
+            "category": {"enabled": True, "top_k": 3},
+            "item": {"top_k": 10, "ranking": "similarity", "recency_decay_days": 30.0},
+            "resource": {"enabled": True, "top_k": 5},
+            "sufficiency_check": False,
+        },
+    },
     "channels": {
         "cli": {"enabled": True},
         "web": {"enabled": True},
