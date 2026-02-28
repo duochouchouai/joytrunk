@@ -1,4 +1,4 @@
-"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk gateway / joytrunk docs / joytrunk status / joytrunk language。"""
+"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk server / joytrunk docs / joytrunk status / joytrunk language。"""
 
 import os
 import subprocess
@@ -20,8 +20,8 @@ app = typer.Typer(
 )
 console = Console()
 
-GATEWAY_PORT = 32890
-GATEWAY_URL = f"http://localhost:{GATEWAY_PORT}"
+SERVER_PORT = 32890
+SERVER_URL = f"http://localhost:{SERVER_PORT}"
 
 
 def _safe_text_for_console(text: str) -> str:
@@ -93,46 +93,56 @@ def onboard_cmd() -> None:
     )
     if did_import:
         console.print("[green]✓[/green]", t("onboard.env_imported"))
-    console.print(Markdown(t("onboard.next", url=GATEWAY_URL)))
+    console.print(Markdown(t("onboard.next", url=SERVER_URL)))
 
 
-@app.command("gateway")
-def gateway_cmd(
-    port: int = typer.Option(GATEWAY_PORT, "--port", "-p", help="监听端口"),
+@app.command("server")
+def server_cmd(
+    port: int = typer.Option(SERVER_PORT, "--port", "-p", help="监听端口"),
 ) -> None:
     """启动本地常驻服务（cli 内本地管理后端），绑定 32890，提供网页管理界面与 API。"""
-    gateway_dir = Path(__file__).resolve().parent / "gateway"
-    if not (gateway_dir / "package.json").exists():
-        console.print("[red]" + t("gateway.not_found", path="[cyan]joytrunk/gateway/[/cyan]") + "[/red]")
-        console.print(t("gateway.upgrade"))
+    server_dir = Path(__file__).resolve().parent / "server"
+    if not (server_dir / "package.json").exists():
+        console.print("[red]" + t("server.not_found", path="[cyan]joytrunk/server/[/cyan]") + "[/red]")
+        console.print(t("server.upgrade"))
         raise typer.Exit(1)
-    server_js = gateway_dir / "server.js"
+    server_js = server_dir / "server.js"
     if not server_js.exists():
-        console.print("[red]" + t("gateway.server_missing") + "[/red]")
+        console.print("[red]" + t("server.server_missing") + "[/red]")
         raise typer.Exit(1)
-    node_modules = gateway_dir / "node_modules"
+    node_modules = server_dir / "node_modules"
     if not node_modules.exists():
-        console.print("[dim]" + t("gateway.installing") + "[/dim]")
+        console.print("[dim]" + t("server.installing") + "[/dim]")
         try:
-            subprocess.run(
-                ["npm", "install", "--omit=dev"],
-                cwd=str(gateway_dir),
-                env=dict(os.environ),
-                check=True,
-                capture_output=True,
-            )
+            # On Windows, npm is typically npm.cmd; shell=True lets the shell resolve it.
+            run_kw: dict = {
+                "cwd": str(server_dir),
+                "env": dict(os.environ),
+                "check": True,
+                "capture_output": True,
+            }
+            if sys.platform == "win32":
+                subprocess.run("npm install --omit=dev", shell=True, **run_kw)
+            else:
+                subprocess.run(["npm", "install", "--omit=dev"], **run_kw)
+        except FileNotFoundError:
+            console.print("[red]" + t("server.node_missing") + "[/red]")
+            raise typer.Exit(1)
         except subprocess.CalledProcessError:
-            console.print("[red]" + t("gateway.npm_failed") + "[/red]")
+            console.print("[red]" + t("server.npm_failed") + "[/red]")
             raise typer.Exit(1)
     try:
         env = dict(os.environ)
         env["PORT"] = str(port)
-        subprocess.run(["node", "server.js"], cwd=str(gateway_dir), env=env)
+        if sys.platform == "win32":
+            subprocess.run("node server.js", shell=True, cwd=str(server_dir), env=env)
+        else:
+            subprocess.run(["node", "server.js"], cwd=str(server_dir), env=env)
     except FileNotFoundError:
-        console.print("[red]" + t("gateway.node_missing") + "[/red]")
+        console.print("[red]" + t("server.node_missing") + "[/red]")
         raise typer.Exit(1)
     except Exception as e:
-        console.print("[red]" + t("gateway.start_failed", error=e) + "[/red]")
+        console.print("[red]" + t("server.start_failed", error=e) + "[/red]")
         raise typer.Exit(1)
 
 
@@ -173,7 +183,7 @@ def docs_cmd(
 
 @app.command("status")
 def status_cmd() -> None:
-    """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 gateway）。"""
+    """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 server）。"""
     from joytrunk.paths import get_config_path, get_joytrunk_root
     from joytrunk.api_client import get_base_url
     from joytrunk.config_store import ensure_owner_id, list_employees_from_config
@@ -186,9 +196,9 @@ def status_cmd() -> None:
     if not config_path.exists():
         console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
-    gateway_url = get_base_url()
+    server_url = get_base_url()
     console.print(t("status.root", path=f"[cyan]{root}[/cyan]"))
-    console.print(t("status.gateway", url=f"[link={gateway_url}]{gateway_url}[/link]"))
+    console.print(t("status.server", url=f"[link={server_url}]{server_url}[/link]"))
     owner_id = ensure_owner_id()
     employees = list_employees_from_config(owner_id)
     if employees:
@@ -204,7 +214,7 @@ def chat_cmd(
     employee_id: str = typer.Argument(None, help="员工 ID（不填则从配置或列表选择）"),
     no_tui: bool = typer.Option(False, "--no-tui", help="使用传统单行输入模式，不启动互动式 TUI"),
 ) -> None:
-    """与指定员工对话（CLI 渠道）。不连接 gateway，从 config.json 与 workspace 读取设置；不填员工 ID 时进入 TUI 显示员工列表（最后一项为新建员工）并选择后进入对话。"""
+    """与指定员工对话（CLI 渠道）。不连接 server，从 config.json 与 workspace 读取设置；不填员工 ID 时进入 TUI 显示员工列表（最后一项为新建员工）并选择后进入对话。"""
     import asyncio
     from joytrunk.paths import get_config_path, get_joytrunk_root
     from joytrunk.api_client import get_default_employee_id
@@ -299,7 +309,7 @@ def chat_cmd(
             console.print("[red]" + t("chat.send_failed", error=ex) + "[/red]")
 
 
-# employee 命令组：列出/新建/设置员工，无子命令时进入 clack 菜单（均从 config.json 读写，不连接 gateway）
+# employee 命令组：列出/新建/设置员工，无子命令时进入 clack 菜单（均从 config.json 读写，不连接 server）
 employee_app = typer.Typer(
     name="employee",
     help="员工管理：查看、新建、设置员工（config.json）。无子命令时进入互动菜单。",

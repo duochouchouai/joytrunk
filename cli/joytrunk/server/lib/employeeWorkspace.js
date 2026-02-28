@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { getEmployeeDir } = require('./paths');
 
-/** 捆绑模板目录：gateway 在 joytrunk/gateway/，模板在 joytrunk/templates/ */
+/** 捆绑模板目录：server 在 joytrunk/server/，模板在 joytrunk/templates/ */
 const BUNDLED_TEMPLATES_DIR = path.join(__dirname, '..', '..', 'templates');
 
 const TEMPLATE_FILES = ['SYSTEM_PROMPT.md', 'HEARTBEAT.md'];

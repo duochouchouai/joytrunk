@@ -1,6 +1,6 @@
 # joytrunk employee
 
-查看、新增、设置员工。**所有数据存于 config.json**，不连接 gateway。
+查看、新增、设置员工。**所有数据存于 config.json**，不连接 server。
 
 ## 用法
 

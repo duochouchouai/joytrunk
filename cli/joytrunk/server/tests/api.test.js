@@ -1,5 +1,5 @@
 /**
- * Gateway 单元测试：paths 与 store（与 nodejs 原 tests 一致，现归属 cli 内 gateway）
+ * Server 单元测试：paths 与 store（与 nodejs 原 tests 一致，现归属 cli 内 server）
  */
 
 const { describe, it } = require('node:test');
@@ -48,7 +48,7 @@ describe('paths', () => {
 });
 
 describe('store', () => {
-  const tmpDir = path.join(os.tmpdir(), 'joytrunk-gateway-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  const tmpDir = path.join(os.tmpdir(), 'joytrunk-server-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
   const origEnv = process.env.JOYTRUNK_ROOT;
 
   it('load returns default when file missing', () => {
@@ -63,7 +63,7 @@ describe('store', () => {
   });
 
   it('createOwner adds owner and save', () => {
-    const dir2 = path.join(os.tmpdir(), 'joytrunk-gateway-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+    const dir2 = path.join(os.tmpdir(), 'joytrunk-server-test-' + Date.now() + '-' + Math.random().toString(36).slice(2));
     process.env.JOYTRUNK_ROOT = dir2;
     delete require.cache[require.resolve('../lib/store')];
     const store = require('../lib/store');

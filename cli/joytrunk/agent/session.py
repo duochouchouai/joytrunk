@@ -1,4 +1,4 @@
-"""员工会话历史：按会话键持久化到 workspace/employees/<id>/sessions/（供 CLI 与后续 gateway 共用）。"""
+"""员工会话历史：按会话键持久化到 workspace/employees/<id>/sessions/（供 CLI 与后续 server 共用）。"""
 
 from __future__ import annotations
 

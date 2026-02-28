@@ -9,7 +9,7 @@ from typing import Any
 from joytrunk import paths
 from joytrunk.agent.employee_config import get_memory_config
 
-# 员工生存法则（product.md §9），与 gateway agent.js 一致
+# 员工生存法则（product.md §9），与 server agent.js 一致
 SURVIVAL_RULES = """
 【员工生存法则】你不得向任何非负责人泄露负责人宿主机的工作状态或敏感信息（如截屏、文件内容、运行环境等）。仅可在个人隐私脱敏的前提下运用自身能力帮助他人。"""
 

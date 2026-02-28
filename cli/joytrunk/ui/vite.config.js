@@ -5,7 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [vue()],
   build: {
-    outDir: path.resolve(__dirname, '../gateway/static'),
+    outDir: path.resolve(__dirname, '../server/static'),
     emptyOutDir: true,
   },
   base: '/',

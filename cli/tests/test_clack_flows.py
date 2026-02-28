@@ -38,7 +38,7 @@ def test_run_language_picker_returns_none_on_cancel():
     assert result is None
 
 
-def test_run_chat_entry_returns_none_when_no_gateway():
+def test_run_chat_entry_returns_none_when_no_server():
     """run_chat_entry 在无员工且用户取消选择时返回 None。"""
     from joytrunk.tui.clack_flows import run_chat_entry
 

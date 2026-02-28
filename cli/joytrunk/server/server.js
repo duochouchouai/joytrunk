@@ -1,6 +1,6 @@
 /**
  * JoyTrunk 本地管理后端（cli 内）：监听 32890，提供负责人/员工/团队 CRUD、config/workspace、agent 与 API。
- * 由 joytrunk gateway 启动；静态资源来自同目录下 static/（由 cli/joytrunk/ui 构建产出）。
+ * 由 joytrunk server 启动；静态资源来自同目录下 static/（由 cli/joytrunk/ui 构建产出）。
  */
 
 const express = require('express');
@@ -17,8 +17,8 @@ const employeeConfig = require('./lib/employeeConfig');
 
 const app = express();
 const cfg = config.loadConfig();
-const PORT = Number(process.env.PORT) || (cfg.gateway && cfg.gateway.port) || 32890;
-const HOST = (cfg.gateway && cfg.gateway.host) || '127.0.0.1';
+const PORT = Number(process.env.PORT) || (cfg.server && cfg.server.port) || 32890;
+const HOST = (cfg.server && cfg.server.host) || '127.0.0.1';
 
 app.use(cors());
 app.use(express.json());
@@ -42,7 +42,7 @@ function getOwnerId(req) {
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
-    service: 'joytrunk-gateway',
+    service: 'joytrunk-server',
     port: PORT,
   });
 });
@@ -259,7 +259,7 @@ app.get('/api/usage', (req, res) => {
   res.json({ usage: [{ source: 'router', tokens: 0 }, { source: 'custom', tokens: 0 }] });
 });
 
-// ---------- 静态与 SPA（本地 UI 来自 cli/joytrunk/ui 构建到 gateway/static）----------
+// ---------- 静态与 SPA（本地 UI 来自 cli/joytrunk/ui 构建到 server/static）----------
 const UI_DIR = path.join(__dirname, '..', 'ui');
 const STATIC_DIR = path.join(__dirname, 'static');
 
@@ -302,15 +302,15 @@ if (fs.existsSync(path.join(STATIC_DIR, 'index.html'))) {
 }
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`JoyTrunk gateway listening on http://${HOST}:${PORT}`);
+  console.log(`JoyTrunk server listening on http://${HOST}:${PORT}`);
 });
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`\n端口 ${PORT} 已被占用。可能已有 JoyTrunk gateway 在运行。`);
-    console.error(`解决：关闭占用端口的进程，或使用其他端口：joytrunk gateway --port <端口号>\n`);
+    console.error(`\n端口 ${PORT} 已被占用。可能已有 JoyTrunk server 在运行。`);
+    console.error(`解决：关闭占用端口的进程，或使用其他端口：joytrunk server --port <端口号>\n`);
   } else {
-    console.error('JoyTrunk gateway 启动失败:', err.message);
+    console.error('JoyTrunk server 启动失败:', err.message);
   }
   process.exit(1);
 });

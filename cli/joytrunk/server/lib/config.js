@@ -1,5 +1,5 @@
 /**
- * 读写 ~/.joytrunk/config.json，结构仿 nanobot（gateway / agents / channels / providers）
+ * 读写 ~/.joytrunk/config.json，结构仿 nanobot（server / agents / channels / providers）
  * 与 cli config_schema 约定一致；加载时自动迁移旧版。
  */
 

@@ -46,7 +46,7 @@ def run_language_picker() -> str | None:
 def run_new_employee(owner_id: str, skip_intro: bool = False) -> tuple[str, str, str] | None:
     """
     新建员工流程（供 chat 与 employee 命令共用）。
-    使用 config_store 写入 config.json，不连接 gateway。
+    使用 config_store 写入 config.json，不连接 server。
     使用 python-clack：text() 输入名称，create_employee_in_config 后返回 (employee_id, owner_id, employee_name)。
     取消或失败返回 None。skip_intro=True 时省略 intro（用于从 chat 入口进入时）。
     """
@@ -74,7 +74,7 @@ def run_new_employee(owner_id: str, skip_intro: bool = False) -> tuple[str, str,
 
 def run_chat_entry() -> tuple[str, str, str] | None:
     """
-    使用 python-clack 完成 chat 入口：从 config.json 读取员工，不连接 gateway。
+    使用 python-clack 完成 chat 入口：从 config.json 读取员工，不连接 server。
     选择或新建员工。返回 (employee_id, owner_id, employee_name)，取消或失败返回 None。
     """
     intro("JoyTrunk")
@@ -131,7 +131,7 @@ def run_chat_entry() -> tuple[str, str, str] | None:
 def run_employee_menu(owner_id: str) -> None:
     """
     员工管理 TUI 菜单（joytrunk employee 无子命令时）：列出员工 / 新建员工 / 退出。
-    从 config.json 读取，不连接 gateway。
+    从 config.json 读取，不连接 server。
     """
     while True:
         intro(t("employee.menu.title"))

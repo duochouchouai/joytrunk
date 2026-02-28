@@ -118,7 +118,7 @@ async def test_chat_calls_url():
 
 
 @pytest.mark.asyncio
-async def test_chat_via_router_calls_gateway():
+async def test_chat_via_router_calls_server():
     resp_json = {
         "choices": [{"message": {"content": "From router", "role": "assistant"}}],
         "usage": {"prompt_tokens": 2, "completion_tokens": 2},

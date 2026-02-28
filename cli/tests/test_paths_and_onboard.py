@@ -49,7 +49,7 @@ def test_run_onboard_creates_dirs_and_config() -> None:
         with open(tmp_path / "config.json", "r", encoding="utf-8") as f:
             config = json.load(f)
         assert config["joytrunkRoot"] == str(tmp_path.resolve())
-        assert config.get("gateway", {}).get("port") == 32890
+        assert config.get("server", {}).get("port") == 32890
         assert config.get("cli", {}).get("locale") == "zh"
 
 

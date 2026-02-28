@@ -1,5 +1,5 @@
 {
-  "name": "joytrunk-gateway",
+  "name": "joytrunk-server",
   "version": "0.1.0",
   "description": "JoyTrunk 本地管理后端（cli 内），监听 32890",
   "main": "server.js",

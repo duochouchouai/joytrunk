@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
     "cli": {
         "locale": "zh",
     },
-    "gateway": {
+    "server": {
         "host": "127.0.0.1",
         "port": 32890,
     },
@@ -55,19 +55,26 @@ DEFAULT_CONFIG = {
             "model": "gpt-3.5-turbo",
         },
     },
+    "tools": {
+        "web": {
+            "search": {"apiKey": ""},
+        },
+        "mcp_servers": {},
+    },
 }
 
 # 兼容旧版：曾用 gatewayPort / defaultEmployeeId / customLLM 平铺在顶层
 def migrate_from_legacy(data: dict) -> dict:
-    """将旧版 config 迁移到新 schema；全局 config 不包含 employees（员工由各自 config.json 表示）。"""
+    """将旧版 config 迁移到新 schema；输出仅含 server（迁移时从 gateway/gatewayPort 填充）。"""
     if not isinstance(data, dict):
         return dict(DEFAULT_CONFIG)
     out = {}
     for k, v in DEFAULT_CONFIG.items():
-        if k == "gateway":
-            out["gateway"] = {
-                "host": data.get("gateway", {}).get("host") if isinstance(data.get("gateway"), dict) else "127.0.0.1",
-                "port": data.get("gateway", {}).get("port") if isinstance(data.get("gateway"), dict) else data.get("gatewayPort", 32890),
+        if k == "server":
+            old_gw = data.get("gateway") if isinstance(data.get("gateway"), dict) else {}
+            out["server"] = {
+                "host": old_gw.get("host", "127.0.0.1") if old_gw else "127.0.0.1",
+                "port": old_gw.get("port", data.get("gatewayPort", 32890)) if old_gw else data.get("gatewayPort", 32890),
             }
         elif k == "agents":
             agents = data.get("agents") or {}
@@ -102,6 +109,23 @@ def migrate_from_legacy(data: dict) -> dict:
             out["cli"] = data.get("cli") if isinstance(data.get("cli"), dict) else dict(DEFAULT_CONFIG["cli"])
             if "locale" not in out["cli"] or out["cli"]["locale"] not in ("zh", "en"):
                 out["cli"]["locale"] = DEFAULT_CONFIG["cli"]["locale"]
+        elif k == "tools":
+            tools_data = data.get("tools")
+            if isinstance(tools_data, dict):
+                web = tools_data.get("web")
+                out["tools"] = {
+                    "web": {
+                        "search": {
+                            "apiKey": (web.get("search") or {}).get("apiKey", "")
+                            if isinstance(web, dict) else ""
+                        }
+                    } if isinstance(web, dict) else dict(DEFAULT_CONFIG["tools"]["web"]),
+                    "mcp_servers": tools_data.get("mcp_servers")
+                    if isinstance(tools_data.get("mcp_servers"), dict)
+                    else {},
+                }
+            else:
+                out["tools"] = dict(DEFAULT_CONFIG["tools"])
         else:
             out[k] = data.get(k, v)
     return out
