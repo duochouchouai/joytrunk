@@ -3,7 +3,6 @@
 import pytest
 
 from joytrunk.agent.context import (
-    BOOTSTRAP_FILES,
     RUNTIME_TAG,
     SURVIVAL_RULES,
     ContextBuilder,

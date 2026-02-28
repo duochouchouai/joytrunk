@@ -4,6 +4,7 @@ import OfficialLayout from '../layouts/OfficialLayout.vue'
 import HomeView from '../views/HomeView.vue'
 import ChatView from '../views/ChatView.vue'
 import EmployeesView from '../views/EmployeesView.vue'
+import EmployeeLogsView from '../views/EmployeeLogsView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import OfficialLandingView from '../views/OfficialLandingView.vue'
 import OfficialDocsView from '../views/OfficialDocsView.vue'
@@ -31,6 +32,7 @@ const routes = [
       { path: 'overview', name: 'home', component: HomeView },
       { path: 'chat', name: 'chat', component: ChatView },
       { path: 'employees', name: 'employees', component: EmployeesView },
+      { path: 'employees/:id/logs', name: 'employee-logs', component: EmployeeLogsView },
       { path: 'settings', name: 'settings', component: SettingsView },
     ],
   },

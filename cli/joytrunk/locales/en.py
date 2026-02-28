@@ -78,4 +78,12 @@ MESSAGES = {
     "employee.created": "Created employee: {name} ({id})",
     "employee.create_failed": "Create failed: {error}",
     "employee.updated": "Updated employee {id}",
+    "memory.export_done": "Memory exported to {path}",
+    "memory.export_failed": "Export failed: {error}",
+    "memory.tui.title": "Memory export",
+    "memory.tui.select_employee": "Select employee to export memory",
+    "memory.tui.output_prompt": "Output path (Enter for default: employee_dir/outputs/memory_export.md)",
+    "memory.tui.output_placeholder": "Leave empty for default",
+    "memory.tui.menu_export": "Export memory (Markdown)",
+    "memory.tui.menu_back": "Back",
 }

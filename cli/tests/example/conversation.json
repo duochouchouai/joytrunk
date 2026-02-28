@@ -1,0 +1,14 @@
+[
+  {"role": "user", "content": "你好，我想让你记住一些关于我的信息，方便以后对话更顺畅。"},
+  {"role": "assistant", "content": "好的，请说。我会尽量记住与您相关的信息。"},
+  {"role": "user", "content": "我叫张明，朋友们都叫我小明。目前在杭州一家互联网公司做产品经理，主要负责 ToB 的协作产品线。"},
+  {"role": "assistant", "content": "了解，张明（小明），杭州互联网公司产品经理，负责 ToB 协作产品。还有呢？"},
+  {"role": "user", "content": "我平时喜欢喝咖啡，尤其是手冲。不太喜欢太甜的饮料。早餐一般会吃面包或麦片。"},
+  {"role": "assistant", "content": "已记：偏好手冲咖啡、不喜过甜、早餐偏面包/麦片。"},
+  {"role": "user", "content": "工作里我常用 Python 做数据分析和原型验证，写文档用 Markdown。团队用飞书和 Notion，我不太喜欢开会超过一小时。"},
+  {"role": "assistant", "content": "明白：技术栈 Python、Markdown，协作工具飞书和 Notion，会议偏好控制在一小时内。"},
+  {"role": "user", "content": "对了，我有一只猫叫橘座，三岁了。周末会去跑步或爬山，偶尔打羽毛球。"},
+  {"role": "assistant", "content": "橘座三岁，周末运动跑步/爬山/羽毛球，都记下了。"},
+  {"role": "user", "content": "还有，我对 AI 产品特别感兴趣，自己在学大模型和 RAG，希望以后能用到我们的产品里。"},
+  {"role": "assistant", "content": "好的，已记录：你对 AI 与大模型、RAG 感兴趣，并希望应用到产品中。"}
+]

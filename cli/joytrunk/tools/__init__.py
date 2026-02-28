@@ -6,6 +6,7 @@ from typing import Any
 from joytrunk.tools.base import Tool
 from joytrunk.tools.exec_tool import ExecTool
 from joytrunk.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
+from joytrunk.tools.memory_tools import SaveMemoryTool, SearchMemoryTool
 from joytrunk.tools.registry import ToolRegistry
 from joytrunk.tools.web import WebFetchTool, WebSearchTool
 
@@ -19,6 +20,8 @@ __all__ = [
     "EditFileTool",
     "WebSearchTool",
     "WebFetchTool",
+    "SaveMemoryTool",
+    "SearchMemoryTool",
     "create_default_registry",
 ]
 
@@ -64,4 +67,9 @@ def create_default_registry(
         if isinstance(web, dict) and isinstance(web.get("fetch"), dict) and "maxChars" in web["fetch"]:
             max_chars = int(web["fetch"]["maxChars"])
     reg.register(WebFetchTool(max_chars=max_chars))
+    try:
+        reg.register(SaveMemoryTool(workspace, allowed, employee_id))
+        reg.register(SearchMemoryTool(workspace, allowed, employee_id))
+    except Exception:
+        pass
     return reg

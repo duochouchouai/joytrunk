@@ -8,6 +8,11 @@ import pytest
 @pytest.fixture(autouse=True)
 def joytrunk_root(tmp_path, monkeypatch):
     """将 JoyTrunk 根目录指向临时目录，便于测试 paths/context/session/config 等。"""
+    try:
+        import joytrunk.agent.memory.store as memory_store
+        memory_store._store_cache.clear()
+    except Exception:
+        pass
     root = tmp_path / "joytrunk"
     root.mkdir()
     monkeypatch.setenv("JOYTRUNK_ROOT", str(root))
