@@ -107,6 +107,12 @@ class ContextBuilder:
         except Exception:
             pass
 
+        # 2b. 追加内置工具说明（defaults/BUILTIN_TOOLS.md），用于插入系统提示词 tools 段落
+        builtin_tools_path = paths.get_bundled_templates_dir() / "defaults" / "BUILTIN_TOOLS.md"
+        builtin_tools = _read_optional(builtin_tools_path)
+        if builtin_tools.strip():
+            tools = (tools.strip() + "\n\n" + builtin_tools.strip()).strip() if tools.strip() else builtin_tools.strip()
+
         # 3. 长期记忆段落（与现逻辑一致）
         shared_mem = _load_shared_memory()
         emp_mem = _load_employee_memory(self.employee_dir)

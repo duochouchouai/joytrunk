@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 14 个 category：前 4 个与 system prompt 注入一致，后 10 个为 memU 扩展
+# 14 个 category：前 4 个与 system prompt 各节一致（人格/负责人/工作准则/工具），后 10 个为扩展维度
 CATEGORY_NAMES = [
     "soul",
     "user",
@@ -32,14 +32,15 @@ CATEGORY_NAMES = [
     "work_life",
 ]
 
+# 描述与 SYSTEM_PROMPT.md 中的「你的记忆」category 表一致，便于读取/储存时对应
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
-    "soul": "人格/身份",
-    "user": "负责人/用户信息",
-    "agents": "员工指令/行为",
-    "tools": "工具使用",
-    "personal_info": "用户个人信息",
+    "soul": "人格（Soul）：价值观与沟通方式",
+    "user": "负责人/用户（User）：对负责人的了解",
+    "agents": "工作准则（Agents）：员工指令与行为",
+    "tools": "工具（Tools）：工具使用方式与约束",
+    "personal_info": "身份/个人信息：名字、自我介绍等",
     "preferences": "偏好与好恶",
-    "relationships": "人际关系",
+    "relationships": "人际关系/同事（Colleagues）：与同事的协作与记忆",
     "activities": "活动与行为",
     "goals": "目标与计划",
     "experiences": "经历与事件",
