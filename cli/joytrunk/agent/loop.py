@@ -30,7 +30,6 @@ from joytrunk.agent.run_log import (
     truncate_str,
 )
 from joytrunk.agent.session import append_turn, load_history
-from joytrunk.tools import create_default_registry
 from joytrunk.tools.mcp import connect_mcp_servers
 
 MAX_ITERATIONS = 40
@@ -59,8 +58,9 @@ async def run_employee_loop(
     context = ContextBuilder(employee_id)
     config = get_merged_config_for_employee(employee_id)
     tools_config = config.get("tools")
+    from joytrunk.tools import create_default_registry
     tools_reg = create_default_registry(
-        workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config
+        workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config, owner_id=owner_id
     )
 
     history = load_history(employee_id, session_key)

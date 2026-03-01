@@ -146,6 +146,35 @@ def server_cmd(
         raise typer.Exit(1)
 
 
+gateway_app = typer.Typer(name="gateway", help="A2A Gateway：启动服务或查看状态")
+
+
+@gateway_app.callback(invoke_without_command=True)
+def gateway_callback(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.gateway.a2a_server import main
+    main()
+
+
+@gateway_app.command("status")
+def gateway_status_cmd() -> None:
+    """检测 Gateway 是否可用并打印 base URL。"""
+    from joytrunk import a2a_client
+    base = a2a_client.get_gateway_base_url()
+    if not base:
+        console.print("[yellow]未配置 Gateway（gateway.a2a_backend_url 或 gateway.a2a_port）[/yellow]")
+        return
+    console.print("Gateway URL:", f"[cyan]{base}[/cyan]")
+    if a2a_client.gateway_available():
+        console.print("[green]✓[/green] Gateway 可用")
+    else:
+        console.print("[yellow]Gateway 未响应，请先运行 joytrunk gateway[/yellow]")
+
+
+app.add_typer(gateway_app)
+
+
 @app.command("docs")
 def docs_cmd(
     local: bool = typer.Option(False, "--local", "-l", help="本地查看包内文档（启动临时 HTTP 服务）"),
@@ -291,20 +320,30 @@ def chat_cmd(
                 if s:
                     console.print("[dim]  [/dim]" + _safe_text_for_console(s[:200]) + ("…" if len(s) > 200 else ""))
 
-            reply, usage = asyncio.run(
-                run_employee_loop(
-                    eid,
-                    owner_id,
-                    text_input,
-                    session_key="cli:direct",
-                    on_progress=_progress,
+            from joytrunk import a2a_client
+            result = a2a_client.send_message(owner_id, eid, text_input, session_key="cli:direct")
+            if result is not None:
+                reply_text, usage = result
+                console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply_text))
+                if usage:
+                    console.print(
+                        "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
+                    )
+            else:
+                reply, usage = asyncio.run(
+                    run_employee_loop(
+                        eid,
+                        owner_id,
+                        text_input,
+                        session_key="cli:direct",
+                        on_progress=_progress,
+                    )
                 )
-            )
-            console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply))
-            if usage:
-                console.print(
-                    "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
-                )
+                console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply))
+                if usage:
+                    console.print(
+                        "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
+                    )
         except Exception as ex:
             console.print("[red]" + t("chat.send_failed", error=ex) + "[/red]")
 

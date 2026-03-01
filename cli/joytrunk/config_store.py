@@ -7,6 +7,7 @@ workspace/employees/<employee_id>/config.json（覆盖全局配置）。
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -102,6 +103,55 @@ def list_employees_from_config(owner_id: str | None = None) -> list[dict]:
             continue
         result.append({"id": data.get("id") or d.name, **data})
     return result
+
+
+# 中文数字映射（用于「N号员工」解析）
+_CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def _parse_number_from_label(s: str) -> int | None:
+    """仅对「第N号」「第N个」解析为序号（1-based），用于“第几个”的语义；「1号员工」「2号员工」等视为名称不在此解析。"""
+    s = (s or "").strip()
+    if not s:
+        return None
+    # 仅明确带「第」的视为序号
+    m = re.search(r"第\s*(\d+)\s*[号个]?", s)
+    if m:
+        n = int(m.group(1))
+        return n if 1 <= n <= 999 else None
+    m = re.search(r"第\s*([一二两三四五六七八九十])\s*[号个]?", s)
+    if m:
+        return _CN_NUM.get(m.group(1))
+    return None
+
+
+def resolve_employee_id(owner_id: str, id_or_name: str) -> str | None:
+    """
+    将「员工 ID / 名称」解析为员工 ID。
+    - 先按 id 精确匹配，再按 name 精确匹配（「1号员工」「2号员工」等为名称时在此匹配）；
+    - 仅当输入为「第N号」「第N个」时按当前列表顺序取第 N 个（1-based）。
+    """
+    employees = list_employees_from_config(owner_id)
+    if not employees:
+        return None
+    employees = sorted(employees, key=lambda e: (e.get("id") or ""))
+    raw = (id_or_name or "").strip()
+    for e in employees:
+        if (e.get("id") or "").strip() == raw:
+            return e["id"]
+    for e in employees:
+        if (e.get("name") or "").strip() == raw:
+            return e.get("id")
+    # 名称包含匹配：如 "2号" 匹配 "2号员工"
+    if raw:
+        for e in employees:
+            name = (e.get("name") or "").strip()
+            if name and raw in name:
+                return e.get("id")
+    n = _parse_number_from_label(raw)
+    if n is not None and 1 <= n <= len(employees):
+        return employees[n - 1].get("id")
+    return None
 
 
 def _copy_templates_to_employee(employee_id: str) -> None:

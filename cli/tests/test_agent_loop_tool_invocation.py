@@ -51,7 +51,7 @@ async def test_mock_llm_read_file_tool_invoked_with_correct_args(config_with_cus
         return "ok"
 
     with patch("joytrunk.agent.loop.provider_chat", new_callable=AsyncMock, side_effect=[resp_tool, resp_final]):
-        with patch("joytrunk.agent.loop.create_default_registry") as mk_reg:
+        with patch("joytrunk.tools.create_default_registry") as mk_reg:
             from joytrunk.tools import create_default_registry
             from joytrunk import paths
 
@@ -97,7 +97,7 @@ async def test_mock_llm_list_dir_tool_invoked(config_with_custom_llm, employee_d
         return "ok"
 
     with patch("joytrunk.agent.loop.provider_chat", new_callable=AsyncMock, side_effect=[resp_tool, resp_final]):
-        with patch("joytrunk.agent.loop.create_default_registry") as mk_reg:
+        with patch("joytrunk.tools.create_default_registry") as mk_reg:
             from joytrunk.tools import create_default_registry
             from joytrunk import paths
 
