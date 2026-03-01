@@ -74,19 +74,31 @@ function loadMergedSkills(employeeId) {
 }
 
 /**
- * 读取员工 workspace 下的模板内容（仿 nanobot 单 agent），用于构建上下文
- * 记忆：先加载负责人级共享 memory，再加载员工私有 memory，合并为 MEMORY 字段
- * 技能：先加载共享 skills，再加载员工 skills，同名时员工覆盖
+ * 读取员工 workspace 下的模板内容，用于构建 system prompt。
+ * 优先使用 SYSTEM_PROMPT.md（与 Python context 一致）；若无则回退到 SOUL/USER/AGENTS 拼装。
+ * 占位符 soul/user/agents/tools 从员工目录下同名 .md 读取（若存在），否则为空；Node 不读 memory.db。
  */
 function loadEmployeeTemplates(employeeId) {
   const dir = getEmployeeDir(employeeId);
   const out = {};
-  const files = ['SOUL.md', 'USER.md', 'AGENTS.md'];
-  for (const name of files) {
+  const systemPromptPath = path.join(dir, 'SYSTEM_PROMPT.md');
+  if (fs.existsSync(systemPromptPath)) {
+    try {
+      out.SYSTEM_PROMPT = fs.readFileSync(systemPromptPath, 'utf8');
+    } catch (_) {}
+  }
+  const bootstrapFiles = ['SOUL.md', 'USER.md', 'AGENTS.md', 'TOOLS.md'];
+  for (const name of bootstrapFiles) {
     const p = path.join(dir, name);
     if (fs.existsSync(p)) {
       try {
-        out[name] = fs.readFileSync(p, 'utf8');
+        const content = fs.readFileSync(p, 'utf8');
+        out[name] = content;
+        const key = name.replace('.md', '').toLowerCase();
+        if (key === 'soul') out.SOUL = content;
+        else if (key === 'user') out.USER = content;
+        else if (key === 'agents') out.AGENTS = content;
+        else if (key === 'tools') out.TOOLS = content;
       } catch (_) {}
     }
   }
@@ -95,16 +107,45 @@ function loadEmployeeTemplates(employeeId) {
   const memParts = [];
   if (sharedMem.trim()) memParts.push('【团队共享记忆】\n' + sharedMem.trim());
   if (empMem.trim()) memParts.push('【本员工记忆】\n' + empMem.trim());
-  if (memParts.length) out.MEMORY = memParts.join('\n\n');
+  const memoryBlock = memParts.length
+    ? '【记忆工具说明】下方「本员工记忆」为按当前对话自动检索出的内容。如需主动查阅请使用 search_memory，如需保存请使用 save_memory。\n\n---\n【长期记忆】\n' + memParts.join('\n\n').slice(0, 4000)
+    : '';
+  out.MEMORY = memoryBlock;
   const skills = loadMergedSkills(employeeId);
   if (Object.keys(skills).length) out.SKILLS = skills;
   return out;
 }
 
 /**
- * 从模板构建 system prompt（人格 + 指令 + 生存法则 + 可选 USER/MEMORY/SKILLS）
+ * 从模板构建 system prompt。
+ * 若存在 SYSTEM_PROMPT.md 则替换占位符 {{soul}}/{{user}}/{{agents}}/{{tools}}/{{survival_rules}}/{{memory}}/{{skills}}；
+ * 否则回退为旧逻辑：SOUL + AGENTS + 生存法则 + USER + MEMORY + SKILLS。
  */
 function buildSystemPrompt(employee, templates) {
+  if (templates.SYSTEM_PROMPT) {
+    const soul = templates.SOUL || '';
+    const user = templates.USER || '';
+    const agents = templates.AGENTS || '';
+    const tools = templates.TOOLS || '';
+    const memory = templates.MEMORY || '';
+    let skillsBlock = '';
+    if (templates.SKILLS && typeof templates.SKILLS === 'object' && Object.keys(templates.SKILLS).length > 0) {
+      const skillBlocks = [];
+      for (const [name, content] of Object.entries(templates.SKILLS)) {
+        skillBlocks.push(`### 技能: ${name}\n${content.slice(0, 2000)}`);
+      }
+      skillsBlock = '---\n【可用技能】\n' + skillBlocks.join('\n\n');
+    }
+    return templates.SYSTEM_PROMPT
+      .replace(/\{\{soul\}\}/g, soul)
+      .replace(/\{\{user\}\}/g, user)
+      .replace(/\{\{agents\}\}/g, agents)
+      .replace(/\{\{tools\}\}/g, tools)
+      .replace(/\{\{survival_rules\}\}/g, SURVIVAL_RULES.trim())
+      .replace(/\{\{memory\}\}/g, memory)
+      .replace(/\{\{skills\}\}/g, skillsBlock)
+      .trim();
+  }
   const parts = [];
   if (templates.SOUL) parts.push(templates.SOUL);
   if (templates.AGENTS) parts.push(templates.AGENTS);

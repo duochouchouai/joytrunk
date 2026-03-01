@@ -25,6 +25,11 @@ class EmbeddingBackend:
         # OpenAI: {"data": [{"embedding": [...]}, ...]}
         if "data" in data:
             raw = data["data"]
+            if raw is None:
+                raise ValueError(
+                    "response['data'] is null; the embedding API may have returned an error or unsupported format. "
+                    "Check the embedding endpoint and model (e.g. embed_model in memory config)."
+                )
             if not isinstance(raw, list):
                 raise ValueError(f"response['data'] must be a list, got {type(raw).__name__}")
             out: list[list[float]] = []
@@ -39,12 +44,25 @@ class EmbeddingBackend:
         # MiniMax 等可能用 "embeddings" 键：[[...], [...]]
         if "embeddings" in data:
             raw = data["embeddings"]
+            if raw is None:
+                raise ValueError(
+                    "response['embeddings'] is null; check the embedding endpoint and model."
+                )
             if not isinstance(raw, list):
                 raise ValueError(f"response['embeddings'] must be a list, got {type(raw).__name__}")
             return [list(vec) if isinstance(vec, list) else list(vec) for vec in raw]
         # 部分接口用 "vectors" 键
         if "vectors" in data:
             raw = data["vectors"]
+            if raw is None:
+                logger.warning(
+                    "Embedding response has 'vectors' key but value is null. Keys: %s",
+                    list(data.keys()),
+                )
+                raise ValueError(
+                    "response['vectors'] is null; the embedding API may not support this model or returned an error. "
+                    "Check the embedding endpoint and model name (e.g. embed_model in memory config)."
+                )
             if not isinstance(raw, list):
                 raise ValueError(f"response['vectors'] must be a list, got {type(raw).__name__}")
             return [list(vec) if isinstance(vec, list) else list(vec) for vec in raw]
