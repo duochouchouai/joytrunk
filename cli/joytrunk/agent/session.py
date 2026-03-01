@@ -37,12 +37,34 @@ def load_history(employee_id: str, session_key: str) -> list[dict[str, Any]]:
         return []
 
 
+def _serialize_message(entry: dict[str, Any]) -> dict[str, Any]:
+    """深拷贝并确保 entry 可 JSON 序列化（剔除或转换 method 等不可序列化类型）。"""
+    out: dict[str, Any] = {}
+    for k, v in entry.items():
+        if v is None or isinstance(v, (str, int, float, bool)):
+            out[k] = v
+        elif isinstance(v, dict):
+            out[k] = _serialize_message(v)
+        elif isinstance(v, list):
+            out[k] = [
+                _serialize_message(x) if isinstance(x, dict) else (
+                    x if isinstance(x, (str, int, float, bool, type(None))) else str(x)
+                )
+                for x in v
+            ]
+        elif isinstance(v, (datetime, Path)):
+            out[k] = str(v)
+        else:
+            out[k] = str(v)
+    return out
+
+
 def save_history(
     employee_id: str,
     session_key: str,
     messages: list[dict[str, Any]],
 ) -> None:
-    """保存历史；对 tool 消息的 content 做截断。"""
+    """保存历史；对 tool 消息的 content 做截断，并确保可 JSON 序列化。"""
     out: list[dict[str, Any]] = []
     for m in messages:
         entry = dict(m)
@@ -53,12 +75,12 @@ def save_history(
         if "reasoning_content" in entry:
             del entry["reasoning_content"]
         entry.setdefault("timestamp", datetime.now().isoformat())
-        out.append(entry)
+        out.append(_serialize_message(entry))
 
     dir_path = _sessions_dir(employee_id)
     dir_path.mkdir(parents=True, exist_ok=True)
     _session_file(employee_id, session_key).write_text(
-        json.dumps({"messages": out, "updated_at": datetime.now().isoformat()}, ensure_ascii=False, indent=0),
+        json.dumps({"messages": out, "updated_at": datetime.now().isoformat()}, ensure_ascii=False, indent=0, default=str),
         encoding="utf-8",
     )
 
@@ -85,5 +107,5 @@ def append_turn(
                 for c in entry["content"]
             ]
         entry.setdefault("timestamp", datetime.now().isoformat())
-        history.append(entry)
+        history.append(_serialize_message(entry))
     save_history(employee_id, session_key, history)

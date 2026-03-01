@@ -238,15 +238,20 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
         try:
             s = spinner()
             s.start(t("tui.entry.loading"))
-            reply, usage = asyncio.run(
-                run_employee_loop(
-                    employee_id,
-                    owner_id,
-                    raw,
-                    session_key="cli:direct",
-                    on_progress=None,
+            from joytrunk import a2a_client
+            result = a2a_client.send_message(owner_id, employee_id, raw, session_key="cli:direct")
+            if result is not None:
+                reply, usage = result
+            else:
+                reply, usage = asyncio.run(
+                    run_employee_loop(
+                        employee_id,
+                        owner_id,
+                        raw,
+                        session_key="cli:direct",
+                        on_progress=None,
+                    )
                 )
-            )
             s.stop("")
             log.success(t("chat.employee") + " " + (reply or ""))
             if usage and (usage.get("prompt_tokens") or usage.get("completion_tokens")):

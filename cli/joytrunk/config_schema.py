@@ -15,6 +15,15 @@ DEFAULT_CONFIG = {
         "host": "127.0.0.1",
         "port": 32890,
     },
+    "gateway": {
+        "a2a_port": 32891,
+        "a2a_backend_url": None,
+        "worker_concurrency": 4,
+        "blocking_timeout_seconds": 300,
+        "task_store_ttl_seconds": 86400,
+        "task_store_cleanup_interval_seconds": 60,
+        "max_body_size_bytes": 10485760,
+    },
     "agents": {
         "defaults": {
             "defaultEmployeeId": None,

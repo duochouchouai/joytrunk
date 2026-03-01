@@ -8,6 +8,15 @@ const DEFAULT_CONFIG = {
   joytrunkRoot: null,
   ownerId: null,
   server: { host: 'localhost', port: 32890 },
+  gateway: {
+    a2a_port: 32891,
+    a2a_backend_url: null,
+    worker_concurrency: 4,
+    blocking_timeout_seconds: 300,
+    task_store_ttl_seconds: 86400,
+    task_store_cleanup_interval_seconds: 60,
+    max_body_size_bytes: 10485760,
+  },
   agents: { defaults: { defaultEmployeeId: null, model: 'gpt-3.5-turbo', maxTokens: 2048, temperature: 0.1 } },
   channels: { cli: { enabled: true }, web: { enabled: true }, feishu: { enabled: false }, telegram: { enabled: false }, qq: { enabled: false } },
   providers: { joytrunk: {}, custom: { apiKey: '', apiBase: null, model: 'gpt-3.5-turbo' } },
@@ -21,11 +30,23 @@ function migrateFromLegacy(data) {
   const custom = raw && typeof raw === 'object' ? { apiKey: raw.apiKey ?? '', apiBase: raw.apiBase ?? raw.baseUrl ?? null, model: raw.model ?? 'gpt-3.5-turbo' } : DEFAULT_CONFIG.providers.custom;
   const providers = data.providers && typeof data.providers === 'object' ? { ...data.providers, custom } : { joytrunk: {}, custom };
   const channels = data.channels && typeof data.channels === 'object' ? data.channels : DEFAULT_CONFIG.channels;
+  const gateway = data.gateway && typeof data.gateway === 'object'
+    ? {
+        a2a_port: data.gateway.a2a_port ?? 32891,
+        a2a_backend_url: data.gateway.a2a_backend_url ?? null,
+        worker_concurrency: data.gateway.worker_concurrency ?? 4,
+        blocking_timeout_seconds: data.gateway.blocking_timeout_seconds ?? 300,
+        task_store_ttl_seconds: data.gateway.task_store_ttl_seconds ?? 86400,
+        task_store_cleanup_interval_seconds: data.gateway.task_store_cleanup_interval_seconds ?? 60,
+        max_body_size_bytes: data.gateway.max_body_size_bytes ?? 10485760,
+      }
+    : DEFAULT_CONFIG.gateway;
   return {
     version: data.version ?? 1,
     joytrunkRoot: data.joytrunkRoot ?? null,
     ownerId: data.ownerId ?? null,
     server: { host: server.host ?? 'localhost', port: server.port ?? 32890 },
+    gateway,
     agents: { defaults: agents.defaults },
     channels,
     providers,

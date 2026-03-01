@@ -77,3 +77,31 @@ describe('store', () => {
     else delete process.env.JOYTRUNK_ROOT;
   });
 });
+
+describe('configSchema', () => {
+  const { DEFAULT_CONFIG, migrateFromLegacy } = require('../lib/configSchema');
+
+  it('DEFAULT_CONFIG has gateway section with a2a_port and defaults', () => {
+    assert.ok(DEFAULT_CONFIG.gateway);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.a2a_port, 32891);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.a2a_backend_url, null);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.worker_concurrency, 4);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.blocking_timeout_seconds, 300);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.task_store_ttl_seconds, 86400);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.task_store_cleanup_interval_seconds, 60);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.max_body_size_bytes, 10485760);
+  });
+
+  it('migrateFromLegacy preserves gateway when present', () => {
+    const data = { version: 1, ownerId: 'o1', gateway: { a2a_port: 32892, a2a_backend_url: 'http://localhost:32892' } };
+    const out = migrateFromLegacy(data);
+    assert.strictEqual(out.gateway.a2a_port, 32892);
+    assert.strictEqual(out.gateway.a2a_backend_url, 'http://localhost:32892');
+  });
+
+  it('migrateFromLegacy uses default gateway when missing', () => {
+    const out = migrateFromLegacy({ version: 1, ownerId: 'o1' });
+    assert.ok(out.gateway);
+    assert.strictEqual(out.gateway.a2a_port, 32891);
+  });
+});

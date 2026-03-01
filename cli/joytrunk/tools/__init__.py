@@ -7,6 +7,8 @@ from joytrunk.tools.base import Tool
 from joytrunk.tools.exec_tool import ExecTool
 from joytrunk.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from joytrunk.tools.memory_tools import SaveMemoryTool, SearchMemoryTool
+from joytrunk.tools.send_message_to_employee import SendMessageToEmployeeTool
+from joytrunk.tools.list_team_employees import ListTeamEmployeesTool
 from joytrunk.tools.registry import ToolRegistry
 from joytrunk.tools.web import WebFetchTool, WebSearchTool
 
@@ -22,6 +24,8 @@ __all__ = [
     "WebFetchTool",
     "SaveMemoryTool",
     "SearchMemoryTool",
+    "SendMessageToEmployeeTool",
+    "ListTeamEmployeesTool",
     "create_default_registry",
 ]
 
@@ -44,8 +48,9 @@ def create_default_registry(
     employee_id: str,
     restrict_to_workspace: bool = True,
     tools_config: dict[str, Any] | None = None,
+    owner_id: str | None = None,
 ) -> ToolRegistry:
-    """创建默认工具注册表：文件系统、exec、web_search（始终注册）、web_fetch。MCP 在 loop 内通过 connect_mcp_servers 注册。"""
+    """创建默认工具注册表：文件系统、exec、web_search（始终注册）、web_fetch。若提供 owner_id 则注册 send_message_to_employee（Agent 间消息）。MCP 在 loop 内通过 connect_mcp_servers 注册。"""
     allowed = workspace if restrict_to_workspace else None
     reg = ToolRegistry()
     reg.register(ReadFileTool(workspace, allowed, employee_id))
@@ -67,6 +72,9 @@ def create_default_registry(
         if isinstance(web, dict) and isinstance(web.get("fetch"), dict) and "maxChars" in web["fetch"]:
             max_chars = int(web["fetch"]["maxChars"])
     reg.register(WebFetchTool(max_chars=max_chars))
+    if owner_id:
+        reg.register(ListTeamEmployeesTool(workspace, allowed, employee_id, owner_id))
+        reg.register(SendMessageToEmployeeTool(workspace, allowed, employee_id, owner_id))
     try:
         reg.register(SaveMemoryTool(workspace, allowed, employee_id))
         reg.register(SearchMemoryTool(workspace, allowed, employee_id))

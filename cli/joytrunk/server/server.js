@@ -164,17 +164,79 @@ app.get('/api/employees/:id/logs', (req, res) => {
 });
 
 // ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）----------
+// 若配置了 gateway（a2a_backend_url 或 a2a_port），则转发到 Python A2A，按 10.29 转回 { reply, usage }；未配置则 503（方案 10.12）
+function getA2aBaseUrl() {
+  const c = config.loadConfig();
+  const gw = c.gateway;
+  if (!gw || (gw.a2a_backend_url == null && (gw.a2a_port == null || gw.a2a_port === ''))) return null;
+  if (gw.a2a_backend_url && typeof gw.a2a_backend_url === 'string') {
+    return gw.a2a_backend_url.replace(/\/$/, '');
+  }
+  const host = (c.server && c.server.host) || '127.0.0.1';
+  const port = Number(gw.a2a_port) || 32891;
+  return `http://${host}:${port}`;
+}
+
 app.post('/api/employees/:id/chat', async (req, res) => {
   const ownerId = getOwnerId(req);
   const emp = store.findEmployeeById(req.params.id);
   if (!emp || emp.ownerId !== ownerId) return res.status(404).json({ error: '员工不存在' });
   const content = (req.body && req.body.content) || '';
-  try {
-    const result = await agent.reply(emp, ownerId, content, () => config.loadConfig());
-    res.json({ reply: result.reply, usage: result.usage || null });
-  } catch (e) {
-    res.status(500).json({ error: e.message || '对话失败' });
+  const contextId = req.body && req.body.contextId;
+
+  const baseUrl = getA2aBaseUrl();
+  if (baseUrl) {
+    const timeoutMs = (config.loadConfig().gateway && config.loadConfig().gateway.blocking_timeout_seconds) || 300;
+    const sendUrl = `${baseUrl}/a2a/v1/tenants/${encodeURIComponent(ownerId)}/employees/${encodeURIComponent(emp.id)}/message:send`;
+    const body = {
+      message: {
+        role: 'user',
+        parts: [{ type: 'text', text: content }],
+        ...(contextId != null ? { contextId } : {}),
+      },
+      configuration: { blocking: true },
+      metadata: {},
+    };
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeoutMs * 1000);
+      const resp = await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(t);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: data.error || data.message || 'A2A 请求失败' });
+      }
+      let reply = '';
+      let usage = null;
+      if (data.history && Array.isArray(data.history)) {
+        for (let i = data.history.length - 1; i >= 0; i--) {
+          if (data.history[i].role === 'agent' && data.history[i].parts) {
+            reply = (data.history[i].parts || []).map((p) => (p.type === 'text' ? p.text : '')).join('');
+            break;
+          }
+        }
+      }
+      if (data.metadata && data.metadata.usage) {
+        const u = data.metadata.usage;
+        usage = { input_tokens: u.prompt_tokens ?? 0, output_tokens: u.completion_tokens ?? 0 };
+      }
+      return res.json({ reply: reply || '', usage });
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        return res.status(504).json({ error: 'A2A 请求超时' });
+      }
+      return res.status(503).json({ error: e.message || 'A2A Gateway 不可用，请先运行 joytrunk gateway' });
+    }
   }
+
+  return res.status(503).json({
+    error: '未配置 A2A Gateway。请配置 gateway.a2a_backend_url 或 gateway.a2a_port 并先运行 joytrunk gateway。',
+  });
 });
 
 // ---------- JoyTrunk Router 代理（未配置自有 LLM 时 CLI/前端通过此端点调用大模型）----------
