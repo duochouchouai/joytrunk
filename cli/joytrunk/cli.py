@@ -321,7 +321,8 @@ def chat_cmd(
                     console.print("[dim]  [/dim]" + _safe_text_for_console(s[:200]) + ("…" if len(s) > 200 else ""))
 
             from joytrunk import a2a_client
-            result = a2a_client.send_message(owner_id, eid, text_input, session_key="cli:direct")
+            from joytrunk.agent.session import OWNER_CHAT_KEY
+            result = a2a_client.send_message(owner_id, eid, text_input, session_key=OWNER_CHAT_KEY)
             if result is not None:
                 reply_text, usage = result
                 console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply_text))
@@ -335,7 +336,7 @@ def chat_cmd(
                         eid,
                         owner_id,
                         text_input,
-                        session_key="cli:direct",
+                        session_key=OWNER_CHAT_KEY,
                         on_progress=_progress,
                     )
                 )
@@ -562,6 +563,109 @@ def memory_export_cmd(
 
 
 app.add_typer(memory_app)
+
+
+# 运行日志管理命令组
+log_app = typer.Typer(
+    name="log",
+    help="运行日志：查看、清空员工智能体运行日志（agent.jsonl）。默认进入 TUI 选择员工。",
+    no_args_is_help=False,
+)
+
+
+@log_app.callback(invoke_without_command=True)
+def log_callback(ctx: typer.Context) -> None:
+    """无子命令时进入运行日志 TUI 菜单（选择员工 → 查看/清空）。"""
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_log_entry
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    run_log_entry(owner_id)
+
+
+@log_app.command("view")
+def log_view_cmd(
+    employee_id: str | None = typer.Argument(None, help="员工 ID（不填则进入 TUI 选择）"),
+    limit: int = typer.Option(30, "--limit", "-n", help="最多显示条数"),
+) -> None:
+    """查看指定员工的运行日志（最近 N 条）。不填员工 ID 时进入 TUI。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.log_reader import load_entries
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
+        raise typer.Exit(1)
+    if employee_id is None or employee_id == "":
+        from joytrunk.tui.clack_flows import run_log_entry
+        run_log_entry(owner_id)
+        return
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    entries = load_entries(employee_id, sort_newest_first=True, limit=limit)
+    if not entries:
+        console.print("[dim]" + t("log.tui.empty") + "[/dim]")
+        return
+    for e in entries:
+        ts = e.get("ts") or ""
+        ev = e.get("event") or ""
+        rid = (e.get("run_id") or "")[:8]
+        console.print(f"  [dim]{ts}[/dim]  [cyan]{ev}[/cyan]  ({rid})")
+        payload = e.get("payload")
+        if payload and isinstance(payload, dict):
+            for k, v in list(payload.items())[:5]:
+                console.print(f"    [dim]{k}:[/dim] {str(v)[:80]}{'…' if len(str(v)) > 80 else ''}")
+
+
+@log_app.command("clear")
+def log_clear_cmd(
+    employee_id: str = typer.Argument(..., help="员工 ID"),
+) -> None:
+    """清空指定员工的运行日志（agent.jsonl）。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.log_reader import clear_log
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id) or []
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    if clear_log(employee_id):
+        console.print("[green]✓[/green]", t("log.tui.cleared"))
+    else:
+        console.print("[red]" + t("log.tui.clear_failed", error="unknown") + "[/red]")
+        raise typer.Exit(1)
+
+
+app.add_typer(log_app)
 
 
 @app.command("language")

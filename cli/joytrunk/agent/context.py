@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from joytrunk import paths
 from joytrunk.agent.employee_config import get_memory_config
+
+logger = logging.getLogger(__name__)
 
 # 员工生存法则（product.md §9），与 server agent.js 一致
 SURVIVAL_RULES = """
@@ -78,25 +81,27 @@ class ContextBuilder:
         current_query: str | None = None,
         memory_retrieve_result: dict[str, Any] | None = None,
     ) -> str:
-        """从 SYSTEM_PROMPT.md 模板 + DB 中 soul/user/agents/tools 的 summary 替换占位符，拼出 system prompt。"""
+        """从 SYSTEM_PROMPT.md 模板 + DB 中 identity/soul/user/agents/tools 的 summary 替换占位符，拼出 system prompt。"""
         # 1. 加载模板：优先员工目录，否则包内
         tpl_path = self.employee_dir / "SYSTEM_PROMPT.md"
         if not tpl_path.exists():
             tpl_path = paths.get_bundled_templates_dir() / "SYSTEM_PROMPT.md"
         template_str = _read_optional(tpl_path)
         if not template_str.strip():
-            template_str = "{{soul}}\n\n{{user}}\n\n{{agents}}\n\n{{tools}}\n\n{{survival_rules}}\n\n{{memory}}\n\n{{skills}}"
+            template_str = "{{identity}}\n\n{{soul}}\n\n{{user}}\n\n{{agents}}\n\n{{tools}}\n\n{{survival_rules}}\n\n{{memory}}\n\n{{skills}}"
 
-        # 2. 从 store 取 soul/user/agents/tools 的 summary
-        soul = user = agents = tools = ""
+        # 2. 从 store 取 identity/soul/user/agents/tools 的 summary
+        identity = soul = user = agents = tools = ""
         try:
             from joytrunk.agent.memory import get_store
             store = get_store(self.employee_id)
             store.load_existing()
-            for name in ("soul", "user", "agents", "tools"):
+            for name in ("identity", "soul", "user", "agents", "tools"):
                 cat = store.memory_category_repo.get_category_by_name(name)
                 val = (cat.summary or "").strip() if cat else ""
-                if name == "soul":
+                if name == "identity":
+                    identity = val
+                elif name == "soul":
                     soul = val
                 elif name == "user":
                     user = val
@@ -145,6 +150,7 @@ class ContextBuilder:
         # 5. 占位符替换
         result = template_str
         for placeholder, value in [
+            ("{{identity}}", identity),
             ("{{soul}}", soul),
             ("{{user}}", user),
             ("{{agents}}", agents),
@@ -183,7 +189,10 @@ class ContextBuilder:
                 recency_decay_days=item_cfg.get("recency_decay_days", 30.0),
             )
             return self.build_system_prompt(memory_retrieve_result=result)
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "Memory retrieve failed, building prompt without memory: %s", e
+            )
             return self.build_system_prompt()
 
     @staticmethod

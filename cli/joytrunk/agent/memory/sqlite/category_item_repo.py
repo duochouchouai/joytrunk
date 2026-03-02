@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sqlmodel import select
+from sqlmodel import delete, select
 
 from joytrunk.agent.memory.models import CategoryItem
 from joytrunk.agent.memory.sqlite.base import SQLiteRepoBase
@@ -72,6 +72,13 @@ class SQLiteCategoryItemRepo(SQLiteRepoBase):
 
     def load_existing(self) -> None:
         self.list_relations()
+
+    def delete_relation(self, relation_id: str) -> None:
+        """删除一条分类-条目关联。"""
+        with self._sessions.session() as session:
+            session.exec(delete(SQLiteCategoryItemModel).where(SQLiteCategoryItemModel.id == relation_id))
+            session.commit()
+        self.relations[:] = [r for r in self.relations if r.id != relation_id]
 
 
 __all__ = ["SQLiteCategoryItemRepo"]

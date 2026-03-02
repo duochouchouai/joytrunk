@@ -18,6 +18,8 @@ from joytrunk.config_store import (
 )
 from joytrunk.i18n import t
 from joytrunk.agent.loop import run_employee_loop
+from joytrunk.agent.session import OWNER_CHAT_KEY
+from joytrunk.log_reader import load_entries, clear_log
 
 
 # 语言选项（value, label）
@@ -239,7 +241,7 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
             s = spinner()
             s.start(t("tui.entry.loading"))
             from joytrunk import a2a_client
-            result = a2a_client.send_message(owner_id, employee_id, raw, session_key="cli:direct")
+            result = a2a_client.send_message(owner_id, employee_id, raw, session_key=OWNER_CHAT_KEY)
             if result is not None:
                 reply, usage = result
             else:
@@ -248,7 +250,7 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
                         employee_id,
                         owner_id,
                         raw,
-                        session_key="cli:direct",
+                        session_key=OWNER_CHAT_KEY,
                         on_progress=None,
                     )
                 )
@@ -265,3 +267,109 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
                 except Exception:
                     pass
             log.error(t("chat.send_failed", error=str(e)))
+
+
+def _format_ts(ts: str) -> str:
+    """ISO ts 转为简短本地显示（仅日期时间）。"""
+    if not ts:
+        return ""
+    try:
+        from datetime import datetime
+        if "T" in ts and "Z" in ts:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(ts.replace("Z", ""))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ts[:19].replace("T", " ") if len(ts) >= 19 else ts
+
+
+def run_log_view_entries(employee_id: str, employee_name: str) -> None:
+    """查看运行日志：列出最近条目，选择后显示 payload，可反复选择或返回。"""
+    import json
+    entries = load_entries(employee_id, sort_newest_first=True, limit=50)
+    if not entries:
+        log.warn(t("log.tui.empty"))
+        return
+    while True:
+        options = []
+        for i, e in enumerate(entries):
+            ts = _format_ts(e.get("ts") or "")
+            ev = e.get("event") or ""
+            run_id = (e.get("run_id") or "")[:8]
+            label = f"{ts}  {ev}  ({run_id})" if run_id else f"{ts}  {ev}"
+            options.append({"value": str(i), "label": label})
+        options.append({"value": "__back__", "label": t("log.tui.menu.back")})
+        choice = select(
+            t("log.tui.select_entry") + " — " + employee_name,
+            options=options,
+        )
+        if is_cancel(choice) or choice == "__back__":
+            return
+        idx = choice
+        if idx.isdigit() and 0 <= int(idx) < len(entries):
+            entry = entries[int(idx)]
+            payload = entry.get("payload") or {}
+            log.info(json.dumps(payload, ensure_ascii=False, indent=2))
+            text(t("tui.lang_picker.hint"), placeholder="")
+        else:
+            return
+
+
+def run_log_menu(owner_id: str, employee_id: str, employee_name: str) -> None:
+    """日志管理 TUI 菜单：查看 / 清空 / 返回。"""
+    while True:
+        intro(t("log.tui.menu.title") + " — " + employee_name)
+        choice = select(
+            t("employee.menu.prompt"),
+            options=[
+                {"value": "view", "label": t("log.tui.menu.view")},
+                {"value": "clear", "label": t("log.tui.menu.clear")},
+                {"value": "back", "label": t("log.tui.menu.back")},
+            ],
+        )
+        if is_cancel(choice) or choice == "back":
+            return
+        if choice == "view":
+            run_log_view_entries(employee_id, employee_name)
+            continue
+        if choice == "clear":
+            confirm = select(
+                t("log.tui.clear_confirm"),
+                options=[
+                    {"value": "yes", "label": t("log.tui.clear_yes")},
+                    {"value": "no", "label": t("log.tui.clear_no")},
+                ],
+            )
+            if is_cancel(confirm) or confirm == "no":
+                continue
+            try:
+                if clear_log(employee_id):
+                    log.success(t("log.tui.cleared"))
+                else:
+                    log.error(t("log.tui.clear_failed", error="unknown"))
+            except Exception as e:
+                log.error(t("log.tui.clear_failed", error=str(e)))
+            continue
+
+
+def run_log_entry(owner_id: str) -> None:
+    """运行日志 TUI 入口：选择员工后进入日志管理菜单。"""
+    intro(t("log.tui.title"))
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        log.warn(t("chat.no_employees"))
+        return
+    options = [
+        {"value": e["id"], "label": f"{e.get('name') or e['id']}  ({e['id']})"}
+        for e in employees
+    ]
+    options.append({"value": "__back__", "label": t("employee.menu.back")})
+    choice = select(t("log.tui.select_employee"), options=options)
+    if is_cancel(choice) or choice == "__back__":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    emp = next((e for e in employees if e["id"] == choice), None)
+    if not emp:
+        return
+    run_log_menu(owner_id, choice, emp.get("name") or choice)

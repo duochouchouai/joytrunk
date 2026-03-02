@@ -9,6 +9,7 @@ from sqlmodel import SQLModel
 from joytrunk.agent.memory.sqlite.session import SQLiteSessionManager
 from joytrunk.agent.memory.sqlite.models import (
     SQLiteCategoryItemModel,
+    SQLiteChatMessageModel,
     SQLiteMemoryCategoryModel,
     SQLiteMemoryItemModel,
     SQLiteResourceModel,
@@ -17,6 +18,7 @@ from joytrunk.agent.memory.sqlite.resource_repo import SQLiteResourceRepo
 from joytrunk.agent.memory.sqlite.memory_category_repo import SQLiteMemoryCategoryRepo
 from joytrunk.agent.memory.sqlite.memory_item_repo import SQLiteMemoryItemRepo
 from joytrunk.agent.memory.sqlite.category_item_repo import SQLiteCategoryItemRepo
+from joytrunk.agent.memory.sqlite.chat_message_repo import SQLiteChatMessageRepo
 from joytrunk.agent.memory.state import DatabaseState
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,7 @@ class SQLiteMemoryStore:
         self.memory_category_repo = SQLiteMemoryCategoryRepo(state=self._state, sessions=self._sessions)
         self.memory_item_repo = SQLiteMemoryItemRepo(state=self._state, sessions=self._sessions)
         self.category_item_repo = SQLiteCategoryItemRepo(state=self._state, sessions=self._sessions)
+        self.chat_message_repo = SQLiteChatMessageRepo(sessions=self._sessions)
         self.resources = self._state.resources
         self.items = self._state.items
         self.categories = self._state.categories

@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
 from joytrunk.agent.memory.store import CATEGORY_NAMES
 from joytrunk.tools.base import Tool
+
+logger = logging.getLogger(__name__)
+
+# 写入对话历史的简短提示，避免把 API/embedding 技术错误写入 owner.json
+MSG_MEMORY_SEARCH_UNAVAILABLE = "记忆检索暂时不可用，请依据当前对话与下方长期记忆继续回答。"
+MSG_MEMORY_SAVE_UNAVAILABLE = "记忆保存暂时不可用，请稍后再试。"
 
 
 class SaveMemoryTool(Tool):
@@ -45,6 +53,7 @@ class SaveMemoryTool(Tool):
             from joytrunk.agent.memory import get_store
             from joytrunk.agent.employee_config import get_llm_params, get_memory_config, get_merged_config_for_employee
             store = get_store(self._employee_id)
+            store.load_existing()
             memory_cfg = get_memory_config(self._employee_id)
             config = get_merged_config_for_employee(self._employee_id)
             owner_id = config.get("ownerId") or ""
@@ -54,14 +63,16 @@ class SaveMemoryTool(Tool):
             base_url = emb.get("base_url") or llm_params.get("base_url")
             if base_url:
                 from joytrunk.agent.memory.embedding_client import HTTPEmbeddingClient
+                group_id = (emb.get("group_id") or os.environ.get("MINIMAX_GROUP_ID") or "").strip()
                 embed_client = HTTPEmbeddingClient(
                     base_url=base_url,
                     api_key=emb.get("api_key") or llm_params.get("api_key") or "",
                     embed_model=emb.get("embed_model") or "embo-01",
+                    group_id=group_id or None,
                 )
             if not embed_client:
                 class Dummy:
-                    async def embed(self, inputs): return [[0.0] * 384 for _ in inputs]
+                    async def embed(self, inputs, embed_type=None): return [[0.0] * 1536 for _ in inputs]
                 embed_client = Dummy()
             async def llm_chat(msgs):
                 from joytrunk.agent.provider import chat as provider_chat, chat_via_router
@@ -73,7 +84,7 @@ class SaveMemoryTool(Tool):
             res = store.resource_repo.create_resource(
                 url="tool:save_memory", modality="conversation", local_path="", caption=content, embedding=None
             )
-            vec = (await embed_client.embed([content]))[0]
+            vec = (await embed_client.embed([content], embed_type="db"))[0]
             cat_names = [category] if category else ["user"]
             name_to_id = {}
             for c in CATEGORY_NAMES:
@@ -89,7 +100,8 @@ class SaveMemoryTool(Tool):
                     store.category_item_repo.link_item_category(item.id, cid)
             return f"Saved to memory: {content[:100]}..."
         except Exception as e:
-            return f"Error saving memory: {e}"
+            logger.warning("Save memory failed (embedding/store error): %s", e)
+            return MSG_MEMORY_SAVE_UNAVAILABLE
 
 
 class SearchMemoryTool(Tool):
@@ -132,9 +144,11 @@ class SearchMemoryTool(Tool):
                 base_url = emb.get("base_url") or llm_params.get("base_url")
                 if base_url:
                     from joytrunk.agent.memory.embedding_client import HTTPEmbeddingClient
+                    group_id = (emb.get("group_id") or os.environ.get("MINIMAX_GROUP_ID") or "").strip()
                     embed_client = HTTPEmbeddingClient(
                         base_url=base_url, api_key=emb.get("api_key") or llm_params.get("api_key") or "",
                         embed_model=emb.get("embed_model") or "embo-01",
+                        group_id=group_id or None,
                     )
                 if not embed_client:
                     method = "llm"
@@ -159,7 +173,8 @@ class SearchMemoryTool(Tool):
                 return "No relevant memories found."
             return "\n".join((it.get("summary") or "") for it in items[:10])
         except Exception as e:
-            return f"Error searching memory: {e}"
+            logger.warning("Search memory failed (embedding/retrieve error): %s", e)
+            return MSG_MEMORY_SEARCH_UNAVAILABLE
 
 
 __all__ = ["SaveMemoryTool", "SearchMemoryTool"]

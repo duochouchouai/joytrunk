@@ -38,11 +38,12 @@ def cosine_topk(
     corpus: Iterable[tuple[str, list[float] | None]],
     k: int = 5,
 ) -> list[tuple[str, float]]:
-    """Top-k 余弦相似度检索。"""
+    """Top-k 余弦相似度检索。仅比较与 query_vec 同维的向量，维度不同的条目会被跳过。"""
+    qdim = len(query_vec)
     ids: list[str] = []
     vecs: list[list[float]] = []
     for _id, vec in corpus:
-        if vec is not None:
+        if vec is not None and len(vec) == qdim:
             ids.append(_id)
             vecs.append(cast(list[float], vec))
     if not vecs:
@@ -68,11 +69,12 @@ def cosine_topk_salience(
     k: int = 5,
     recency_decay_days: float = 30.0,
 ) -> list[tuple[str, float]]:
-    """带 salience 的 top-k 检索。"""
+    """带 salience 的 top-k 检索。仅比较与 query_vec 同维的向量。"""
+    qdim = len(query_vec)
     q = np.array(query_vec, dtype=np.float32)
     scored: list[tuple[str, float]] = []
     for _id, vec, reinforcement_count, last_reinforced_at in corpus:
-        if vec is None:
+        if vec is None or len(vec) != qdim:
             continue
         v = np.array(cast(list[float], vec), dtype=np.float32)
         sim = _cosine(q, v)

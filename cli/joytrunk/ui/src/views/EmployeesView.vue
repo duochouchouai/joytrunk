@@ -34,6 +34,7 @@
             <span v-if="e.persona || e.role" class="muted">{{ [e.persona, e.role].filter(Boolean).join(' · ') }}</span>
           </div>
           <router-link :to="`/employees/${e.id}/logs`" class="emp-logs-link">{{ t('employees.viewLogs') }}</router-link>
+            <router-link :to="`/employees/${e.id}/memory`" class="emp-logs-link">{{ t('employees.viewMemory') }}</router-link>
         </li>
       </ul>
       <p v-else class="muted">{{ t('employees.noEmployees') }}</p>

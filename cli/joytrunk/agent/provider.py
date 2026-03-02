@@ -25,15 +25,14 @@ def _repair_json_arguments(s: str) -> dict[str, Any]:
 
 
 def _sanitize_empty_content(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Copy messages and set assistant content to None when role is assistant, has tool_calls, and content is empty."""
+    """Copy messages and set assistant content to None when role is assistant and has tool_calls.
+    Many backends expect assistant messages with tool_calls to have null/empty content (OpenAI style).
+    This avoids sending <think> or other reasoning text in content alongside tool_calls."""
     result: list[dict[str, Any]] = []
     for msg in messages:
-        content = msg.get("content")
         if (
             msg.get("role") == "assistant"
             and msg.get("tool_calls")
-            and isinstance(content, str)
-            and not content.strip()
         ):
             clean = deepcopy(msg)
             clean["content"] = None

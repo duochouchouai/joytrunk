@@ -1,4 +1,4 @@
-"""记忆库入口：按员工返回 SQLite store，14 类 category 仅存 DB，种子从 defaults 读。"""
+"""记忆库入口：按员工返回 SQLite store，15 类 category 仅存 DB，种子从 defaults 读。"""
 
 from __future__ import annotations
 
@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 14 个 category：前 4 个与 system prompt 各节一致（人格/负责人/工作准则/工具），后 10 个为扩展维度
+# 15 个 category：identity 与 system prompt「身份」节对应，soul/user/agents/tools 与各节一致，其余为扩展维度
 CATEGORY_NAMES = [
+    "identity",
     "soul",
     "user",
     "agents",
@@ -32,8 +33,9 @@ CATEGORY_NAMES = [
     "work_life",
 ]
 
-# 描述与 SYSTEM_PROMPT.md 中的「你的记忆」category 表一致，便于读取/储存时对应
+# 描述与 SYSTEM_PROMPT.md 中的「身份」及「你的记忆」category 表一致
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
+    "identity": "身份（Identity）：本员工的个人信息、名字、自我介绍等",
     "soul": "人格（Soul）：价值观与沟通方式",
     "user": "负责人/用户（User）：对负责人的了解",
     "agents": "工作准则（Agents）：员工指令与行为",
@@ -50,11 +52,12 @@ CATEGORY_DESCRIPTIONS: dict[str, str] = {
     "work_life": "工作与生活",
 }
 
-# 前 4 个 category 的默认种子文件名（包内 templates/defaults/ 下）
-DEFAULT_SEED_FILES = {"soul": "soul.md", "user": "user.md", "agents": "agents.md", "tools": "tools.md"}
+# 前 5 个 category 的默认种子文件名（包内 templates/defaults/ 下）
+DEFAULT_SEED_FILES = {"identity": "identity.md", "soul": "soul.md", "user": "user.md", "agents": "agents.md", "tools": "tools.md"}
 
 # 旧员工迁移：若 DB 中 summary 为空且员工目录下仍有该 .md，则读入一次
 LEGACY_MD_MAP = {
+    "identity": "IDENTITY.md",
     "soul": "SOUL.md",
     "user": "USER.md",
     "agents": "AGENTS.md",
@@ -71,8 +74,8 @@ def get_bundled_defaults_path(filename: str) -> Path:
 
 def ensure_all_categories(employee_id: str, store: "StoreType") -> None:
     """
-    确保 14 个 category 存在；若不存在则创建，summary 先为空。
-    对 soul/user/agents/tools：新建时优先从员工目录旧 .md 读入（迁移），否则从包内 defaults 种子读入。
+    确保 15 个 category 存在；若不存在则创建，summary 先为空。
+    对 identity/soul/user/agents/tools：新建时优先从员工目录旧 .md 读入（迁移），否则从包内 defaults 种子读入。
     兼容旧员工：若 category 已存在且 summary 为空且员工目录有对应 .md，则读入一次（迁移）。
     """
     emp_dir = paths.get_employee_dir(employee_id)
@@ -118,7 +121,7 @@ def ensure_all_categories(employee_id: str, store: "StoreType") -> None:
 
 
 def get_store(employee_id: str) -> "StoreType":
-    """获取该员工的记忆库；若尚未打开则创建并建表。并确保 14 个 category 存在（含种子/迁移）。"""
+    """获取该员工的记忆库；若尚未打开则创建并建表。并确保 15 个 category 存在（含种子/迁移）。"""
     if employee_id in _store_cache:
         return _store_cache[employee_id]
     db_path = paths.get_employee_memory_db_path(employee_id)

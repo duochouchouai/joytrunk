@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from contextlib import AsyncExitStack
 from typing import Any, Awaitable, Callable
@@ -29,7 +30,7 @@ from joytrunk.agent.run_log import (
     prepare_messages_for_log,
     truncate_str,
 )
-from joytrunk.agent.session import append_turn, load_history
+from joytrunk.agent.session import OWNER_CHAT_KEY, append_turn, load_history
 from joytrunk.tools.mcp import connect_mcp_servers
 
 MAX_ITERATIONS = 40
@@ -40,7 +41,7 @@ async def run_employee_loop(
     employee_id: str,
     owner_id: str,
     content: str,
-    session_key: str = "cli:direct",
+    session_key: str = OWNER_CHAT_KEY,
     channel: str = "cli",
     chat_id: str = "direct",
     on_progress: Callable[[str], Awaitable[None]] | None = None,
@@ -251,8 +252,8 @@ async def run_employee_loop(
 def _dummy_embed_client() -> Any:
     """占位 embed：返回零向量，避免 memorize 因无 embed 报错。"""
     class Dummy:
-        async def embed(self, inputs: list[str]) -> list[list[float]]:
-            return [[0.0] * 384 for _ in inputs]
+        async def embed(self, inputs: list[str], embed_type: str | None = None) -> list[list[float]]:
+            return [[0.0] * 1536 for _ in inputs]
     return Dummy()
 
 
@@ -262,10 +263,14 @@ def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cf
     base_url = emb.get("base_url") or llm_params.get("base_url")
     api_key = emb.get("api_key") or llm_params.get("api_key")
     embed_model = emb.get("embed_model") or "embo-01"
+    group_id = (emb.get("group_id") or os.environ.get("MINIMAX_GROUP_ID") or "").strip()
     if base_url and embed_model:
         from joytrunk.agent.memory.embedding_client import HTTPEmbeddingClient
         embed_client = HTTPEmbeddingClient(
-            base_url=base_url, api_key=api_key or "", embed_model=embed_model,
+            base_url=base_url,
+            api_key=api_key or "",
+            embed_model=embed_model,
+            group_id=group_id or None,
         )
     async def llm_chat(messages: list[dict]) -> str:
         from joytrunk.agent.provider import chat as provider_chat, chat_via_router

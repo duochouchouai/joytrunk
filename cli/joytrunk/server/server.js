@@ -7,8 +7,8 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const { getEmployeeDir, getAgentLogPath } = require('./lib/paths');
+const { execSync, spawnSync } = require('child_process');
+const { getEmployeeDir, getAgentLogPath, getJoytrunkRoot } = require('./lib/paths');
 const store = require('./lib/store');
 const config = require('./lib/config');
 const agent = require('./lib/agent');
@@ -161,6 +161,197 @@ app.get('/api/employees/:id/logs', (req, res) => {
     return res.status(500).json({ error: e.message || '读取日志失败' });
   }
   res.json({ entries });
+});
+
+// ---------- 员工 memory.db 内容（供前端展示；暂不校验负责人）----------
+// 若 store 中无该员工，但该员工目录下存在 memory.db，仍尝试读取（修复数据库读取问题）
+app.get('/api/employees/:id/memory', (req, res) => {
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const employeeDir = path.join(joytrunkRoot, 'workspace', 'employees', employeeId);
+  const memoryDbPath = path.join(employeeDir, 'memory.db');
+
+  if (!emp && !fs.existsSync(memoryDbPath)) {
+    return res.status(404).json({ error: '员工不存在或该员工暂无记忆库' });
+  }
+  // 使用 cli 根目录作为 cwd，使 python -m joytrunk.scripts.dump_memory 能解析到 joytrunk 包
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  try {
+    const stdout = execSync(`python -m joytrunk.scripts.dump_memory ${employeeId}`, {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const data = JSON.parse(stdout.trim());
+    if (data.error) {
+      return res.status(500).json({ error: data.error });
+    }
+    res.json(data);
+  } catch (e) {
+    let msg = e.message || '读取 memory 失败';
+    if (e.stdout && typeof e.stdout === 'string' && e.stdout.trim()) {
+      try {
+        const parsed = JSON.parse(e.stdout.trim());
+        if (parsed.error) msg = parsed.error;
+      } catch (_) {}
+    } else if (e.stderr && typeof e.stderr === 'string') {
+      msg = e.stderr.trim() || msg;
+    }
+    return res.status(500).json({ error: msg });
+  }
+});
+
+/** 检查员工/记忆库存在并返回 cliRoot、env；否则返回 null 并已 send 404 */
+function ensureMemoryAccess(req, res) {
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const memoryDbPath = path.join(joytrunkRoot, 'workspace', 'employees', employeeId, 'memory.db');
+  if (!emp && !fs.existsSync(memoryDbPath)) {
+    res.status(404).json({ error: '员工不存在或该员工暂无记忆库' });
+    return null;
+  }
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  return { employeeId, cliRoot, env };
+}
+
+/** 调用 memory_mutate 脚本，stdin 传入 JSON；返回 { success, data, error } */
+function runMemoryMutate(employeeId, operation, id, payload, cliRoot, env) {
+  const input = JSON.stringify({ employee_id: employeeId, operation, id: id || undefined, payload: payload || {} }) + '\n';
+  const r = spawnSync('python', ['-m', 'joytrunk.scripts.memory_mutate'], {
+    input,
+    encoding: 'utf-8',
+    cwd: cliRoot,
+    env,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+  const out = (r.stdout || '').trim();
+  const err = (r.stderr || '').trim();
+  if (r.status !== 0) {
+    try {
+      const parsed = JSON.parse(out);
+      if (parsed.error) return { success: false, error: parsed.error };
+    } catch (_) {}
+    return { success: false, error: err || r.status.toString() };
+  }
+  try {
+    const data = JSON.parse(out);
+    if (data.error) return { success: false, error: data.error };
+    return { success: true, data };
+  } catch (_) {
+    return { success: false, error: out || 'invalid output' };
+  }
+}
+
+// ---------- 记忆库 CRUD：分类 ----------
+app.post('/api/employees/:id/memory/categories', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_category', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/categories/:cid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_category', req.params.cid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/categories/:cid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_category', req.params.cid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：条目 ----------
+app.post('/api/employees/:id/memory/items', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_item', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/items/:iid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_item', req.params.iid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/items/:iid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_item', req.params.iid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：资源 ----------
+app.post('/api/employees/:id/memory/resources', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_resource', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/resources/:rid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_resource', req.params.rid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/resources/:rid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_resource', req.params.rid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：分类-条目关联 ----------
+app.post('/api/employees/:id/memory/relations', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_relation', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/relations/:relId', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_relation', req.params.relId, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
 });
 
 // ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）----------
@@ -319,6 +510,11 @@ app.delete('/api/config/custom-llm', (req, res) => {
 app.get('/api/usage', (req, res) => {
   const ownerId = getOwnerId(req);
   res.json({ usage: [{ source: 'router', tokens: 0 }, { source: 'custom', tokens: 0 }] });
+});
+
+// ---------- 未匹配的 /api 返回 JSON 404（避免前端拿到非 JSON 的 "Not Found"）----------
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: '接口不存在', path: req.path });
 });
 
 // ---------- 静态与 SPA（本地 UI 来自 cli/joytrunk/ui 构建到 server/static）----------
