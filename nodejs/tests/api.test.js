@@ -1,6 +1,9 @@
 /**
  * Node 内置 test runner：官方后端占位健康检查
+ * 不依赖数据库；若需带 DB 的测试见 im.test.js。
  */
+require('dotenv').config();
+if (!process.env.NODE_ENV) process.env.NODE_ENV = 'development';
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');

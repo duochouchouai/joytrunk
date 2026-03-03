@@ -43,4 +43,15 @@ const router = createRouter({
   routes,
 })
 
+router.beforeEach((to, _from, next) => {
+  const token = typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('joytrunk_token') || localStorage.getItem('joytrunk_owner_id'))
+    : null
+  if (to.path.startsWith('/app') && !token) {
+    next('/login')
+  } else {
+    next()
+  }
+})
+
 export default router

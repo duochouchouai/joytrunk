@@ -1,24 +1,32 @@
 /**
- * JoyTrunk 官方后端占位：全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量。
- * 本地管理后端（32890、负责人/员工/团队 CRUD、config/workspace）已迁移至 cli 包内 gateway，由 joytrunk server 启动。
- * 本服务为独立进程，端口由 PORT 或配置指定，与本地 32890 解耦。
+ * JoyTrunk 官方后端：注册用户、IM、LLM Router（与本地 32890 gateway 解耦）
+ * Phase 1：PostgreSQL + JWT + 1:1 会话与消息
+ * 架构：路由层 → 控制层 → 服务层
  */
-
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const config = require('./config/default');
+const { getDb, isDbAvailable, initDb } = require('./db/pg');
+const { initRedis } = require('./db/redis');
+const { generateUid } = require('./utils/snowflake');
+const { authMiddleware } = require('./middleware/auth');
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
+const imRoutes = require('./routes/im');
 
 const app = express();
-const PORT = Number(process.env.PORT) || 32891;
-const HOST = process.env.HOST || 'localhost';
+const PORT = config.PORT;
+const HOST = config.HOST;
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     service: 'joytrunk-official',
-    message: 'JoyTrunk 官方后端（注册用户、IM、LLM Router）开发中',
+    message: 'JoyTrunk 官方后端（注册用户、IM）',
     port: PORT,
   });
 });
@@ -30,41 +38,52 @@ app.get('/', (req, res) => {
   });
 });
 
-// 官网登录：手机验证码（占位实现，正式需对接短信与用户存储）
-app.post('/api/auth/send-code', (req, res) => {
-  const { phone } = req.body || {};
-  if (!phone) return res.status(400).json({ error: '请提供手机号' });
-  // 占位：不真实发短信，仅返回成功
-  res.json({ ok: true, message: '验证码已发送（开发环境占位）' });
+app.use('/api/auth', authRoutes);
+app.use('/api/users', authMiddleware, userRoutes);
+app.use('/api/im', authMiddleware, imRoutes);
+
+app.use((err, req, res, next) => {
+  if (err && err.code === 'REDIS_UNAVAILABLE') {
+    return res.status(503).json({
+      error: '服务暂不可用',
+      code: 'REDIS_UNAVAILABLE',
+    });
+  }
+  if (err && (err.code === 'DB_UNAVAILABLE' || (err.message && err.message.includes('DB_UNAVAILABLE')))) {
+    return res.status(503).json({
+      error: '数据库连接失败，请检查 PostgreSQL 配置（.env 中 DATABASE_URL 或 PG_*）',
+      code: 'DB_UNAVAILABLE',
+    });
+  }
+  next(err);
 });
 
-app.post('/api/auth/login-by-code', (req, res) => {
-  const { phone, code } = req.body || {};
-  if (!phone || !code) return res.status(400).json({ error: '请提供手机号和验证码' });
-  // 占位：任意 6 位验证码即可通过，返回 mock token
-  res.json({ token: `official-${phone}-${Date.now()}` });
-});
-
-// 云端 IM 会话与消息（占位实现）
-app.get('/api/im/conversations', (req, res) => {
-  // 占位：返回空列表，正式需按当前用户返回会话列表
-  res.json([]);
-});
-
-app.get('/api/im/conversations/:id/messages', (req, res) => {
-  res.json([]);
-});
-
-app.post('/api/im/conversations/:id/messages', (req, res) => {
-  const { content } = req.body || {};
-  const id = req.params.id;
-  res.status(201).json({ id: String(Date.now()), role: 'user', content: content || '' });
-});
+async function seedIfEmpty() {
+  const pool = getDb();
+  const result = await pool.query('SELECT COUNT(*) AS n FROM users');
+  const count = parseInt(result.rows[0]?.n || '0', 10);
+  if (count > 0) return;
+  const uid1 = generateUid();
+  const uid2 = generateUid();
+  const uid3 = generateUid();
+  await pool.query(
+    "INSERT INTO users (type, name, phone, uid) VALUES ('user', '测试用户A', '13800000001', $1), ('user', '测试用户B', '13800000002', $2), ('user', '测试用户C', '13800000003', $3)",
+    [uid1, uid2, uid3]
+  );
+}
 
 if (require.main === module) {
-  app.listen(PORT, HOST, () => {
-    console.log(`JoyTrunk official backend (placeholder) on http://${HOST}:${PORT}`);
+  (async () => {
+    await initDb();
+    await initRedis();
+    await seedIfEmpty();
+    app.listen(PORT, HOST, () => {
+      console.log(`JoyTrunk official backend on http://${HOST}:${PORT}`);
+    });
+  })().catch((e) => {
+    console.error('Startup failed:', e);
+    process.exit(1);
   });
 }
 
-module.exports = { app, PORT, HOST };
+module.exports = { app, PORT, HOST, getDb, seedIfEmpty, isDbAvailable };

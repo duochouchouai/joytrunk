@@ -28,7 +28,7 @@
       </nav>
       <div class="sidebar-footer">
         <template v-if="token">
-          <span class="owner-name">{{ team?.owner?.name || t('nav.owner') }}</span>
+          <span class="owner-name">{{ displayName }}</span>
           <button type="button" class="btn-text" @click="logout">{{ t('nav.logout') }}</button>
         </template>
         <router-link v-else to="/login" class="btn-text">{{ t('nav.bindAccount') }}</router-link>
@@ -45,17 +45,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted, provide, watch } from 'vue'
+import { ref, computed, onMounted, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, getToken, clearToken } from '../api'
 
+const isOfficial = import.meta.env.VITE_APP_MODE === 'official'
+
 const { t } = useI18n()
 const route = useRoute()
 const team = ref(null)
+const me = ref(null)
 const token = ref(getToken())
 
+const displayName = computed(() => {
+  if (isOfficial && me.value?.name) return me.value.name
+  return team.value?.owner?.name || t('nav.owner')
+})
+
 async function loadTeam() {
+  if (isOfficial) {
+    try {
+      me.value = await api.users.me()
+    } catch {
+      me.value = null
+    }
+    return
+  }
   try {
     team.value = await api.teams.current()
   } catch {
@@ -70,6 +86,7 @@ function logout() {
 }
 
 provide('team', team)
+provide('me', me)
 provide('refreshTeam', loadTeam)
 
 watch(() => route.path, () => {
