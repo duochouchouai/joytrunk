@@ -41,40 +41,13 @@ def _session_file(employee_id: str, session_key: str) -> Path:
     return _sessions_dir(employee_id) / f"{safe}.json"
 
 
-def load_history(employee_id: str, session_key: str) -> list[dict[str, Any]]:
-    """加载该员工与该会话键对应的历史消息列表。与负责人对话统一使用 OWNER_CHAT_KEY。优先从 DB 读，无则从文件迁入。"""
+def load_history(employee_id: str, session_key: str, limit: int | None = None) -> list[dict[str, Any]]:
+    """从数据库加载该员工该会话的历史消息（时间正序，最多 limit 条，默认 CHAT_DB_LIMIT）。"""
     repo = _get_chat_repo(employee_id)
-    if repo is not None:
-        try:
-            messages = repo.get_messages(session_key, limit=CHAT_DB_LIMIT)
-            if messages:
-                return messages
-        except Exception:
-            pass
-    f = _session_file(employee_id, session_key)
-    if not f.exists():
-        # 升级兼容：曾用 cli_direct 的对话历史迁到 owner，避免换 key 后历史丢失
-        if session_key == OWNER_CHAT_KEY:
-            legacy = _session_file(employee_id, "cli_direct")
-            if legacy.exists():
-                try:
-                    data = json.loads(legacy.read_text(encoding="utf-8"))
-                    messages = data.get("messages", []) if isinstance(data, dict) else []
-                    if messages:
-                        save_history(employee_id, OWNER_CHAT_KEY, messages)
-                        return messages
-                except Exception:
-                    pass
+    if repo is None:
         return []
     try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        messages = data.get("messages", []) if isinstance(data, dict) else []
-        if messages and repo is not None:
-            try:
-                repo.replace_messages(session_key, messages)
-            except Exception:
-                pass
-        return messages
+        return repo.get_messages(session_key, limit=limit or CHAT_DB_LIMIT)
     except Exception:
         return []
 

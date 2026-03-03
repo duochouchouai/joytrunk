@@ -87,7 +87,7 @@ function loadEmployeeTemplates(employeeId) {
       out.SYSTEM_PROMPT = fs.readFileSync(systemPromptPath, 'utf8');
     } catch (_) {}
   }
-  const bootstrapFiles = ['SOUL.md', 'USER.md', 'AGENTS.md', 'TOOLS.md'];
+  const bootstrapFiles = ['IDENTITY.md', 'STYLE.md', 'SOUL.md', 'USER.md', 'AGENTS.md', 'TOOLS.md'];
   for (const name of bootstrapFiles) {
     const p = path.join(dir, name);
     if (fs.existsSync(p)) {
@@ -99,6 +99,8 @@ function loadEmployeeTemplates(employeeId) {
         else if (key === 'user') out.USER = content;
         else if (key === 'agents') out.AGENTS = content;
         else if (key === 'tools') out.TOOLS = content;
+        else if (key === 'identity') out.IDENTITY = content;
+        else if (key === 'style') out.STYLE = content;
       } catch (_) {}
     }
   }
@@ -123,6 +125,8 @@ function loadEmployeeTemplates(employeeId) {
  */
 function buildSystemPrompt(employee, templates) {
   if (templates.SYSTEM_PROMPT) {
+    const identity = templates.IDENTITY || '';
+    const style = templates.STYLE || '';
     const soul = templates.SOUL || '';
     const user = templates.USER || '';
     const agents = templates.AGENTS || '';
@@ -137,6 +141,8 @@ function buildSystemPrompt(employee, templates) {
       skillsBlock = '---\n【可用技能】\n' + skillBlocks.join('\n\n');
     }
     return templates.SYSTEM_PROMPT
+      .replace(/\{\{identity\}\}/g, identity)
+      .replace(/\{\{style\}\}/g, style)
       .replace(/\{\{soul\}\}/g, soul)
       .replace(/\{\{user\}\}/g, user)
       .replace(/\{\{agents\}\}/g, agents)

@@ -64,8 +64,7 @@ async def run_employee_loop(
         workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config, owner_id=owner_id
     )
 
-    history = load_history(employee_id, session_key)
-    history = history[-MEMORY_WINDOW:] if len(history) > MEMORY_WINDOW else history
+    history = load_history(employee_id, session_key, limit=MEMORY_WINDOW)
 
     memory_cfg = get_memory_config(employee_id)
     embed_client, llm_chat_fn = _memory_clients(employee_id, owner_id, params, memory_cfg)
@@ -201,6 +200,7 @@ async def run_employee_loop(
                     await _safe_progress(on_progress, f"[工具调用: {hint}]")
             else:
                 final_content = (response.content or "").strip()
+                context.add_assistant_message(messages, response.content, None)
                 run_log(
                     employee_id,
                     EVENT_FINAL_REPLY,
@@ -233,28 +233,7 @@ async def run_employee_loop(
         )
     append_turn(employee_id, session_key, messages, skip_count)
     run_log(employee_id, EVENT_APPEND_TURN_DONE, {}, run_id=run_id)
-    if memory_cfg.get("auto_extract") and (embed_client or llm_chat_fn):
-        try:
-            from joytrunk.agent.memory.memorize import run_memorize
-            await run_memorize(
-                employee_id,
-                messages[skip_count:],
-                llm_chat=llm_chat_fn,
-                embed_client=embed_client or _dummy_embed_client(),
-                memory_types=memory_cfg.get("types") or ["profile", "event"],
-                enable_reinforcement=True,
-            )
-        except Exception as e:
-            run_log(employee_id, "memory_memorize_error", {"error": str(e)}, run_id=run_id)
     return final_content, total_usage if total_usage["prompt_tokens"] or total_usage["completion_tokens"] else None
-
-
-def _dummy_embed_client() -> Any:
-    """占位 embed：返回零向量，避免 memorize 因无 embed 报错。"""
-    class Dummy:
-        async def embed(self, inputs: list[str], embed_type: str | None = None) -> list[list[float]]:
-            return [[0.0] * 1536 for _ in inputs]
-    return Dummy()
 
 
 def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cfg: dict) -> tuple[Any, Any]:

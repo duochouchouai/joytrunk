@@ -43,8 +43,26 @@ export const api = {
     get: (id) => request('GET', `/api/employees/${id}`),
     update: (id, body) => request('PATCH', `/api/employees/${id}`, body),
     chat: (id, body) => request('POST', `/api/employees/${id}/chat`, body),
+    chatHistory: (id) => request('GET', `/api/employees/${id}/chat-history`),
     logs: (id) => request('GET', `/api/employees/${id}/logs`),
     memory: (id) => request('GET', `/api/employees/${id}/memory`),
+    systemPromptTemplate: async (id) => {
+      const t = getToken();
+      const res = await fetch(getBase() + `/api/employees/${id}/system-prompt-template`, {
+        headers: t ? { 'X-Owner-Id': t } : {},
+      });
+      if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+      return res.text();
+    },
+    /** 模板与 memory.db 合并后的系统提示词（供记忆页右侧展示） */
+    systemPromptMerged: async (id) => {
+      const t = getToken();
+      const res = await fetch(getBase() + `/api/employees/${id}/system-prompt-merged`, {
+        headers: t ? { 'X-Owner-Id': t } : {},
+      });
+      if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+      return res.text();
+    },
     memoryCategoryCreate: (id, body) => request('POST', `/api/employees/${id}/memory/categories`, body),
     memoryCategoryUpdate: (id, cid, body) => request('PATCH', `/api/employees/${id}/memory/categories/${cid}`, body),
     memoryCategoryDelete: (id, cid) => request('DELETE', `/api/employees/${id}/memory/categories/${cid}`),

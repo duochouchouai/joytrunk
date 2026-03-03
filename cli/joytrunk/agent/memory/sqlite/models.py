@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, String, Text
+from sqlalchemy import Integer, JSON, DateTime, String, Text
 from sqlmodel import Column, Field, Index, SQLModel
 
 
@@ -79,6 +79,7 @@ class SQLiteChatMessageModel(SQLModel, table=True):
     role: str = Field(sa_column=Column(String, nullable=False))  # user | assistant | system | tool
     content: str | None = Field(default=None, sa_column=Column(Text, nullable=True))  # 纯文本或占位
     extra_json: str | None = Field(default=None, sa_column=Column(Text, nullable=True))  # tool_calls, name, tool_call_id, 或 content 列表
+    seq: int = Field(default=0, sa_column=Column(Integer, nullable=False))  # 同 session 内顺序，保证 assistant/tool 配对
 
 
 __all__ = [

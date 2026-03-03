@@ -44,6 +44,30 @@ class SQLiteMemoryStore:
 
     def _create_tables(self) -> None:
         SQLModel.metadata.create_all(self._sessions.engine)
+        self._migrate_chat_messages_seq()
+
+    def _migrate_chat_messages_seq(self) -> None:
+        """补 seq 列并按 rowid 回填，保证历史顺序稳定（避免 tool_call_id 2013）。"""
+        try:
+            from sqlalchemy import inspect, text
+            insp = inspect(self._sessions.engine)
+            if "chat_messages" not in insp.get_table_names():
+                return
+            cols = [c["name"] for c in insp.get_columns("chat_messages")]
+            if "seq" not in cols:
+                with self._sessions.engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE chat_messages ADD COLUMN seq INTEGER NOT NULL DEFAULT 0"))
+                    conn.commit()
+            with self._sessions.engine.connect() as conn:
+                conn.execute(text("""
+                    UPDATE chat_messages SET seq = (
+                        SELECT COUNT(*) FROM chat_messages m2
+                        WHERE m2.session_key = chat_messages.session_key AND m2.rowid < chat_messages.rowid
+                    )
+                """))
+                conn.commit()
+        except Exception as e:
+            logger.debug("Migration chat_messages.seq skipped or failed: %s", e)
 
     def close(self) -> None:
         self._sessions.close()

@@ -24,10 +24,25 @@ def _repair_json_arguments(s: str) -> dict[str, Any]:
         return {}
 
 
+def _format_error_body(r: httpx.Response) -> str:
+    """从响应中提取错误说明，便于排查 4xx/5xx。"""
+    try:
+        data = r.json()
+        if isinstance(data, dict):
+            for key in ("error", "message", "msg", "status_msg"):
+                if key in data and data[key]:
+                    return str(data[key])
+            if "base_resp" in data and isinstance(data["base_resp"], dict):
+                br = data["base_resp"]
+                return f"status_code={br.get('status_code')} status_msg={br.get('status_msg', '')}"
+    except Exception:
+        pass
+    return r.text[:500] if r.text else (r.reason_phrase or str(r.status_code))
+
+
 def _sanitize_empty_content(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Copy messages and set assistant content to None when role is assistant and has tool_calls.
-    Many backends expect assistant messages with tool_calls to have null/empty content (OpenAI style).
-    This avoids sending <think> or other reasoning text in content alongside tool_calls."""
+    """Copy messages and set assistant content to empty string when role is assistant and has tool_calls.
+    Some backends (e.g. MiniMax) require content to be string, not null."""
     result: list[dict[str, Any]] = []
     for msg in messages:
         if (
@@ -35,11 +50,48 @@ def _sanitize_empty_content(messages: list[dict[str, Any]]) -> list[dict[str, An
             and msg.get("tool_calls")
         ):
             clean = deepcopy(msg)
-            clean["content"] = None
+            clean["content"] = "" if clean.get("content") is None else clean["content"]
             result.append(clean)
         else:
             result.append(deepcopy(msg))
     return result
+
+
+def _reorder_tool_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把每条 tool 消息挪到其对应 assistant（含该 tool_call_id）之后，避免 API 2013。"""
+    if not messages:
+        return messages
+    n = len(messages)
+    ids_at: list[list[str]] = [[] for _ in range(n)]
+    tools: list[tuple[int, str, dict]] = []
+    for i, msg in enumerate(messages):
+        role = msg.get("role")
+        if role == "assistant":
+            tcs = msg.get("tool_calls") or []
+            ids_at[i] = [tc.get("id") for tc in tcs if isinstance(tc, dict) and tc.get("id")]
+        elif role == "tool" and msg.get("tool_call_id"):
+            tools.append((i, msg.get("tool_call_id"), msg))
+    # tool_index -> 所属 assistant 下标（最后一个包含该 id 的 assistant）
+    tool_to_ai: dict[int, int] = {}
+    for ti, tid, _ in tools:
+        for ai in range(n - 1, -1, -1):
+            if tid in ids_at[ai]:
+                tool_to_ai[ti] = ai
+                break
+    out: list[dict[str, Any]] = []
+    used: set[int] = set()
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "tool":
+            continue
+        out.append(deepcopy(msg))
+        if msg.get("role") == "assistant" and ids_at[i]:
+            for tid in ids_at[i]:
+                for ti, t_tid, t_msg in tools:
+                    if ti not in used and t_tid == tid and tool_to_ai.get(ti) == i:
+                        out.append(deepcopy(t_msg))
+                        used.add(ti)
+                        break
+    return out
 
 
 @dataclass
@@ -117,7 +169,7 @@ async def chat(
     if tools:
         body["tools"] = [{"type": "function", "function": t["function"]} for t in tools]
         body["tool_choice"] = "auto"
-    body["messages"] = _sanitize_empty_content(body["messages"])
+    body["messages"] = _sanitize_empty_content(_reorder_tool_messages(body["messages"]))
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
@@ -128,7 +180,13 @@ async def chat(
             },
             json=body,
         )
-        r.raise_for_status()
+        if not r.is_success:
+            err_detail = _format_error_body(r)
+            raise httpx.HTTPStatusError(
+                f"API 返回 {r.status_code}: {err_detail}",
+                request=r.request,
+                response=r,
+            )
     return _parse_response(r.json())
 
 
@@ -153,7 +211,7 @@ async def chat_via_router(
     if tools:
         body["tools"] = [{"type": "function", "function": t["function"]} for t in tools]
         body["tool_choice"] = "auto"
-    body["messages"] = _sanitize_empty_content(body["messages"])
+    body["messages"] = _sanitize_empty_content(_reorder_tool_messages(body["messages"]))
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
@@ -164,5 +222,11 @@ async def chat_via_router(
             },
             json=body,
         )
-        r.raise_for_status()
+        if not r.is_success:
+            err_detail = _format_error_body(r)
+            raise httpx.HTTPStatusError(
+                f"API 返回 {r.status_code}: {err_detail}",
+                request=r.request,
+                response=r,
+            )
     return _parse_response(r.json())

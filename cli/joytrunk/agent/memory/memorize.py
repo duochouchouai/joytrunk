@@ -155,7 +155,7 @@ async def run_memorize(
             category=cat.name,
             original_content=(cat.summary or "").strip(),
             new_memory_items_text=new_lines or "无",
-            target_length=800,
+            target_length=20,
         )
         try:
             new_summary = await llm_chat([{"role": "user", "content": prompt_summary}])

@@ -7,31 +7,32 @@
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </button>
     </div>
-    <div class="card">
-      <p v-if="loadError" class="error">{{ loadError }}</p>
-      <p v-else-if="!loading && !data" class="muted">{{ t('memory.empty') }}</p>
-      <template v-else-if="data">
-        <section class="memory-section">
-          <div class="section-head">
-            <h2 class="section-title">{{ t('memory.categories') }} ({{ (data.categories || []).length }})</h2>
-            <button type="button" class="btn small" @click="openForm('category', 'add')">{{ t('memory.add') }}</button>
-          </div>
-          <div v-if="formMode && formMode.section === 'category'" class="form-card">
-            <input v-model="formData.name" type="text" :placeholder="t('memory.name')" class="input" />
-            <input v-model="formData.description" type="text" :placeholder="t('memory.description')" class="input" />
-            <textarea v-model="formData.summary" :placeholder="t('memory.summary')" class="input" rows="2"></textarea>
-            <div class="form-actions">
-              <button type="button" class="btn primary" :disabled="mutateLoading" @click="submitCategoryForm">{{ t('memory.save') }}</button>
-              <button type="button" class="btn secondary" @click="closeForm">{{ t('memory.cancel') }}</button>
+    <div class="page-layout">
+      <div class="card main-card">
+        <p v-if="loadError" class="error">{{ loadError }}</p>
+        <p v-else-if="!loading && !data" class="muted">{{ t('memory.empty') }}</p>
+        <template v-else-if="data">
+          <section class="memory-section">
+            <div class="section-head">
+              <h2 class="section-title">{{ t('memory.categories') }} ({{ sortedCategories.length }})</h2>
+              <button type="button" class="btn small" @click="openForm('category', 'add')">{{ t('memory.add') }}</button>
             </div>
-            <p v-if="mutateError" class="error small">{{ mutateError }}</p>
-          </div>
-          <div class="category-list">
-            <div
-              v-for="c in (data.categories || [])"
-              :key="c.id"
-              class="category-block"
-            >
+            <div v-if="formMode && formMode.section === 'category'" class="form-card">
+              <input v-model="formData.name" type="text" :placeholder="t('memory.name')" class="input" />
+              <input v-model="formData.description" type="text" :placeholder="t('memory.description')" class="input" />
+              <textarea v-model="formData.summary" :placeholder="t('memory.summary')" class="input" rows="2"></textarea>
+              <div class="form-actions">
+                <button type="button" class="btn primary" :disabled="mutateLoading" @click="submitCategoryForm">{{ t('memory.save') }}</button>
+                <button type="button" class="btn secondary" @click="closeForm">{{ t('memory.cancel') }}</button>
+              </div>
+              <p v-if="mutateError" class="error small">{{ mutateError }}</p>
+            </div>
+            <div class="category-list">
+              <div
+                v-for="c in sortedCategories"
+                :key="c.id"
+                class="category-block"
+              >
               <div class="memory-card card-with-actions category-header">
                 <div class="meta-row"><span class="meta-id">{{ c.id }}</span><span class="meta-ts muted">{{ formatTs(c.created_at) }}</span></div>
                 <div class="card-name">{{ c.name }}</div>
@@ -56,9 +57,7 @@
                 <button type="button" class="btn small add-item-btn" @click="openFormForItemInCategory(c.id)">{{ t('memory.addItemToCategory') }}</button>
               </div>
               <div v-if="formMode && formMode.section === 'item' && formMode.addToCategoryId === c.id" class="form-card category-inline-form">
-                <input v-model="formData.memory_type" type="text" :placeholder="t('memory.memoryType')" class="input" />
-                <textarea v-model="formData.summary" :placeholder="t('memory.summary')" class="input" rows="2"></textarea>
-                <input v-model="formData.resource_id" type="text" :placeholder="'resource_id (可选)'" class="input" />
+                <textarea v-model="formData.content" :placeholder="t('memory.contentPlaceholder')" class="input" rows="3"></textarea>
                 <div class="form-actions">
                   <button type="button" class="btn primary" :disabled="mutateLoading" @click="submitItemForm">{{ t('memory.save') }}</button>
                   <button type="button" class="btn secondary" @click="closeForm">{{ t('memory.cancel') }}</button>
@@ -185,6 +184,12 @@
         </section>
       </template>
     </div>
+    <aside class="prompt-panel">
+      <h2 class="panel-title">{{ t('memory.systemPromptRef') }}</h2>
+      <div v-if="templateError" class="muted small">{{ templateError }}</div>
+      <pre v-else class="prompt-content">{{ systemPromptTemplate }}</pre>
+    </aside>
+  </div>
   </div>
 </template>
 
@@ -201,6 +206,8 @@ const data = ref(null)
 const loading = ref(false)
 const loadError = ref('')
 const employeeName = ref('')
+const systemPromptTemplate = ref('')
+const templateError = ref('')
 const formMode = ref(null)
 const formData = ref({})
 const mutateLoading = ref(false)
@@ -223,7 +230,7 @@ function openForm(section, action, record = null) {
 function openFormForItemInCategory(categoryId) {
   mutateError.value = ''
   formMode.value = { section: 'item', action: 'add', addToCategoryId: categoryId }
-  formData.value = { memory_type: 'profile', summary: '', resource_id: '', category_ids: [categoryId] }
+  formData.value = { content: '' }
 }
 
 function closeForm() {
@@ -254,15 +261,30 @@ async function submitItemForm() {
   mutateLoading.value = true
   try {
     if (formMode.value.action === 'add') {
-      const payload = {
-        memory_type: formData.value.memory_type || 'profile',
-        summary: formData.value.summary,
-        resource_id: formData.value.resource_id || undefined,
-      }
       if (formMode.value.addToCategoryId) {
-        payload.category_ids = [formMode.value.addToCategoryId]
+        // 增加条目到分类：只填内容，可多行每行一条
+        const raw = (formData.value.content || '').trim()
+        const lines = raw ? raw.split(/\n/).map((s) => s.trim()).filter(Boolean) : []
+        if (lines.length === 0) {
+          mutateError.value = '请输入至少一条内容'
+          return
+        }
+        const categoryId = formMode.value.addToCategoryId
+        for (const line of lines) {
+          await api.employees.memoryItemCreate(employeeId.value, {
+            memory_type: 'profile',
+            summary: line,
+            category_ids: [categoryId],
+          })
+        }
+      } else {
+        const payload = {
+          memory_type: formData.value.memory_type || 'profile',
+          summary: formData.value.summary,
+          resource_id: formData.value.resource_id || undefined,
+        }
+        await api.employees.memoryItemCreate(employeeId.value, payload)
       }
-      await api.employees.memoryItemCreate(employeeId.value, payload)
     } else {
       await api.employees.memoryItemUpdate(employeeId.value, formMode.value.id, {
         summary: formData.value.summary,
@@ -388,6 +410,20 @@ function itemSummary(itemId) {
   return i ? truncate(i.summary, 60) : itemId
 }
 
+const sortedCategories = computed(() => {
+  const list = data.value?.categories || []
+  const order = data.value?.category_order || []
+  if (!order.length) return list
+  return [...list].sort((a, b) => {
+    const i = order.indexOf(a.name)
+    const j = order.indexOf(b.name)
+    if (i === -1 && j === -1) return 0
+    if (i === -1) return 1
+    if (j === -1) return -1
+    return i - j
+  })
+})
+
 function itemsInCategory(categoryId) {
   if (!data.value || !categoryId) return []
   const relations = data.value.category_item_relations || []
@@ -402,11 +438,23 @@ async function loadMemory() {
   loadError.value = ''
   try {
     data.value = await api.employees.memory(employeeId.value)
+    await loadTemplate()
   } catch (e) {
     loadError.value = e.message || t('memory.loadFailed')
     data.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadTemplate() {
+  if (!employeeId.value) return
+  templateError.value = ''
+  try {
+    systemPromptTemplate.value = await api.employees.systemPromptMerged(employeeId.value)
+  } catch (e) {
+    templateError.value = e.message || t('memory.loadFailed')
+    systemPromptTemplate.value = ''
   }
 }
 
@@ -432,13 +480,40 @@ watch(employeeId, () => {
 </script>
 
 <style scoped>
-.page { max-width: 900px; }
+.page { max-width: none; }
 .page-header {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 1.25rem;
+}
+.page-layout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.main-card { flex: 1; min-width: 0; }
+.prompt-panel {
+  flex: 1;
+  min-width: 0;
+  background: var(--jt-card-bg);
+  border-radius: var(--jt-radius);
+  box-shadow: var(--jt-card-shadow);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+.panel-title { font-size: 1rem; font-weight: 600; margin: 0 0 0.75rem; }
+.prompt-content {
+  white-space: pre-wrap;
+  overflow: auto;
+  flex: 1;
+  font-size: 0.8125rem;
+  font-family: ui-monospace, monospace;
+  margin: 0;
+  min-height: 200px;
 }
 .back-link {
   color: var(--jt-primary);

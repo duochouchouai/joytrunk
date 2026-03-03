@@ -33,6 +33,7 @@ def main() -> None:
     try:
         from joytrunk import paths
         from joytrunk.agent.memory import get_store
+        from joytrunk.agent.memory.store import CATEGORY_NAMES
     except ImportError as e:
         print(json.dumps({"error": f"import failed: {e}"}), flush=True)
         sys.exit(1)
@@ -45,9 +46,10 @@ def main() -> None:
     except Exception as e:
         print(json.dumps({"error": str(e)}), flush=True)
         sys.exit(1)
-    categories = []
-    for c in store.memory_category_repo.list_categories().values():
-        categories.append(_no_embedding(c.model_dump(mode="json")))
+    all_cats = list(store.memory_category_repo.list_categories().values())
+    order = list(CATEGORY_NAMES)
+    all_cats.sort(key=lambda c: (order.index(c.name) if c.name in order else 999, c.name))
+    categories = [_no_embedding(c.model_dump(mode="json")) for c in all_cats]
     items = []
     for i in store.memory_item_repo.list_items().values():
         items.append(_no_embedding(i.model_dump(mode="json")))
@@ -60,6 +62,7 @@ def main() -> None:
     chat_messages = store.chat_message_repo.list_all_for_export()
     out = {
         "employee_id": employee_id,
+        "category_order": list(CATEGORY_NAMES),
         "categories": categories,
         "items": items,
         "resources": resources,

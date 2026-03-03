@@ -163,19 +163,22 @@ app.get('/api/employees/:id/logs', (req, res) => {
   res.json({ entries });
 });
 
-// ---------- 员工 memory.db 内容（供前端展示；暂不校验负责人）----------
-// 若 store 中无该员工，但该员工目录下存在 memory.db，仍尝试读取（修复数据库读取问题）
+// ---------- 员工 memory.db 内容（供前端展示）----------
+// 仅当前负责人可访问其员工的 memory；若 store 中无该员工则 404
 app.get('/api/employees/:id/memory', (req, res) => {
+  const ownerId = getOwnerId(req);
   const employeeId = req.params.id;
   const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
   const joytrunkRoot = path.resolve(getJoytrunkRoot());
   const employeeDir = path.join(joytrunkRoot, 'workspace', 'employees', employeeId);
   const memoryDbPath = path.join(employeeDir, 'memory.db');
 
-  if (!emp && !fs.existsSync(memoryDbPath)) {
-    return res.status(404).json({ error: '员工不存在或该员工暂无记忆库' });
+  if (!fs.existsSync(memoryDbPath)) {
+    return res.status(404).json({ error: '该员工暂无记忆库' });
   }
-  // 使用 cli 根目录作为 cwd，使 python -m joytrunk.scripts.dump_memory 能解析到 joytrunk 包
   const cliRoot = path.join(__dirname, '..', '..');
   const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
   env.PYTHONPATH = path.join(cliRoot, '..');
@@ -206,14 +209,64 @@ app.get('/api/employees/:id/memory', (req, res) => {
   }
 });
 
-/** 检查员工/记忆库存在并返回 cliRoot、env；否则返回 null 并已 send 404 */
-function ensureMemoryAccess(req, res) {
+/** 与负责人的聊天记录（仅 owner session，供聊天记录页展示） */
+app.get('/api/employees/:id/chat-history', (req, res) => {
+  const ownerId = getOwnerId(req);
   const employeeId = req.params.id;
   const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
   const joytrunkRoot = path.resolve(getJoytrunkRoot());
   const memoryDbPath = path.join(joytrunkRoot, 'workspace', 'employees', employeeId, 'memory.db');
-  if (!emp && !fs.existsSync(memoryDbPath)) {
-    res.status(404).json({ error: '员工不存在或该员工暂无记忆库' });
+  if (!fs.existsSync(memoryDbPath)) {
+    return res.json({ messages: [] });
+  }
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  try {
+    const stdout = execSync(`python -m joytrunk.scripts.dump_memory ${employeeId}`, {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const data = JSON.parse(stdout.trim());
+    if (data.error) {
+      return res.status(500).json({ error: data.error });
+    }
+    const all = (data.chat_messages || []).filter((m) => m.session_key === 'owner');
+    const messages = all.slice(-300);
+    res.json({ messages });
+  } catch (e) {
+    let msg = e.message || '读取聊天记录失败';
+    if (e.stdout && typeof e.stdout === 'string' && e.stdout.trim()) {
+      try {
+        const parsed = JSON.parse(e.stdout.trim());
+        if (parsed.error) msg = parsed.error;
+      } catch (_) {}
+    } else if (e.stderr && typeof e.stderr === 'string') {
+      msg = e.stderr.trim() || msg;
+    }
+    return res.status(500).json({ error: msg });
+  }
+});
+
+/** 检查当前用户有权访问该员工的记忆库；返回 { employeeId, cliRoot, env } 或 null（已 send 4xx） */
+function ensureMemoryAccess(req, res) {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    res.status(404).json({ error: '员工不存在或无权访问' });
+    return null;
+  }
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const memoryDbPath = path.join(joytrunkRoot, 'workspace', 'employees', employeeId, 'memory.db');
+  if (!fs.existsSync(memoryDbPath)) {
+    res.status(404).json({ error: '该员工暂无记忆库' });
     return null;
   }
   const cliRoot = path.join(__dirname, '..', '..');
@@ -222,6 +275,62 @@ function ensureMemoryAccess(req, res) {
   if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
   return { employeeId, cliRoot, env };
 }
+
+// ---------- 员工 SYSTEM_PROMPT 模板（供记忆页右侧展示）----------
+app.get('/api/employees/:id/system-prompt-template', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const employeeTpl = path.join(getEmployeeDir(employeeId), 'SYSTEM_PROMPT.md');
+  const bundledTpl = path.join(__dirname, '..', 'templates', 'SYSTEM_PROMPT.md');
+  const tplPath = fs.existsSync(employeeTpl) ? employeeTpl : bundledTpl;
+  try {
+    const content = fs.readFileSync(tplPath, 'utf-8');
+    res.type('text/markdown').send(content);
+  } catch (e) {
+    res.status(500).json({ error: e.message || '读取模板失败' });
+  }
+});
+
+/** 返回员工的 cliRoot 与 env（不要求 memory.db 存在），用于调用 Python 脚本 */
+function getEmployeeCliEnv(employeeId) {
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  return { cliRoot, env };
+}
+
+/** 合并后的系统提示词（模板 + memory.db 占位符替换结果），供记忆页右侧展示 */
+app.get('/api/employees/:id/system-prompt-merged', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const { cliRoot, env } = getEmployeeCliEnv(employeeId);
+  try {
+    const r = spawnSync('python', ['-m', 'joytrunk.scripts.preview_system_prompt', employeeId], {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    if (r.status !== 0) {
+      const err = (r.stderr || r.stdout || '').trim() || `exit ${r.status}`;
+      return res.status(500).type('text/plain').send(err);
+    }
+    const content = (r.stdout || '').trim();
+    res.type('text/markdown').send(content);
+  } catch (e) {
+    res.status(500).type('text/plain').send(e.message || '生成合并提示词失败');
+  }
+});
 
 /** 调用 memory_mutate 脚本，stdin 传入 JSON；返回 { success, data, error } */
 function runMemoryMutate(employeeId, operation, id, payload, cliRoot, env) {
@@ -421,7 +530,12 @@ app.post('/api/employees/:id/chat', async (req, res) => {
       if (e.name === 'AbortError') {
         return res.status(504).json({ error: 'A2A 请求超时' });
       }
-      return res.status(503).json({ error: e.message || 'A2A Gateway 不可用，请先运行 joytrunk gateway' });
+      const isConnectionError = /fetch failed|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(e.message || '');
+      return res.status(503).json({
+        error: isConnectionError
+          ? 'A2A Gateway 未启动或不可达，请先在另一终端运行：joytrunk gateway'
+          : (e.message || 'A2A Gateway 不可用，请先运行 joytrunk gateway'),
+      });
     }
   }
 

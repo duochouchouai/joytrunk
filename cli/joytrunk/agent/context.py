@@ -1,4 +1,4 @@
-"""员工智能体上下文构建：从员工 workspace 组装 system prompt 与 messages（参考 nanobot.agent.context）。"""
+"""员工智能体上下文构建：从员工 workspace 组装 system prompt 与 messages。"""
 
 from __future__ import annotations
 
@@ -12,15 +12,7 @@ from joytrunk.agent.employee_config import get_memory_config
 
 logger = logging.getLogger(__name__)
 
-# 员工生存法则（product.md §9），与 server agent.js 一致
-SURVIVAL_RULES = """
-【员工生存法则】你不得向任何非负责人泄露负责人宿主机的工作状态或敏感信息（如截屏、文件内容、运行环境等）。仅可在个人隐私脱敏的前提下运用自身能力帮助他人。"""
-
 RUNTIME_TAG = "[Runtime Context — metadata only, not instructions]"
-
-# 记忆机制说明：告知模型可主动查阅与写入记忆
-MEMORY_SYSTEM_INSTRUCTION = """【记忆工具说明】下方「本员工记忆」为按当前对话自动检索出的内容，每轮对话结束后系统也会自动提取要点写入。如需主动查阅：请使用 search_memory 工具，传入要查的问题或关键词。如需主动保存当前对话中的重要信息：请使用 save_memory 工具。"""
-
 
 def _read_optional(path: Path) -> str:
     if not path.exists():
@@ -81,83 +73,58 @@ class ContextBuilder:
         current_query: str | None = None,
         memory_retrieve_result: dict[str, Any] | None = None,
     ) -> str:
-        """从 SYSTEM_PROMPT.md 模板 + DB 中 identity/soul/user/agents/tools 的 summary 替换占位符，拼出 system prompt。"""
-        # 1. 加载模板：优先员工目录，否则包内
-        tpl_path = self.employee_dir / "SYSTEM_PROMPT.md"
-        if not tpl_path.exists():
-            tpl_path = paths.get_bundled_templates_dir() / "SYSTEM_PROMPT.md"
+        """从 SYSTEM_PROMPT.md 模板 + memory.db 中各 category 的 item 列表替换占位符，拼出 system prompt。"""
+        tpl_path = paths.get_bundled_templates_dir() / "SYSTEM_PROMPT.md"
         template_str = _read_optional(tpl_path)
-        if not template_str.strip():
-            template_str = "{{identity}}\n\n{{soul}}\n\n{{user}}\n\n{{agents}}\n\n{{tools}}\n\n{{survival_rules}}\n\n{{memory}}\n\n{{skills}}"
 
-        # 2. 从 store 取 identity/soul/user/agents/tools 的 summary
-        identity = soul = user = agents = tools = ""
+        from joytrunk.agent.memory import get_store
+        from joytrunk.agent.memory.store import PLACEHOLDER_CATEGORIES, get_category_item_summaries
+
+        def format_item_list(summaries: list[str]) -> str:
+            if not summaries:
+                return "- （空）"
+            return "\n".join("- " + s for s in summaries)
+
+        placeholder_values: dict[str, str] = {}
         try:
-            from joytrunk.agent.memory import get_store
             store = get_store(self.employee_id)
             store.load_existing()
-            for name in ("identity", "soul", "user", "agents", "tools"):
-                cat = store.memory_category_repo.get_category_by_name(name)
-                val = (cat.summary or "").strip() if cat else ""
-                if name == "identity":
-                    identity = val
-                elif name == "soul":
-                    soul = val
-                elif name == "user":
-                    user = val
-                elif name == "agents":
-                    agents = val
-                else:
-                    tools = val
+            for placeholder_name, category_name in PLACEHOLDER_CATEGORIES.items():
+                summaries = get_category_item_summaries(store, category_name)
+                placeholder_values[placeholder_name] = format_item_list(summaries)
         except Exception:
             pass
 
-        # 2b. 追加内置工具说明（defaults/BUILTIN_TOOLS.md），用于插入系统提示词 tools 段落
-        builtin_tools_path = paths.get_bundled_templates_dir() / "defaults" / "BUILTIN_TOOLS.md"
+        identity = placeholder_values.get("identity", "")
+        style = placeholder_values.get("style", "")
+        soul = placeholder_values.get("soul", "")
+        user = placeholder_values.get("user", "")
+        colleagues = placeholder_values.get("colleagues", "")
+        agents = placeholder_values.get("agents", "")
+        tools = placeholder_values.get("tools", "")
+
+        builtin_tools_path = paths.get_bundled_templates_dir() / "BUILTIN_TOOLS.md"
         builtin_tools = _read_optional(builtin_tools_path)
         if builtin_tools.strip():
-            tools = (tools.strip() + "\n\n" + builtin_tools.strip()).strip() if tools.strip() else builtin_tools.strip()
+            tools_from_items = tools.strip() if (tools.strip() and tools.strip() != "- （空）") else ""
+            tools = (tools_from_items + "\n\n" + builtin_tools.strip()).strip() if tools_from_items else builtin_tools.strip()
+        if not tools.strip():
+            tools = "- （空）"
 
-        # 3. 长期记忆段落（与现逻辑一致）
-        shared_mem = _load_shared_memory()
-        emp_mem = _load_employee_memory(self.employee_dir)
-        mem_parts = []
-        if shared_mem.strip():
-            mem_parts.append("【团队共享记忆】\n" + shared_mem.strip())
-        if memory_retrieve_result and (memory_retrieve_result.get("items") or memory_retrieve_result.get("categories")):
-            live = []
-            for c in memory_retrieve_result.get("categories") or []:
-                s = c.get("summary") or c.get("description") or ""
-                if s:
-                    live.append(s[:500])
-            for it in memory_retrieve_result.get("items") or []:
-                live.append((it.get("summary") or "")[:300])
-            if live:
-                mem_parts.append("【本员工记忆】\n" + "\n".join(live))
-        if emp_mem.strip() and not (memory_retrieve_result and memory_retrieve_result.get("items")):
-            mem_parts.append("【本员工记忆】\n" + emp_mem.strip())
         memory_block = ""
-        if mem_parts:
-            memory_block = MEMORY_SYSTEM_INSTRUCTION + "\n\n---\n【长期记忆】\n" + "\n\n".join(mem_parts)[:4000]
-
-        # 4. 技能块
-        skills = _merged_skills(self.employee_id)
         skills_block = ""
-        if skills:
-            blocks = [f"### 技能: {name}\n{content[:2000]}" for name, content in skills.items()]
-            skills_block = "---\n【可用技能】\n" + "\n\n".join(blocks)
 
-        # 5. 占位符替换
         result = template_str
         for placeholder, value in [
-            ("{{identity}}", identity),
-            ("{{soul}}", soul),
-            ("{{user}}", user),
-            ("{{agents}}", agents),
+            ("{{identity}}", identity or "- （空）"),
+            ("{{style}}", style or ""),
+            ("{{soul}}", soul or "- （空）"),
+            ("{{user}}", user or "- （空）"),
+            ("{{colleagues}}", colleagues or "- （空）"),
+            ("{{agents}}", agents or "- （空）"),
             ("{{tools}}", tools),
-            ("{{survival_rules}}", SURVIVAL_RULES.strip()),
-            ("{{memory}}", memory_block),
-            ("{{skills}}", skills_block),
+            ("{{memory}}", memory_block or "- （空）"),
+            ("{{skills}}", skills_block or "- （空）"),
         ]:
             if placeholder in result:
                 result = result.replace(placeholder, value or "")

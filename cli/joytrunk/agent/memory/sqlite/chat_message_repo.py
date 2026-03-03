@@ -63,27 +63,28 @@ class SQLiteChatMessageRepo:
         self._sessions = sessions
 
     def add_messages(self, session_key: str, messages: list[dict[str, Any]]) -> None:
-        """追加多条消息（按顺序插入）。"""
+        """追加多条消息（按顺序插入，seq 保证与 API 要求的 assistant/tool 顺序一致）。"""
         if not messages:
             return
         with self._sessions.session() as session:
-            for msg in messages:
-                row = SQLiteChatMessageModel(**_message_to_row(session_key, msg))
+            for i, msg in enumerate(messages):
+                row_data = _message_to_row(session_key, msg)
+                row_data["seq"] = i
+                row = SQLiteChatMessageModel(**row_data)
                 session.add(row)
             session.commit()
 
     def get_messages(self, session_key: str, limit: int = 500) -> list[dict[str, Any]]:
-        """按时间正序返回该 session 的最近 limit 条消息。"""
+        """按时间正序返回该 session 的最近 limit 条消息（按 seq 保证 assistant/tool 顺序，避免 tool_call_id not found）。"""
         with self._sessions.session() as session:
             stmt = (
                 select(SQLiteChatMessageModel)
                 .where(SQLiteChatMessageModel.session_key == session_key)
-                .order_by(SQLiteChatMessageModel.created_at.asc())
+                .order_by(SQLiteChatMessageModel.seq.desc(), SQLiteChatMessageModel.created_at.desc())
+                .limit(limit)
             )
             rows = session.exec(stmt).all()
-            out = [_row_to_message(r) for r in rows]
-            if len(out) > limit:
-                out = out[-limit:]
+            out = [_row_to_message(r) for r in reversed(rows)]
             return out
 
     def replace_messages(self, session_key: str, messages: list[dict[str, Any]]) -> None:
