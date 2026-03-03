@@ -14,7 +14,10 @@ async function getConversationsForUser(userId) {
            (SELECT content FROM messages m WHERE m.conversation_id = c.id AND m.is_deleted = 0 ORDER BY m.created_at DESC LIMIT 1) AS last_content,
            (SELECT created_at FROM messages m WHERE m.conversation_id = c.id AND m.is_deleted = 0 ORDER BY m.created_at DESC LIMIT 1) AS last_created_at,
            (SELECT COUNT(*)::int FROM messages m WHERE m.conversation_id = c.id AND m.is_deleted = 0 AND m.sender_id != $1
-              AND (ucs.last_read_msg_id IS NULL OR m.id > ucs.last_read_msg_id)) AS unread_count
+              AND (ucs.last_read_msg_id IS NULL OR m.id > ucs.last_read_msg_id)) AS unread_count,
+           (SELECT COUNT(*)::int FROM messages m WHERE m.conversation_id = c.id AND m.is_deleted = 0 AND m.sender_id != $1
+              AND (ucs.last_read_msg_id IS NULL OR m.id > ucs.last_read_msg_id)
+              AND m.mention_user_ids IS NOT NULL AND $1 = ANY(m.mention_user_ids)) AS mention_unread_count
     FROM conversations c
     INNER JOIN participants p ON p.conversation_id = c.id AND p.user_id = $1
     LEFT JOIN user_conversation_status ucs ON ucs.conversation_id = c.id AND ucs.user_id = $1 AND (ucs.deleted_at IS NULL)
@@ -52,6 +55,7 @@ async function getConversationsForUser(userId) {
         : null,
       updated_at: r.updated_at,
       unread_count: r.unread_count != null ? Number(r.unread_count) : 0,
+      mention_unread_count: r.mention_unread_count != null ? Number(r.mention_unread_count) : 0,
       avatar_url: r.avatar_url || null,
       announcement: r.announcement != null ? r.announcement : null,
     });
@@ -111,7 +115,7 @@ async function findOrCreateDirectConversation(userId, peerUid) {
   }
 }
 
-/** 创建群聊：member_uids 为要拉入的成员 uid 数组（不含自己），title 可选 */
+/** 创建群聊：member_uids 为要拉入的成员 uid 数组（不含自己），title 可选；仅按 users.uid 解析 */
 async function createGroupConversation(userId, { title, member_uids }) {
   const pool = getDb();
   const uids = Array.isArray(member_uids) ? member_uids : [];
@@ -523,6 +527,7 @@ function toMessageItem(r) {
     status: r.status,
     created_at: r.created_at,
     updated_at: r.updated_at,
+    mention_user_ids: r.mention_user_ids != null ? r.mention_user_ids : null,
   };
 }
 
@@ -539,7 +544,7 @@ function parseCursor(cursor) {
   return null;
 }
 
-async function sendMessage(conversationId, userId, content) {
+async function sendMessage(conversationId, userId, content, mentionUserIds = null) {
   const ok = await ensureParticipant(userId, conversationId);
   if (!ok) return { error: '无权限', status: 403 };
   const pool = getDb();
@@ -556,9 +561,20 @@ async function sendMessage(conversationId, userId, content) {
   if (!trimmed) return { error: '消息内容不能为空', status: 400 };
   if (trimmed.length > MSG_MAX) return { error: '内容超长', code: 'CONTENT_TOO_LONG', status: 400 };
 
+  let finalMentionIds = Array.isArray(mentionUserIds) ? [...mentionUserIds] : [];
+  if (trimmed.includes('@所有人')) {
+    const partResult = await pool.query(
+      'SELECT user_id FROM participants WHERE conversation_id = $1',
+      [conversationId]
+    );
+    const allIds = (partResult.rows || []).map((r) => r.user_id);
+    const set = new Set(finalMentionIds);
+    allIds.forEach((id) => set.add(id));
+    finalMentionIds = Array.from(set);
+  }
   const insertResult = await pool.query(
-    `INSERT INTO messages (conversation_id, sender_id, content, status) VALUES ($1, $2, $3, 'sent') RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at`,
-    [conversationId, userId, trimmed]
+    `INSERT INTO messages (conversation_id, sender_id, content, status, mention_user_ids) VALUES ($1, $2, $3, 'sent', $4) RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at, mention_user_ids`,
+    [conversationId, userId, trimmed, finalMentionIds.length ? finalMentionIds : null]
   );
   const row = insertResult.rows[0];
   await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);

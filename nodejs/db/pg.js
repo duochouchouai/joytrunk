@@ -199,6 +199,13 @@ async function runMigrations(pool) {
     if (!partCols.includes('muted_until')) {
       await client.query('ALTER TABLE participants ADD COLUMN muted_until TIMESTAMPTZ');
     }
+    const msgColumns = await client.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'messages'`
+    );
+    const msgCols = (msgColumns.rows || []).map((r) => r.column_name);
+    if (!msgCols.includes('mention_user_ids')) {
+      await client.query('ALTER TABLE messages ADD COLUMN mention_user_ids INTEGER[]');
+    }
   } finally {
     client.release();
   }

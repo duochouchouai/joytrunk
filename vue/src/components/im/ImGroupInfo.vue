@@ -7,6 +7,22 @@
         <div v-if="canManage" class="form-section">
           <label class="label">{{ t('official.im.editGroupName') }}</label>
           <input v-model.trim="editTitle" type="text" class="input" />
+          <label class="label">{{ t('official.im.editGroupAvatar') }}</label>
+          <div class="avatar-row">
+            <div v-if="displayAvatarUrl" class="avatar-wrap">
+              <img :src="displayAvatarUrl" alt="" class="avatar-img" @error="onAvatarImgError" />
+            </div>
+            <div v-else class="avatar-placeholder">群</div>
+            <div class="avatar-input-wrap">
+              <input
+                v-model.trim="editAvatarUrl"
+                type="text"
+                class="input"
+                :placeholder="t('official.im.groupAvatarPlaceholder')"
+              />
+              <button type="button" class="btn-link btn-clear-avatar" @click="editAvatarUrl = ''">{{ t('official.im.groupAvatarClear') }}</button>
+            </div>
+          </div>
           <label class="label">{{ t('official.im.editAnnouncement') }}</label>
           <textarea v-model.trim="editAnnouncement" class="textarea" rows="2"></textarea>
           <button type="button" class="btn primary" @click="doSave">{{ t('official.im.save') }}</button>
@@ -42,9 +58,27 @@
                 <button v-if="!isMuted(p)" type="button" class="btn-link" @click="doMute(p, '1h')">{{ t('official.im.mute') }} 1h</button>
                 <button v-if="!isMuted(p)" type="button" class="btn-link" @click="doMute(p, '24h')">24h</button>
                 <button v-if="!isMuted(p)" type="button" class="btn-link" @click="doMute(p, 'forever')">{{ t('official.im.muteForever') }}</button>
+                <button v-if="!isMuted(p)" type="button" class="btn-link" @click="openCustomMute(p)">{{ t('official.im.muteCustom') }}</button>
                 <button v-if="isMuted(p)" type="button" class="btn-link" @click="doMute(p, null)">{{ t('official.im.unmute') }}</button>
               </template>
             </span>
+            <div v-if="customMuteTargetUserId === p.user_id" class="custom-mute-form">
+              <input
+                v-model.number="customMuteValue"
+                type="number"
+                min="1"
+                class="input custom-mute-input"
+                :placeholder="t('official.im.muteCustomPlaceholder')"
+              />
+              <select v-model="customMuteUnit" class="select custom-mute-unit">
+                <option value="minutes">{{ t('official.im.muteUnitMinutes') }}</option>
+                <option value="hours">{{ t('official.im.muteUnitHours') }}</option>
+                <option value="days">{{ t('official.im.muteUnitDays') }}</option>
+              </select>
+              <button type="button" class="btn primary btn-sm" @click="submitCustomMute(p)">
+                {{ t('official.im.mute') }}
+              </button>
+            </div>
           </li>
         </ul>
         <div class="actions">
@@ -66,6 +100,7 @@
 import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { api } from '../../api';
+import { validateImageUrl } from '../../utils/im';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -84,6 +119,18 @@ const error = ref(null);
 const addMemberUids = ref('');
 const editTitle = ref('');
 const editAnnouncement = ref('');
+const editAvatarUrl = ref('');
+const initialAvatarUrl = ref('');
+const avatarImgError = ref(false);
+const customMuteTargetUserId = ref(null);
+const customMuteValue = ref('');
+const customMuteUnit = ref('minutes');
+
+const effectiveAvatarUrl = computed(() => (editAvatarUrl.value || props.conversation?.avatar_url || '').trim());
+const displayAvatarUrl = computed(() => {
+  if (!effectiveAvatarUrl.value || !validateImageUrl(effectiveAvatarUrl.value) || avatarImgError.value) return '';
+  return effectiveAvatarUrl.value;
+});
 
 const canManage = computed(() => myRole.value === 'owner' || myRole.value === 'admin');
 const parsedAddUids = computed(() => {
@@ -96,9 +143,29 @@ watch(
   (c) => {
     editTitle.value = c?.title ?? '';
     editAnnouncement.value = c?.announcement ?? '';
+    const url = c?.avatar_url ?? '';
+    editAvatarUrl.value = url;
+    initialAvatarUrl.value = url;
+    avatarImgError.value = false;
   },
   { immediate: true }
 );
+
+watch(
+  () => props.show,
+  (visible) => {
+    if (!visible) {
+      customMuteTargetUserId.value = null;
+      customMuteValue.value = '';
+      editAvatarUrl.value = initialAvatarUrl.value;
+      avatarImgError.value = false;
+    }
+  }
+);
+
+function onAvatarImgError() {
+  avatarImgError.value = true;
+}
 
 function roleLabel(role) {
   if (role === 'owner') return t('official.im.roleOwner');
@@ -195,11 +262,16 @@ async function doRemove(userId) {
 async function doSave() {
   if (!props.conversationId) return;
   error.value = null;
+  const payload = {
+    title: editTitle.value || undefined,
+    announcement: editAnnouncement.value !== undefined ? editAnnouncement.value : undefined,
+  };
+  if (editAvatarUrl.value.trim() !== initialAvatarUrl.value.trim()) {
+    payload.avatar_url = editAvatarUrl.value.trim() === '' ? null : editAvatarUrl.value.trim();
+  }
   try {
-    await api.im.updateConversation(props.conversationId, {
-      title: editTitle.value || undefined,
-      announcement: editAnnouncement.value !== undefined ? editAnnouncement.value : undefined,
-    });
+    await api.im.updateConversation(props.conversationId, payload);
+    initialAvatarUrl.value = editAvatarUrl.value.trim();
     emit('updated');
   } catch (e) {
     error.value = e.message || t('official.im.createFailed');
@@ -234,21 +306,80 @@ async function doTransfer(p) {
   }
 }
 
+const MAX_MUTE_DAYS = 365;
+
 function muteUntil(duration) {
   if (!duration) return null;
   const d = new Date();
-  if (duration === '1h') d.setHours(d.getHours() + 1);
-  else if (duration === '24h') d.setHours(d.getHours() + 24);
-  else if (duration === 'forever') d.setFullYear(d.getFullYear() + 100);
-  else return null;
-  return d.toISOString();
+  if (duration === '1h') {
+    d.setHours(d.getHours() + 1);
+    return d.toISOString();
+  }
+  if (duration === '24h') {
+    d.setHours(d.getHours() + 24);
+    return d.toISOString();
+  }
+  if (duration === 'forever') {
+    d.setFullYear(d.getFullYear() + 100);
+    return d.toISOString();
+  }
+  if (duration && typeof duration === 'object' && 'value' in duration && 'unit' in duration) {
+    const value = Number(duration.value);
+    if (!Number.isInteger(value) || value < 1) return null;
+    const unit = duration.unit;
+    let minutes = 0;
+    if (unit === 'minutes') minutes = value;
+    else if (unit === 'hours') minutes = value * 60;
+    else if (unit === 'days') minutes = value * 24 * 60;
+    else return null;
+    if (minutes > MAX_MUTE_DAYS * 24 * 60) return null;
+    d.setMinutes(d.getMinutes() + minutes);
+    return d.toISOString();
+  }
+  return null;
+}
+
+function openCustomMute(p) {
+  customMuteTargetUserId.value = p.user_id;
+  customMuteValue.value = '';
+  customMuteUnit.value = 'minutes';
+  error.value = null;
+}
+
+function validateCustomMute() {
+  const raw = customMuteValue.value;
+  const num = typeof raw === 'string' ? parseInt(raw, 10) : Number(raw);
+  if (!Number.isInteger(num) || num < 1) return false;
+  const unit = customMuteUnit.value;
+  let minutes = 0;
+  if (unit === 'minutes') minutes = num;
+  else if (unit === 'hours') minutes = num * 60;
+  else if (unit === 'days') minutes = num * 24 * 60;
+  else return false;
+  return minutes <= MAX_MUTE_DAYS * 24 * 60;
+}
+
+async function submitCustomMute(p) {
+  if (!validateCustomMute()) {
+    error.value = t('official.im.muteCustomInvalid');
+    return;
+  }
+  const value = typeof customMuteValue.value === 'string' ? parseInt(customMuteValue.value, 10) : customMuteValue.value;
+  await doMute(p, { value, unit: customMuteUnit.value });
+  customMuteTargetUserId.value = null;
+  customMuteValue.value = '';
 }
 
 async function doMute(p, duration) {
   if (!props.conversationId) return;
   error.value = null;
+  const until = muteUntil(duration);
+  if (typeof duration === 'object' && duration !== null && 'unit' in duration && until === null) {
+    error.value = t('official.im.muteCustomInvalid');
+    return;
+  }
   try {
-    await api.im.updateParticipant(props.conversationId, p.user_id, { muted_until: muteUntil(duration) });
+    await api.im.updateParticipant(props.conversationId, p.user_id, { muted_until: until });
     const list = await api.im.participants(props.conversationId);
     participants.value = Array.isArray(list) ? list : [];
     emit('updated');
@@ -281,4 +412,14 @@ async function doMute(p, duration) {
 .btn.danger { background: var(--jt-error, #c00); color: #fff; }
 .error { font-size: 0.875rem; color: var(--jt-error, #c00); margin-top: 0.5rem; }
 .muted { font-size: 0.875rem; color: var(--jt-text-muted); }
+.custom-mute-form { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.custom-mute-input { width: 4rem; min-width: 4rem; padding: 0.25rem 0.35rem; font-size: 0.8125rem; }
+.custom-mute-unit { padding: 0.25rem 0.35rem; font-size: 0.8125rem; border: 1px solid var(--jt-border); border-radius: 6px; background: var(--jt-bg); }
+.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8125rem; }
+.avatar-row { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.5rem; }
+.avatar-wrap, .avatar-placeholder { flex-shrink: 0; width: var(--jt-avatar-size-sm, 2.5rem); height: var(--jt-avatar-size-sm, 2.5rem); border-radius: var(--jt-avatar-radius, 8px); overflow: hidden; }
+.avatar-placeholder { background: var(--jt-border, #e5e7eb); color: #6b7280; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-input-wrap { flex: 1; min-width: 0; }
+.btn-clear-avatar { font-size: 0.8125rem; margin-top: 0.25rem; }
 </style>

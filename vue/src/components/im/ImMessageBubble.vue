@@ -1,16 +1,37 @@
 <template>
   <div class="im-message" :class="{ self: isSelf }">
     <div class="bubble">
-      <span class="text">{{ message.content }}</span>
+      <span class="text">
+        <template v-for="(part, i) in contentParts" :key="i">
+          <span v-if="part.mention" class="mention">{{ part.text }}</span>
+          <template v-else>{{ part.text }}</template>
+        </template>
+      </span>
       <span class="time">{{ formatTime(message.created_at) }}</span>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
   message: { type: Object, required: true },
   isSelf: { type: Boolean, default: false },
+});
+
+const MENTION_EVERYONE = '@所有人';
+const MENTION_REG = /(@所有人|@[^\s@]+)/g;
+
+function isMentionPart(text) {
+  return text === MENTION_EVERYONE || (text.startsWith('@') && /^@[^\s@]+$/.test(text));
+}
+
+const contentParts = computed(() => {
+  const content = props.message?.content;
+  if (typeof content !== 'string') return [];
+  const parts = content.split(MENTION_REG).filter((p) => p.length > 0);
+  return parts.map((text) => ({ text, mention: isMentionPart(text) }));
 });
 
 function formatTime(val) {
@@ -32,5 +53,7 @@ function formatTime(val) {
 }
 .im-message.self .bubble { background: var(--jt-primary); color: #fff; border-color: var(--jt-primary); }
 .text { white-space: pre-wrap; word-break: break-word; }
+.text :deep(.mention) { color: var(--jt-primary); font-weight: 600; }
+.im-message.self .bubble .text :deep(.mention) { color: rgba(255,255,255,0.95); }
 .time { display: block; font-size: 0.75rem; opacity: 0.85; margin-top: 0.2rem; }
 </style>

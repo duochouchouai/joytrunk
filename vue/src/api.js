@@ -45,7 +45,10 @@ async function request(method, path, body) {
       clearToken();
       if (typeof window !== 'undefined') window.location.href = '/login';
     }
-    throw new Error(data.error || res.statusText);
+    const err = new Error(data.error || res.statusText);
+    err.code = data.code;
+    err.status = res.status;
+    throw err;
   }
   return data;
 }

@@ -172,9 +172,9 @@ async function updateParticipant(req, res, next) {
 async function sendMessage(req, res, next) {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: '无效的会话 id' });
-  const { content } = req.body || {};
+  const { content, mention_user_ids: mentionUserIds } = req.body || {};
   try {
-    const result = await imService.sendMessage(id, req.ownerId, content);
+    const result = await imService.sendMessage(id, req.ownerId, content, mentionUserIds);
     if (result.error) {
       return res.status(result.status || 400).json({ error: result.error, code: result.code });
     }
