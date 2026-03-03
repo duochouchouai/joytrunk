@@ -108,6 +108,7 @@ joytrunk chat abc-123-def
 - **网页搜索**：需配置 Brave Search API Key，否则调用 `web_search` 时会返回错误提示。
   - 在 `~/.joytrunk/config.json` 中设置 `tools.web.search.apiKey`，或设置环境变量 `BRAVE_API_KEY`（config 优先）。
 - **MCP 服务器**：若配置了 `tools.mcp_servers`，对话启动时会连接这些 MCP 服务器，并将其提供的工具注册为 `mcp_<服务器名>_<工具名>`，供模型调用。
+- **记忆（save_memory / search_memory）**：若使用 MiniMax 作为 embedding 服务（`memory.embedding.base_url` 为 MiniMax 地址），必须在 config 的 `memory.embedding.group_id` 中填写 Group ID，或设置环境变量 `MINIMAX_GROUP_ID`，否则接口会返回 2013。Group ID 可在 MiniMax 开放平台账户/应用管理中查看。
 
 **config 示例（片段）：**
 
@@ -154,7 +155,7 @@ joytrunk chat abc-123-def
 - **根目录**：`%USERPROFILE%\.joytrunk`（Windows）或 `~/.joytrunk`（Linux/macOS）
 - **配置文件**：`~/.joytrunk/config.json`（**含员工列表、ownerId**，无 store.json）
 - **某员工工作区**：`~/.joytrunk/workspace/employees/<员工ID>/`
-- **CLI 对话历史**：`~/.joytrunk/workspace/employees/<员工ID>/sessions/cli_direct.json`
+- **与负责人的对话历史**：`~/.joytrunk/workspace/employees/<员工ID>/sessions/owner.json`（CLI 与网页共用，不按渠道分 session）
 
 ---
 

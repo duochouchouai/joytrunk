@@ -24,6 +24,7 @@ from joytrunk.a2a.models import (
 )
 from joytrunk.bus.events import InboundMessage
 from joytrunk.bus.queue import get_default_bus
+from joytrunk.agent.session import OWNER_CHAT_KEY
 from joytrunk.config_store import list_employees_from_config
 from joytrunk.gateway.task_store import get_default_task_store
 from joytrunk.gateway.worker import run_worker_loop
@@ -144,12 +145,13 @@ async def message_send(
         context_id=context_id,
     )
     task = await store.create(task_id, owner_id, context_id, user_message)
+    # 员工与负责人仅一条连续对话，CLI/网页共用同一历史，不按 contextId 分 session
     inbound = InboundMessage(
         task_id=task_id,
         target_employee_id=employee_id,
         owner_id=owner_id,
         content=content,
-        session_key=context_id,
+        session_key=OWNER_CHAT_KEY,
         channel=req.metadata.get("channel", "web"),
         chat_id=req.metadata.get("chat_id", "direct"),
         from_employee_id=from_employee_id,

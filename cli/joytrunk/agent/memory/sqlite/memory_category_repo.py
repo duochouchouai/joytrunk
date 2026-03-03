@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sqlmodel import select
+from sqlmodel import delete, select
 
 from joytrunk.agent.memory.models import MemoryCategory
 from joytrunk.agent.memory.sqlite.base import SQLiteRepoBase
@@ -140,6 +140,14 @@ class SQLiteMemoryCategoryRepo(SQLiteRepoBase):
 
     def load_existing(self) -> None:
         self.list_categories()
+
+    def delete_category(self, category_id: str) -> None:
+        """删除分类（若不存在则忽略）。"""
+        with self._sessions.session() as session:
+            from sqlmodel import delete
+            session.exec(delete(SQLiteMemoryCategoryModel).where(SQLiteMemoryCategoryModel.id == category_id))
+            session.commit()
+        self.categories.pop(category_id, None)
 
 
 __all__ = ["SQLiteMemoryCategoryRepo"]

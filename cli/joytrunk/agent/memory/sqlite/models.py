@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, String, Text
+from sqlalchemy import Integer, JSON, DateTime, String, Text
 from sqlmodel import Column, Field, Index, SQLModel
 
 
@@ -68,10 +68,25 @@ class SQLiteCategoryItemModel(SQLModel, table=True):
     category_id: str = Field(sa_column=Column(String, nullable=False))
 
 
+class SQLiteChatMessageModel(SQLModel, table=True):
+    """员工与负责人/其他智能体的单条聊天消息（每员工一库，同 memory.db）。"""
+    __tablename__ = "chat_messages"
+    __table_args__ = (Index("ix_chat_messages_session_created", "session_key", "created_at"),)
+
+    id: str = Field(primary_key=True, sa_type=String(36), default_factory=lambda: str(uuid.uuid4()))
+    created_at: datetime = Field(default_factory=_utc_now, sa_type=DateTime)
+    session_key: str = Field(sa_column=Column(String, nullable=False))  # owner | agent:<employee_id>
+    role: str = Field(sa_column=Column(String, nullable=False))  # user | assistant | system | tool
+    content: str | None = Field(default=None, sa_column=Column(Text, nullable=True))  # 纯文本或占位
+    extra_json: str | None = Field(default=None, sa_column=Column(Text, nullable=True))  # tool_calls, name, tool_call_id, 或 content 列表
+    seq: int = Field(default=0, sa_column=Column(Integer, nullable=False))  # 同 session 内顺序，保证 assistant/tool 配对
+
+
 __all__ = [
     "SQLiteCategoryItemModel",
     "SQLiteMemoryCategoryModel",
     "SQLiteMemoryItemModel",
     "SQLiteResourceModel",
+    "SQLiteChatMessageModel",
 ]
 

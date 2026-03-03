@@ -7,8 +7,8 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const { getEmployeeDir, getAgentLogPath } = require('./lib/paths');
+const { execSync, spawnSync } = require('child_process');
+const { getEmployeeDir, getAgentLogPath, getJoytrunkRoot } = require('./lib/paths');
 const store = require('./lib/store');
 const config = require('./lib/config');
 const agent = require('./lib/agent');
@@ -163,6 +163,306 @@ app.get('/api/employees/:id/logs', (req, res) => {
   res.json({ entries });
 });
 
+// ---------- 员工 memory.db 内容（供前端展示）----------
+// 仅当前负责人可访问其员工的 memory；若 store 中无该员工则 404
+app.get('/api/employees/:id/memory', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const employeeDir = path.join(joytrunkRoot, 'workspace', 'employees', employeeId);
+  const memoryDbPath = path.join(employeeDir, 'memory.db');
+
+  if (!fs.existsSync(memoryDbPath)) {
+    return res.status(404).json({ error: '该员工暂无记忆库' });
+  }
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  try {
+    const stdout = execSync(`python -m joytrunk.scripts.dump_memory ${employeeId}`, {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const data = JSON.parse(stdout.trim());
+    if (data.error) {
+      return res.status(500).json({ error: data.error });
+    }
+    res.json(data);
+  } catch (e) {
+    let msg = e.message || '读取 memory 失败';
+    if (e.stdout && typeof e.stdout === 'string' && e.stdout.trim()) {
+      try {
+        const parsed = JSON.parse(e.stdout.trim());
+        if (parsed.error) msg = parsed.error;
+      } catch (_) {}
+    } else if (e.stderr && typeof e.stderr === 'string') {
+      msg = e.stderr.trim() || msg;
+    }
+    return res.status(500).json({ error: msg });
+  }
+});
+
+/** 与负责人的聊天记录（仅 owner session，供聊天记录页展示） */
+app.get('/api/employees/:id/chat-history', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const memoryDbPath = path.join(joytrunkRoot, 'workspace', 'employees', employeeId, 'memory.db');
+  if (!fs.existsSync(memoryDbPath)) {
+    return res.json({ messages: [] });
+  }
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  try {
+    const stdout = execSync(`python -m joytrunk.scripts.dump_memory ${employeeId}`, {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const data = JSON.parse(stdout.trim());
+    if (data.error) {
+      return res.status(500).json({ error: data.error });
+    }
+    const all = (data.chat_messages || []).filter((m) => m.session_key === 'owner');
+    const messages = all.slice(-300);
+    res.json({ messages });
+  } catch (e) {
+    let msg = e.message || '读取聊天记录失败';
+    if (e.stdout && typeof e.stdout === 'string' && e.stdout.trim()) {
+      try {
+        const parsed = JSON.parse(e.stdout.trim());
+        if (parsed.error) msg = parsed.error;
+      } catch (_) {}
+    } else if (e.stderr && typeof e.stderr === 'string') {
+      msg = e.stderr.trim() || msg;
+    }
+    return res.status(500).json({ error: msg });
+  }
+});
+
+/** 检查当前用户有权访问该员工的记忆库；返回 { employeeId, cliRoot, env } 或 null（已 send 4xx） */
+function ensureMemoryAccess(req, res) {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    res.status(404).json({ error: '员工不存在或无权访问' });
+    return null;
+  }
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const memoryDbPath = path.join(joytrunkRoot, 'workspace', 'employees', employeeId, 'memory.db');
+  if (!fs.existsSync(memoryDbPath)) {
+    res.status(404).json({ error: '该员工暂无记忆库' });
+    return null;
+  }
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  return { employeeId, cliRoot, env };
+}
+
+// ---------- 员工 SYSTEM_PROMPT 模板（供记忆页右侧展示）----------
+app.get('/api/employees/:id/system-prompt-template', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const employeeTpl = path.join(getEmployeeDir(employeeId), 'SYSTEM_PROMPT.md');
+  const bundledTpl = path.join(__dirname, '..', 'templates', 'SYSTEM_PROMPT.md');
+  const tplPath = fs.existsSync(employeeTpl) ? employeeTpl : bundledTpl;
+  try {
+    const content = fs.readFileSync(tplPath, 'utf-8');
+    res.type('text/markdown').send(content);
+  } catch (e) {
+    res.status(500).json({ error: e.message || '读取模板失败' });
+  }
+});
+
+/** 返回员工的 cliRoot 与 env（不要求 memory.db 存在），用于调用 Python 脚本 */
+function getEmployeeCliEnv(employeeId) {
+  const joytrunkRoot = path.resolve(getJoytrunkRoot());
+  const cliRoot = path.join(__dirname, '..', '..');
+  const env = { ...process.env, JOYTRUNK_ROOT: joytrunkRoot };
+  env.PYTHONPATH = path.join(cliRoot, '..');
+  if (process.platform === 'win32') env.PYTHONIOENCODING = 'utf-8';
+  return { cliRoot, env };
+}
+
+/** 合并后的系统提示词（模板 + memory.db 占位符替换结果），供记忆页右侧展示 */
+app.get('/api/employees/:id/system-prompt-merged', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const employeeId = req.params.id;
+  const emp = store.findEmployeeById(employeeId);
+  if (!emp || emp.ownerId !== ownerId) {
+    return res.status(404).json({ error: '员工不存在或无权访问' });
+  }
+  const { cliRoot, env } = getEmployeeCliEnv(employeeId);
+  try {
+    const r = spawnSync('python', ['-m', 'joytrunk.scripts.preview_system_prompt', employeeId], {
+      encoding: 'utf-8',
+      cwd: cliRoot,
+      env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    if (r.status !== 0) {
+      const err = (r.stderr || r.stdout || '').trim() || `exit ${r.status}`;
+      return res.status(500).type('text/plain').send(err);
+    }
+    const content = (r.stdout || '').trim();
+    res.type('text/markdown').send(content);
+  } catch (e) {
+    res.status(500).type('text/plain').send(e.message || '生成合并提示词失败');
+  }
+});
+
+/** 调用 memory_mutate 脚本，stdin 传入 JSON；返回 { success, data, error } */
+function runMemoryMutate(employeeId, operation, id, payload, cliRoot, env) {
+  const input = JSON.stringify({ employee_id: employeeId, operation, id: id || undefined, payload: payload || {} }) + '\n';
+  const r = spawnSync('python', ['-m', 'joytrunk.scripts.memory_mutate'], {
+    input,
+    encoding: 'utf-8',
+    cwd: cliRoot,
+    env,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+  const out = (r.stdout || '').trim();
+  const err = (r.stderr || '').trim();
+  if (r.status !== 0) {
+    try {
+      const parsed = JSON.parse(out);
+      if (parsed.error) return { success: false, error: parsed.error };
+    } catch (_) {}
+    return { success: false, error: err || r.status.toString() };
+  }
+  try {
+    const data = JSON.parse(out);
+    if (data.error) return { success: false, error: data.error };
+    return { success: true, data };
+  } catch (_) {
+    return { success: false, error: out || 'invalid output' };
+  }
+}
+
+// ---------- 记忆库 CRUD：分类 ----------
+app.post('/api/employees/:id/memory/categories', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_category', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/categories/:cid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_category', req.params.cid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/categories/:cid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_category', req.params.cid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：条目 ----------
+app.post('/api/employees/:id/memory/items', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_item', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/items/:iid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_item', req.params.iid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/items/:iid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_item', req.params.iid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：资源 ----------
+app.post('/api/employees/:id/memory/resources', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_resource', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.patch('/api/employees/:id/memory/resources/:rid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'update_resource', req.params.rid, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/resources/:rid', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_resource', req.params.rid, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
+// ---------- 记忆库 CRUD：分类-条目关联 ----------
+app.post('/api/employees/:id/memory/relations', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'create_relation', null, req.body || {}, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.data);
+});
+
+app.delete('/api/employees/:id/memory/relations/:relId', (req, res) => {
+  const ctx = ensureMemoryAccess(req, res);
+  if (!ctx) return;
+  const { employeeId, cliRoot, env } = ctx;
+  const result = runMemoryMutate(employeeId, 'delete_relation', req.params.relId, null, cliRoot, env);
+  if (!result.success) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+});
+
 // ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）----------
 // 若配置了 gateway（a2a_backend_url 或 a2a_port），则转发到 Python A2A，按 10.29 转回 { reply, usage }；未配置则 503（方案 10.12）
 function getA2aBaseUrl() {
@@ -230,7 +530,12 @@ app.post('/api/employees/:id/chat', async (req, res) => {
       if (e.name === 'AbortError') {
         return res.status(504).json({ error: 'A2A 请求超时' });
       }
-      return res.status(503).json({ error: e.message || 'A2A Gateway 不可用，请先运行 joytrunk gateway' });
+      const isConnectionError = /fetch failed|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(e.message || '');
+      return res.status(503).json({
+        error: isConnectionError
+          ? 'A2A Gateway 未启动或不可达，请先在另一终端运行：joytrunk gateway'
+          : (e.message || 'A2A Gateway 不可用，请先运行 joytrunk gateway'),
+      });
     }
   }
 
@@ -319,6 +624,11 @@ app.delete('/api/config/custom-llm', (req, res) => {
 app.get('/api/usage', (req, res) => {
   const ownerId = getOwnerId(req);
   res.json({ usage: [{ source: 'router', tokens: 0 }, { source: 'custom', tokens: 0 }] });
+});
+
+// ---------- 未匹配的 /api 返回 JSON 404（避免前端拿到非 JSON 的 "Not Found"）----------
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: '接口不存在', path: req.path });
 });
 
 // ---------- 静态与 SPA（本地 UI 来自 cli/joytrunk/ui 构建到 server/static）----------

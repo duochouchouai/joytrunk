@@ -1,4 +1,6 @@
-"""员工会话历史：按会话键持久化到 workspace/employees/<id>/sessions/（供 CLI 与后续 server 共用）。"""
+"""员工与负责人的对话历史：按固定键持久化到 workspace/employees/<id>/sessions/，CLI 与网页共用同一上下文，无 session 区分。
+聊天记录同时写入该员工的 memory.db（chat_messages 表），与负责人、其他智能体的对话均入库。
+"""
 
 from __future__ import annotations
 
@@ -9,10 +11,24 @@ from typing import Any
 
 from joytrunk import paths
 
+# 员工与负责人之间仅有一条连续对话，CLI/网页共用此 key，不因渠道切换而换「session」
+OWNER_CHAT_KEY = "owner"
+
 # 单次上下文中保留的最近消息数（与 nanobot memory_window 类似）
 DEFAULT_MEMORY_WINDOW = 50
 # 工具结果截断长度
 TOOL_RESULT_MAX_CHARS = 500
+# DB 中最多保留的聊天条数（按 session 维度）
+CHAT_DB_LIMIT = 500
+
+
+def _get_chat_repo(employee_id: str):
+    """获取该员工的聊天记录 repo（memory.db 内），失败返回 None。"""
+    try:
+        from joytrunk.agent.memory import get_store
+        return get_store(employee_id).chat_message_repo
+    except Exception:
+        return None
 
 
 def _sessions_dir(employee_id: str) -> Path:
@@ -25,14 +41,13 @@ def _session_file(employee_id: str, session_key: str) -> Path:
     return _sessions_dir(employee_id) / f"{safe}.json"
 
 
-def load_history(employee_id: str, session_key: str) -> list[dict[str, Any]]:
-    """加载该员工该会话的历史消息列表。"""
-    f = _session_file(employee_id, session_key)
-    if not f.exists():
+def load_history(employee_id: str, session_key: str, limit: int | None = None) -> list[dict[str, Any]]:
+    """从数据库加载该员工该会话的历史消息（时间正序，最多 limit 条，默认 CHAT_DB_LIMIT）。"""
+    repo = _get_chat_repo(employee_id)
+    if repo is None:
         return []
     try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        return data.get("messages", []) if isinstance(data, dict) else []
+        return repo.get_messages(session_key, limit=limit or CHAT_DB_LIMIT)
     except Exception:
         return []
 
@@ -64,7 +79,7 @@ def save_history(
     session_key: str,
     messages: list[dict[str, Any]],
 ) -> None:
-    """保存历史；对 tool 消息的 content 做截断，并确保可 JSON 序列化。"""
+    """保存历史；对 tool 消息的 content 做截断，并确保可 JSON 序列化。同时写入 DB（chat_messages）与 sessions 文件。"""
     out: list[dict[str, Any]] = []
     for m in messages:
         entry = dict(m)
@@ -76,6 +91,13 @@ def save_history(
             del entry["reasoning_content"]
         entry.setdefault("timestamp", datetime.now().isoformat())
         out.append(_serialize_message(entry))
+
+    repo = _get_chat_repo(employee_id)
+    if repo is not None:
+        try:
+            repo.replace_messages(session_key, out)
+        except Exception:
+            pass
 
     dir_path = _sessions_dir(employee_id)
     dir_path.mkdir(parents=True, exist_ok=True)

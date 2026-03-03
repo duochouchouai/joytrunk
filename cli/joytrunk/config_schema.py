@@ -40,6 +40,7 @@ DEFAULT_CONFIG = {
             "base_url": "https://api.minimaxi.com/v1",
             "api_key": "",
             "embed_model": "embo-01",
+            "group_id": "",  # MiniMax 必填，否则易报 2013；可改用环境变量 MINIMAX_GROUP_ID
         },
         "retrieve": {
             "method": "rag",

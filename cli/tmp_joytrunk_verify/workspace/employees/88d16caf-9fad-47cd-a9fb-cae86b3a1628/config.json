@@ -1,0 +1,14 @@
+{
+  "id": "88d16caf-9fad-47cd-a9fb-cae86b3a1628",
+  "ownerId": "9e266046-b00b-4f1f-9f27-e97486e58b0c",
+  "name": "预览员工",
+  "persona": null,
+  "role": null,
+  "specialty": null,
+  "businessModule": null,
+  "focus": null,
+  "status": "active",
+  "createdAt": "2026-03-02T07:44:20.000Z",
+  "agents": {},
+  "providers": {}
+}

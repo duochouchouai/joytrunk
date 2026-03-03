@@ -77,7 +77,7 @@ async def retrieve_rag(
     """RAG 检索：query 向量 + category summary 现场 embed + item 向量检索。"""
     store = get_store(employee_id)
     store.load_existing()
-    qvec = (await embed_client.embed([query]))[0]
+    qvec = (await embed_client.embed([query], embed_type="query"))[0]
     categories_pool = store.memory_category_repo.list_categories()
     category_hits: list[tuple[str, float]] = []
     summary_lookup: dict[str, str] = {}
@@ -85,7 +85,7 @@ async def retrieve_rag(
         entries = [(cid, cat.summary) for cid, cat in categories_pool.items() if cat.summary]
         if entries:
             texts = [e[1] for e in entries]
-            vecs = await embed_client.embed(texts)
+            vecs = await embed_client.embed(texts, embed_type="db")
             corpus = [(e[0], v) for e, v in zip(entries, vecs, strict=False)]
             category_hits = cosine_topk(qvec, corpus, k=top_k_category)
             summary_lookup = {cid: s for cid, s in entries}

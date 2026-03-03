@@ -38,10 +38,10 @@ MEMORY_EXTRACT_PROMPT = """
 </resource>
 """
 
-# 类别摘要更新：将新记忆合并进现有摘要
+# 类别摘要更新：将新记忆合并为简短列表（每条一行）
 CATEGORY_SUMMARY_PROMPT = """
 # 任务
-将「新记忆条目」合并进该主题的现有内容，生成更新后的摘要。保持 Markdown 结构，控制总长度在约 {target_length} 字以内。
+将「新记忆条目」与现有内容合并，输出**简短列表**：每条记忆一行，格式为「- 一句话摘要」。总行数控制在约 {target_length} 行以内，不要写长文、分析或论述。
 
 # 主题
 {category}
@@ -57,7 +57,7 @@ CATEGORY_SUMMARY_PROMPT = """
 </item>
 
 # 输出
-直接输出更新后的 Markdown 内容，不要解释或多余标记。不要包含 ```markdown 等包裹。
+直接输出合并后的列表，每行一条「- xxx」，不要解释、不要 ```markdown 等包裹。
 """
 
 # ---- Retrieve：LLM 排序 ----

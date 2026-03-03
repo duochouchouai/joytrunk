@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from contextlib import AsyncExitStack
 from typing import Any, Awaitable, Callable
@@ -29,7 +30,7 @@ from joytrunk.agent.run_log import (
     prepare_messages_for_log,
     truncate_str,
 )
-from joytrunk.agent.session import append_turn, load_history
+from joytrunk.agent.session import OWNER_CHAT_KEY, append_turn, load_history
 from joytrunk.tools.mcp import connect_mcp_servers
 
 MAX_ITERATIONS = 40
@@ -40,7 +41,7 @@ async def run_employee_loop(
     employee_id: str,
     owner_id: str,
     content: str,
-    session_key: str = "cli:direct",
+    session_key: str = OWNER_CHAT_KEY,
     channel: str = "cli",
     chat_id: str = "direct",
     on_progress: Callable[[str], Awaitable[None]] | None = None,
@@ -63,8 +64,7 @@ async def run_employee_loop(
         workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config, owner_id=owner_id
     )
 
-    history = load_history(employee_id, session_key)
-    history = history[-MEMORY_WINDOW:] if len(history) > MEMORY_WINDOW else history
+    history = load_history(employee_id, session_key, limit=MEMORY_WINDOW)
 
     memory_cfg = get_memory_config(employee_id)
     embed_client, llm_chat_fn = _memory_clients(employee_id, owner_id, params, memory_cfg)
@@ -200,6 +200,7 @@ async def run_employee_loop(
                     await _safe_progress(on_progress, f"[工具调用: {hint}]")
             else:
                 final_content = (response.content or "").strip()
+                context.add_assistant_message(messages, response.content, None)
                 run_log(
                     employee_id,
                     EVENT_FINAL_REPLY,
@@ -232,28 +233,7 @@ async def run_employee_loop(
         )
     append_turn(employee_id, session_key, messages, skip_count)
     run_log(employee_id, EVENT_APPEND_TURN_DONE, {}, run_id=run_id)
-    if memory_cfg.get("auto_extract") and (embed_client or llm_chat_fn):
-        try:
-            from joytrunk.agent.memory.memorize import run_memorize
-            await run_memorize(
-                employee_id,
-                messages[skip_count:],
-                llm_chat=llm_chat_fn,
-                embed_client=embed_client or _dummy_embed_client(),
-                memory_types=memory_cfg.get("types") or ["profile", "event"],
-                enable_reinforcement=True,
-            )
-        except Exception as e:
-            run_log(employee_id, "memory_memorize_error", {"error": str(e)}, run_id=run_id)
     return final_content, total_usage if total_usage["prompt_tokens"] or total_usage["completion_tokens"] else None
-
-
-def _dummy_embed_client() -> Any:
-    """占位 embed：返回零向量，避免 memorize 因无 embed 报错。"""
-    class Dummy:
-        async def embed(self, inputs: list[str]) -> list[list[float]]:
-            return [[0.0] * 384 for _ in inputs]
-    return Dummy()
 
 
 def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cfg: dict) -> tuple[Any, Any]:
@@ -262,10 +242,14 @@ def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cf
     base_url = emb.get("base_url") or llm_params.get("base_url")
     api_key = emb.get("api_key") or llm_params.get("api_key")
     embed_model = emb.get("embed_model") or "embo-01"
+    group_id = (emb.get("group_id") or os.environ.get("MINIMAX_GROUP_ID") or "").strip()
     if base_url and embed_model:
         from joytrunk.agent.memory.embedding_client import HTTPEmbeddingClient
         embed_client = HTTPEmbeddingClient(
-            base_url=base_url, api_key=api_key or "", embed_model=embed_model,
+            base_url=base_url,
+            api_key=api_key or "",
+            embed_model=embed_model,
+            group_id=group_id or None,
         )
     async def llm_chat(messages: list[dict]) -> str:
         from joytrunk.agent.provider import chat as provider_chat, chat_via_router

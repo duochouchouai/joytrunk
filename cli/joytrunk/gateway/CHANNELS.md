@@ -14,7 +14,7 @@ Gateway 将 IM 平台消息转为 A2A/内部 InboundMessage 入队，Worker 执�
 ## 入站（IM → Gateway）
 
 1. 平台收到用户消息后，调用方将消息转为 **A2A Send Message** 或直接构造 **InboundMessage**（含 `target_employee_id`、`owner_id`、`content`、`session_key`、`channel`、`chat_id`）并入队 MessageBus。
-2. 若走 A2A：`POST /a2a/v1/tenants/{owner_id}/employees/{employee_id}/message:send`，body 中 `metadata.channel`、`metadata.chat_id` 指明出站路由；`contextId` 用于多轮会话连续性。
+2. 若走 A2A：`POST /a2a/v1/tenants/{owner_id}/employees/{employee_id}/message:send`，body 中 `metadata.channel`、`metadata.chat_id` 指明出站路由。员工与负责人仅一条连续对话，历史不按 `contextId` 区分，CLI/网页共用同一上下文。
 
 ## 出站（Worker → IM）
 

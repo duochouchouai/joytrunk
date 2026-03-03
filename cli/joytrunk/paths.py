@@ -61,6 +61,11 @@ def get_bundled_templates_dir() -> Path:
     return Path(__file__).resolve().parent / "templates"
 
 
+def get_project_templates_dir() -> Path:
+    """项目内模板目录：CLI 项目根下的 templates/（开发时即 cli/templates/），用于覆盖包内模板。"""
+    return get_cli_root() / "templates"
+
+
 def get_bundled_defaults_dir() -> Path:
     """包内默认种子目录：joytrunk/templates/defaults/（soul.md, user.md, agents.md, tools.md）。"""
     return get_bundled_templates_dir() / "defaults"

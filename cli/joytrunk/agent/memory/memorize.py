@@ -121,12 +121,12 @@ async def run_memorize(
     )
     summaries = [e[0] for e in entries]
     try:
-        embeddings = await embed_client.embed(summaries)
+        embeddings = await embed_client.embed(summaries, embed_type="db")
     except Exception as e:
-        logger.warning("Memorize embed failed: %s", e)
-        embeddings = [[0.0] * 384 for _ in summaries]
+        logger.debug("Memorize embed failed (using zero vectors): %s", e)
+        embeddings = [[0.0] * 1536 for _ in summaries]
     if len(embeddings) < len(summaries):
-        embeddings.extend([[0.0] * (len(embeddings[0]) if embeddings else 384)] * (len(summaries) - len(embeddings)))
+        embeddings.extend([[0.0] * (len(embeddings[0]) if embeddings else 1536)] * (len(summaries) - len(embeddings)))
     name_to_id: dict[str, str] = {}
     for c in CATEGORY_NAMES:
         cat = store.memory_category_repo.get_category_by_name(c)
@@ -155,7 +155,7 @@ async def run_memorize(
             category=cat.name,
             original_content=(cat.summary or "").strip(),
             new_memory_items_text=new_lines or "无",
-            target_length=800,
+            target_length=20,
         )
         try:
             new_summary = await llm_chat([{"role": "user", "content": prompt_summary}])

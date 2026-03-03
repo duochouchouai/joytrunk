@@ -181,11 +181,23 @@ def _copy_templates_to_employee(employee_id: str) -> None:
 
 
 def _init_store_after_copy(employee_id: str) -> None:
-    """复制模板后调用 get_store 并 load_existing，触发 ensure_all_categories。"""
+    """复制模板后初始化 memory.db：创建固定 category，并将员工名字以 identity item 写入。"""
     try:
         from joytrunk.agent.memory import get_store
         store = get_store(employee_id)
         store.load_existing()
+        cfg_path = paths.get_employee_dir(employee_id) / "config.json"
+        if cfg_path.exists():
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            name = (data.get("name") or "").strip()
+            if name:
+                cat = store.memory_category_repo.get_category_by_name("identity")
+                if cat:
+                    item = store.memory_item_repo.create_item(
+                        memory_type="profile",
+                        summary=f"名字：{name}",
+                    )
+                    store.category_item_repo.link_item_category(item.id, cat.id)
     except Exception:
         pass
 

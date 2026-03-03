@@ -14,6 +14,7 @@ IMPORTABLE_KEYS = frozenset({
     "CUSTOM_LLM_BASE_URL",
     "CUSTOM_LLM_MODEL",
     "JOYTRUNK_ROUTER_URL",
+    "MINIMAX_GROUP_ID",
 })
 
 
@@ -91,6 +92,15 @@ def merge_env_into_config(parsed: dict[str, str], config: dict) -> dict:
     router_url = parsed.get("JOYTRUNK_ROUTER_URL", "").strip()
     if router_url:
         joytrunk["apiBase"] = router_url.rstrip("/")
+
+    # MiniMax embedding（避免 2013）
+    group_id = parsed.get("MINIMAX_GROUP_ID", "").strip()
+    if group_id:
+        if "memory" not in config or not isinstance(config["memory"], dict):
+            config["memory"] = {}
+        if "embedding" not in config["memory"] or not isinstance(config["memory"]["embedding"], dict):
+            config["memory"]["embedding"] = {}
+        config["memory"]["embedding"]["group_id"] = group_id
 
     return config
 

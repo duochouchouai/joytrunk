@@ -86,15 +86,15 @@ class SQLiteMemoryItemRepo(SQLiteRepoBase):
     def create_item(
         self,
         *,
-        resource_id: str,
+        resource_id: str | None = None,
         memory_type: str,
         summary: str,
-        embedding: list[float],
+        embedding: list[float] | None = None,
         reinforce: bool = False,
     ) -> MemoryItem:
-        if reinforce:
+        if reinforce and embedding:
             return self._create_item_reinforce(
-                resource_id=resource_id,
+                resource_id=resource_id or "",
                 memory_type=memory_type,
                 summary=summary,
                 embedding=embedding,
@@ -199,6 +199,50 @@ class SQLiteMemoryItemRepo(SQLiteRepoBase):
         )
         self.items[row.id] = item
         return item
+
+    def update_item(
+        self,
+        *,
+        item_id: str,
+        summary: str | None = None,
+        memory_type: str | None = None,
+        resource_id: str | None = None,
+    ) -> MemoryItem:
+        with self._sessions.session() as session:
+            stmt = select(SQLiteMemoryItemModel).where(SQLiteMemoryItemModel.id == item_id)
+            row = session.exec(stmt).first()
+            if row is None:
+                raise KeyError(f"Item {item_id} not found")
+            if summary is not None:
+                row.summary = summary
+            if memory_type is not None:
+                row.memory_type = memory_type
+            if resource_id is not None:
+                row.resource_id = resource_id
+            row.updated_at = self._now()
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+        item = MemoryItem(
+            id=row.id,
+            resource_id=row.resource_id,
+            memory_type=row.memory_type,
+            summary=row.summary,
+            embedding=self._normalize_embedding(row.embedding_json),
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+            happened_at=row.happened_at,
+            extra=row.extra or {},
+        )
+        self.items[row.id] = item
+        return item
+
+    def delete_item(self, item_id: str) -> None:
+        """删除记忆条目（若不存在则忽略）。"""
+        with self._sessions.session() as session:
+            session.exec(delete(SQLiteMemoryItemModel).where(SQLiteMemoryItemModel.id == item_id))
+            session.commit()
+        self.items.pop(item_id, None)
 
     def vector_search_items(
         self,
