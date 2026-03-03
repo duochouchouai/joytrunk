@@ -21,26 +21,21 @@
 
 ---
 
-## Install and quick start
+## Getting started
 
-Install from PyPI (when published) or from repo:
+One place to go from install to chatting (CLI or web). Config root: **Linux/macOS** `~/.joytrunk`; **Windows** `%USERPROFILE%\.joytrunk`.
 
-```bash
-pip install joytrunk
-# or from repo: cd cli && pip install -e ".[dev]"
-```
+**1. Install** — `pip install joytrunk` or from repo: `cd cli && pip install -e ".[dev]"`
 
-Then:
+**2. Initialize (once)** — `joytrunk onboard`
 
-1. **Initialize** config and workspace:
-   ```bash
-   joytrunk onboard
-   ```
-2. **Chat with employees** (no server required): Run `joytrunk chat` — TUI lists employees (last option: add new); select one to start a conversation. Employees and owner are stored in **per-employee config** under `~/.joytrunk/workspace/employees/<id>/config.json`; the **global** `~/.joytrunk/config.json` holds only global settings (ownerId, gateway, agents.defaults, channels, providers).
-3. **Manage employees**: `joytrunk employee` (TUI), `joytrunk employee list`, `joytrunk employee new`, `joytrunk employee set <id> --name ...`
-4. **Optional — Web management**: Start `joytrunk server` and open **http://localhost:32890** to manage employees, team, and settings in the browser.
+**3. Build the web UI (once, if you want the browser)** — `cd cli/joytrunk/ui && npm install && npm run build`. Skip if you only use the CLI.
 
-Paths: **Linux/macOS** use `~/.joytrunk`; **Windows** use `%USERPROFILE%\.joytrunk` (e.g. `$env:USERPROFILE\.joytrunk` in PowerShell).
+**4. Run server and gateway (two terminals)** — Both must run for web or CLI chat. Terminal 1: `joytrunk server` (http://localhost:32890, Node.js 18+). Terminal 2: `joytrunk gateway` (127.0.0.1:32891, A2A).
+
+**5. Use the product** — **CLI**: `joytrunk chat` (TUI). **Web**: open http://localhost:32890 (employees, chat, Chat history, Logs, Memory, Settings). Vue dev: `joytrunk server` + `cd cli/joytrunk/ui && npm run dev` → http://localhost:32893.
+
+**中文说明**：见 [readme/README_zh.md](readme/README_zh.md)。
 
 ---
 
@@ -53,11 +48,11 @@ Paths: **Linux/macOS** use `~/.joytrunk`; **Windows** use `%USERPROFILE%\.joytru
 
 ## Architecture
 
-- **CLI** (Python): Full local client — `joytrunk` entry point, `joytrunk onboard`, **`joytrunk chat`** (TUI: list/select or add employees from per-employee config; no server required), **`joytrunk employee`** (list/new/set employees), `joytrunk server` (starts the **local management backend** on port 32890 for web/UI), `joytrunk status`, `joytrunk language`, `joytrunk docs`. The CLI reads/writes **global** `config.json` (global settings only) and **per-employee** `workspace/employees/<id>/config.json` (each employee as an independent agent; overrides global).
-- **Vue** (local management UI): Web IM and admin (employees, team, settings). Served at **http://localhost:32890** when the **CLI** runs `joytrunk server`; talks to the local server only. Binding a JoyTrunk account uses the **official backend** (nodejs) for IM sync.
-- **Node.js** (official backend): Cloud services — user registration, JoyTrunk IM backend, **LLM Router** (default model MINIMAX-M2.1), billing. Separate from the local 32890 server; used when the user links an account or uses Router for LLM.
+- **CLI** (Python): Entry point `joytrunk` with commands: `onboard`, **`chat`** (TUI: list/select or add employees, then converse; uses A2A when **gateway** is running), **`employee`** (list/new/set), **`server`** (local backend on port 32890 + serves built-in Vue UI), **`gateway`** (A2A server on 32891, required for web and CLI chat to reach the agent loop), `gateway status`, `status`, `language`, `docs`, **`memory`**, **`log`**. Config: global `~/.joytrunk/config.json`; per-employee `~/.joytrunk/workspace/employees/<id>/config.json`.
+- **Vue** (local management UI): Source in `cli/joytrunk/ui`, build output in `cli/joytrunk/server/static`. Served at **http://localhost:32890** by `joytrunk server`. Pages: Home, Chat, Employees (list/create/edit), per-employee **Logs**, **Chat history** (with inline chat input), **Memory** (categories/items), Settings (custom LLM, usage). Talks to the local server only.
+- **Node.js** (official backend): Cloud services — user registration, JoyTrunk IM, **LLM Router** (default model MINIMAX-M2.1), billing. Separate from the local 32890 server; used when linking an account or using the Router for LLM.
 
-The **local** stack is self-contained: install the CLI, run `joytrunk onboard` and `joytrunk chat` (no server needed for CLI); optionally run `joytrunk server` and open http://localhost:32890 for the Vue UI.
+Local flow: **CLI** + **joytrunk server** (API + Vue) + **joytrunk gateway** (A2A). Web and CLI chat both go through the gateway to run the employee agent loop.
 
 ---
 
@@ -65,9 +60,10 @@ The **local** stack is self-contained: install the CLI, run `joytrunk onboard` a
 
 | Directory | Role |
 |-----------|------|
-| **cli/** | Python 包 `joytrunk`：CLI 入口、`joytrunk onboard`、**`joytrunk chat`**（TUI 选员工/新建，不依赖 server）、**`joytrunk employee`**（list/new/set）、`joytrunk server`（启动本地后端 + 内嵌管理 UI，端口 32890）、`joytrunk status`、`joytrunk language`、`joytrunk docs`。全局配置在 `config.json`，每位员工独立 `workspace/employees/<id>/config.json`。安装：`pip install -e ./cli`。本地管理界面源码在 cli/joytrunk/ui/，构建产出在 gateway/static/。 |
-| **vue/** | **仅官网**：Vue 3 + Vite，产品页、下载/文档/定价、手机验证码登录、云端 IM。开发：`npm run dev`（端口 32892）；构建：`npm run build`。 |
-| **nodejs/** | JoyTrunk 官方后端（用户注册、IM、LLM Router、计费）。`npm install && npm start`（默认 32891）。 |
+| **cli/** | Python package `joytrunk`: CLI entry, `onboard`, `chat` (TUI), `employee`, `server` (Node backend on 32890 + serves Vue from `cli/joytrunk/server/static`), `gateway` (A2A on 32891), `memory`, `log`, `status`, `language`, `docs`. Local UI source: `cli/joytrunk/ui`; build output: `cli/joytrunk/server/static`. Install: `pip install -e ./cli`. |
+| **vue/** | **Official website only**: Vue 3 + Vite (product page, docs, pricing, auth). Dev: `npm run dev` (port 32892). Local management UI lives in **cli/joytrunk/ui**, not here. |
+| **nodejs/** | Official backend (user registration, IM, LLM Router, billing). `npm install && npm start` (default port 32891). |
+| **readme/** | [README_zh.md](readme/README_zh.md) — Chinese quick start. |
 
 ---
 
@@ -85,7 +81,7 @@ Developers work on the **`develop`** branch. The following steps get you from cl
 
 ```bash
 git clone <repo-url>
-cd nanobot
+cd joytrunk
 git checkout develop
 ```
 
@@ -109,25 +105,25 @@ conda activate joytrunk
 cd cli && pip install -e ".[dev]" && joytrunk onboard
 ```
 
-- **Run CLI**: `joytrunk`, `joytrunk docs` (open command guide), `joytrunk status`, **`joytrunk chat`** (TUI: list/select or add employee, then converse; no server required), **`joytrunk employee`** (list/new/set)
-- **Run local server** (optional, for web UI): `joytrunk server` (starts the built-in backend on 32890; installs Node deps on first run)
+- **Run CLI**: `joytrunk`, `joytrunk docs` (open command guide), `joytrunk status`, **`joytrunk chat`** (TUI: list/select or add employee, then converse; **joytrunk gateway** must be running for chat to work), **`joytrunk employee`** (list/new/set), **`joytrunk gateway`** / **`joytrunk gateway status`**, **`joytrunk memory`**, **`joytrunk log`**
+- **Run local server** (for web UI): `joytrunk server` (backend on 32890; installs Node deps on first run)
 - **Run tests**: `pytest -v` (from `cli/`)
 
-### 2. Local server (32890)
+### 2. Local server (32890, or 32893 for UI dev)
 
-The **local management backend** is started by the CLI and serves the **built-in local UI** (source in `cli/joytrunk/ui`, built to `cli/joytrunk/gateway/static`):
+The **local management backend** is started by the CLI and serves the **built-in local UI** (source in `cli/joytrunk/ui`, build output in `cli/joytrunk/server/static`):
 
-```powershell
+```bash
 joytrunk server
 ```
 
-- 监听 **http://localhost:32890**
-- 提供 REST API 与 SPA（员工/团队/设置/对话）。
-- Requires **Node.js** 18+ on PATH (the CLI runs the server’s Node process from the package).
+- Listens at **http://localhost:32890**. That is the single process: API + static UI.
+- Provides REST API and SPA (employees, team, settings, chat, logs, memory). Requires **Node.js** 18+ on PATH.
+- **Port 32893 (Vue dev only)**: For frontend hot reload, run `cd cli/joytrunk/ui && npm run dev` in a second terminal (with `joytrunk server` still on 32890). The Vite dev server listens on **http://localhost:32893** and proxies `/api` to 32890. Use 32893 only when developing the local UI; production use is 32890.
 
-### 3. 官网前端（Vue，仅官网）
+### 3. Official website frontend (Vue, optional)
 
-仅当需要开发或部署**官方网站**时使用：
+Only when developing or deploying the **official website**:
 
 ```bash
 cd vue
@@ -135,8 +131,8 @@ npm install
 npm run dev
 ```
 
-- 开发端口 **32892**，API 代理到 32891。需先启动 **nodejs** 官方后端。
-- **vue/** 仅包含官网；本地管理界面在 **cli/joytrunk/ui**，由 server 提供。
+- Dev server on port **32892**, API proxied to 32891. Start the **nodejs** backend first.
+- **vue/** is the marketing site only; the **local management UI** is in **cli/joytrunk/ui** and is served by `joytrunk server`.
 
 ### 4. Official backend (nodejs, optional)
 
@@ -153,15 +149,13 @@ npm start
 
 ### Full stack (local)
 
-1. **CLI only** (no server): `joytrunk onboard` → `joytrunk chat` (TUI lists/creates employees from per-employee config).
-2. **With web UI**: 在 **cli** 目录构建本地 UI（可选）：`cd cli/joytrunk/ui && npm install && npm run build`；启动 **joytrunk server**；浏览器打开 **http://localhost:32890**。
-3. 用 `joytrunk chat` 与员工对话（可不启动 server）；server 与 CLI 共用同一套 per-employee config。
+To run the full stack (CLI, web UI, or Vue dev), follow **Getting started** above.
 
 ### Conventions and more
 
 - **Conventions**: [agent.md](agent.md) defines paths, config schema, workspace layout, testing, and PowerShell-first command examples.
 - **Product**: [product.md](product.md) defines the product and owner–employee model.
-- **Multi-agent**: If multiple people or agents work in parallel, check and update the “Agent 协作标注” section in [agent.md](agent.md) to avoid conflicts.
+- **Multi-agent**: If multiple people or agents work in parallel, see the agent collaboration section in [agent.md](agent.md) to avoid conflicts.
 
 ---
 
@@ -169,9 +163,10 @@ npm start
 
 | Document | Description |
 |----------|-------------|
+| [readme/README_zh.md](readme/README_zh.md) | Quick start in Chinese (install, server, gateway, chat, Vue UI, logs). |
 | [product.md](product.md) | Product definition (owner–employee model, local UI vs official website, flows, MVP, survival rules, default model MINIMAX-M2.1). |
 | [agent.md](agent.md)   | Implementation blueprint (cli/vue/nodejs, dual backend, paths, onboarding, progress). |
-| **CLI command guide** | `joytrunk docs` 打开官网命令指南；`joytrunk docs --local` 本地查看。源码：`cli/joytrunk/docs/`，官网可单独部署。 |
+| **CLI command guide** | `joytrunk docs` opens the online guide; `joytrunk docs --local` for local. Source: `cli/joytrunk/docs/`. |
 
 ---
 
