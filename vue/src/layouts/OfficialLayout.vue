@@ -255,7 +255,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 2.5rem;
 }
 .logo {
   font-size: 1.25rem;
