@@ -10,34 +10,40 @@
 
 | 服务 | 说明 | 端口/配置 |
 |------|------|-----------|
-| PostgreSQL | 官网后端数据库 | 默认 5432，`.env` 中 `DATABASE_URL` 或 `PG_*` |
-| Redis | 绑定会话（bind code）存储 | 默认 6379，`.env` 中 `REDIS_URL` 或 `REDIS_HOST` |
+| PostgreSQL | 官网后端数据库 | 默认 5432，`nodejs/.env` 中 `DATABASE_URL` 或 `PG_*` |
+| Redis | 绑定会话（bind code）存储 | 默认 6379，`nodejs/.env` 中 `REDIS_URL` 或 `REDIS_HOST` |
 | 官网后端 | Node.js（Express + WebSocket） | 默认 `http://localhost:32891` |
-| 官网前端 | Vue 3 + Vite | 默认 `http://localhost:32892` |
+| 官网前端 | Vue 3；开发用 Vite 或构建后由后端托管 | 开发：Vite `http://localhost:32892`；生产/单进程：后端 32891 托管 `vue/dist` |
 | CLI | Python joytrunk 包 | 本地，需先 `joytrunk onboard` |
 
-### 1.2 启动命令
+### 1.2 启动方式（二选一）
+
+**方式 A：后端托管前端（单进程，推荐生产/本地一键）**
+
+1. 构建前端：`cd vue && npm run build`
+2. 启动后端：`cd nodejs && npm start`
+3. 浏览器访问 `http://localhost:32891`，CLI 执行 `joytrunk bind` 时请求 32891，绑定页也为 32891。
+
+**方式 B：开发时前后端分离**
 
 ```bash
-# 终端 1：官网后端（需先 cd nodejs 且 npm install）
-cd nodejs
-npm start
+# 终端 1：官网后端
+cd nodejs && npm start
 # 输出：JoyTrunk official backend on http://localhost:32891
 
-# 终端 2：官网前端
-cd vue
-npm run dev
+# 终端 2：官网前端（Vite，/api、/ws 代理到 32891）
+cd vue && npm run dev
 # 默认：http://localhost:32892
 
-# 终端 3：CLI 本地（若仅测绑定可不启动 gateway）
+# 终端 3：CLI（绑定默认 32891；若希望走 Vite 则设 official.url 为 32892）
 joytrunk onboard   # 仅首次
-joytrunk gateway  # 绑定后需启动，以便连官网 /ws/cli
+joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 ```
 
 ### 1.3 环境变量（可选）
 
-- **官网后端**（`nodejs/.env`）：`DATABASE_URL`、`REDIS_URL`、`PORT`、`OFFICIAL_FRONTEND_URL`（绑定页 base URL，默认 `http://localhost:32892`）。
-- **CLI**：`JOYTRUNK_OFFICIAL_URL` 默认 `http://localhost:32891`；可在 `~/.joytrunk/config.json` 的 `official.url` 覆盖。
+- **官网后端**（`nodejs/.env`）：`DATABASE_URL`、`REDIS_URL`、`PORT`。`OFFICIAL_FRONTEND_URL` 为绑定页 base URL，默认 `http://localhost:32891`（后端托管时与后端同源）；开发时若用 Vite 可设为 `http://localhost:32892`。
+- **CLI**：默认请求 `http://localhost:32891`；可在 `~/.joytrunk/config.json` 的 `official.url` 或环境变量 `JOYTRUNK_OFFICIAL_URL` 覆盖。对 localhost/127.0.0.1 会跳过代理（避免 `HTTP_PROXY` 导致 502）。
 
 ---
 
@@ -45,13 +51,10 @@ joytrunk gateway  # 绑定后需启动，以便连官网 /ws/cli
 
 ### 2.1 如何运行
 
-1. 启动官网后端与官网前端（见 1.2）。
-2. 在本机执行：
-   ```bash
-   joytrunk bind
-   ```
-3. 浏览器会自动打开绑定页（如 `http://localhost:32892/bind?code=xxxxxxxx`）。
-4. 若未登录：先登录或注册；登录后会跳回同一绑定页。
+1. 启动官网后端（方式 A 或 B，见 1.2）；若用方式 A，无需单独起前端。
+2. 在本机执行：`joytrunk bind`
+3. 浏览器会自动打开绑定页（默认 `http://localhost:32891/bind?code=xxx`；若配置了 `OFFICIAL_FRONTEND_URL` 则使用该 URL）。
+4. 若未登录：先登录或注册，完成后再跳回 `/bind?code=xxx`。
 5. 在绑定页点击「授权本机 JoyTrunk」。
 6. 回到终端：CLI 轮询到 `authorized` 后写入 config 并提示「绑定成功」。
 
@@ -60,11 +63,12 @@ joytrunk gateway  # 绑定后需启动，以便连官网 /ws/cli
 - **已绑定**：再次执行 `joytrunk bind` 应提示「本机已绑定…」；可用 `joytrunk bind --force` 强制重新绑定。
 - **config**：查看 `~/.joytrunk/config.json`，应存在 `official.api_key` 和 `official.url`。
 - **轮询**：用无效 code 请求 `GET /api/cli/bind/poll?code=invalid` 应返回 `{ "status": "pending" }`。
-- **手动测 API**：
+- **GET /api/cli/bind/start**：浏览器直接打开会返回 405 与提示「请使用 joytrunk bind」；绑定需用 POST。
+- **手动测 POST**（CMD 或 Git Bash）：
   ```bash
-  curl -s -X POST http://localhost:32891/api/cli/bind/start -H "Content-Type: application/json" -d '{}'
-  # 应返回 bind_code、bind_url、expires_in_seconds
+  curl -s -X POST http://localhost:32891/api/cli/bind/start -H "Content-Type: application/json" -d "{}"
   ```
+  应返回 `bind_code`、`bind_url`、`expires_in_seconds`。
 
 ---
 
@@ -130,11 +134,12 @@ joytrunk gateway  # 绑定后需启动，以便连官网 /ws/cli
 
 | 现象 | 可能原因 | 建议 |
 |------|----------|------|
-| 绑定失败 / poll 一直 pending | Redis 未起或未配置；code 过期；浏览器未点授权 | 检查 `REDIS_URL`；5 分钟内完成授权；重跑 `joytrunk bind` |
-| 绑定页打开后无 code | 前端路由或 base URL 错误 | 确认 `OFFICIAL_FRONTEND_URL` 与打开地址一致；URL 中带 `code=` |
-| WebSocket 连不上 / 立刻断 | 官网后端未起；端口或 path 错误；防火墙 | 确认后端已起且 `PORT` 一致；CLI 的 `official.url` 为 `http://...`（ws 会自动替换） |
-| 收不到任务 | 会话未标为 JoyTrunk 会话；user_id 与绑定账号不一致 | 创建会话时使用 `peer_uid: "joytrunk"`；确认登录账号与 CLI 绑定账号一致 |
-| 收不到 joytrunk_reply | 前端未连 `/ws/im` 或未处理 `joytrunk_reply` | 确认 IM 页建立 `/ws/im` 连接并解析 `type: "joytrunk_reply"` |
+| **502 Bad Gateway** | 后端未启动；或 CLI 经代理访问本地导致 502 | 启动 nodejs（`npm start`）；CLI 对 localhost 已跳过代理，若仍 502 可检查是否曾设 `official.url` 为 32892 且未起 Vite，改为 32891 或删该字段；用 `curl -X POST http://127.0.0.1:32891/api/cli/bind/start -H "Content-Type: application/json" -d "{}"` 自测 |
+| 绑定失败 / poll 一直 pending | Redis 未起或未配置；code 过期；浏览器未点授权 | 检查 `REDIS_URL`/`REDIS_HOST`；5 分钟内完成授权；重跑 `joytrunk bind` |
+| 绑定页打开后端口错 | 后端生成的 bind_url 用了错误的前端 base | 确认 `OFFICIAL_FRONTEND_URL`（默认 32891）；后端托管前端时不要设为 32892 |
+| WebSocket 连不上 / 立刻断 | 后端未起；端口或 path 错误；防火墙 | 确认后端已起；CLI 的 `official.url` 与后端一致（ws 由 http 自动替换） |
+| 收不到任务 | 会话未标为 JoyTrunk；user_id 与绑定账号不一致 | 创建会话时 `peer_uid: "joytrunk"`；登录账号与 CLI 绑定账号一致 |
+| 收不到 joytrunk_reply | 前端未连 `/ws/im` 或未处理 `joytrunk_reply` | 确认 IM 页建立 `/ws/im` 并解析 `type: "joytrunk_reply"` |
 
 ---
 
@@ -142,7 +147,8 @@ joytrunk gateway  # 绑定后需启动，以便连官网 /ws/cli
 
 - **POST /api/cli/bind/start**  
   Body 可选：`{ "device_name": "..." }`  
-  响应：`{ "bind_code", "bind_url", "expires_in_seconds" }`
+  响应：`{ "bind_code", "bind_url", "expires_in_seconds" }`  
+  GET 同一 URL 返回 405，提示使用 `joytrunk bind`。
 
 - **GET /api/cli/bind/poll?code=xxx**  
   响应：`{ "status": "pending" }` 或 `{ "status": "authorized", "api_key": "jt_..." }`

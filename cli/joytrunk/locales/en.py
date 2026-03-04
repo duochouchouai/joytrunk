@@ -107,6 +107,11 @@ MESSAGES = {
     "bind.polling": "Waiting for authorization…",
     "bind.success": "Bound successfully. API key saved to config.",
     "bind.failed_start": "Failed to get bind code: {error}",
+    "bind.help_502": "Ensure: 1) Official backend is running (cd nodejs && npm start); 2) Port 32891 is reachable.",
+    "bind.help_502_curl": "Test in PowerShell: curl -X POST http://127.0.0.1:32891/api/cli/bind/start -H \"Content-Type: application/json\" -d \"{}\". Unset HTTP_PROXY if set.",
+    "bind.help_502_body": "Response: {body}",
+    "bind.retry_127": "Retrying with 127.0.0.1 after 502…",
+    "bind.help_503": "Bind requires Redis. Start Redis or set REDIS_URL / REDIS_HOST in nodejs/.env.",
     "bind.failed_poll": "Poll failed: {error}",
     "bind.timeout": "Authorization timed out (~5 min). Please try again.",
 }

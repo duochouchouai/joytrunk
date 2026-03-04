@@ -244,16 +244,43 @@ def bind_cmd(
     except Exception:
         pass
 
-    try:
-        with httpx.Client(timeout=15.0) as client:
-            r = client.post(
-                f"{base_url}/api/cli/bind/start",
+    def _post_start(url: str):
+        base = url.rstrip("/")
+        # 本地地址不走代理，避免 HTTP_PROXY 导致 502
+        trust_env = "localhost" not in base and "127.0.0.1" not in base
+        with httpx.Client(timeout=15.0, trust_env=trust_env) as client:
+            return client.post(
+                f"{base}/api/cli/bind/start",
                 json={"device_name": device_name},
             )
-            r.raise_for_status()
-            data = r.json()
+
+    try:
+        r = _post_start(base_url)
+        if r.status_code == 502 and "localhost" in base_url:
+            alt_url = base_url.replace("localhost", "127.0.0.1", 1)
+            console.print("[dim]" + t("bind.retry_127") + "[/dim]")
+            r = _post_start(alt_url)
+            if r.status_code in (200, 201):
+                base_url = alt_url
+        r.raise_for_status()
+        data = r.json()
     except httpx.HTTPStatusError as e:
         console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        if e.response.status_code == 502:
+            try:
+                body = (e.response.text or "").strip()
+                if body and len(body) <= 300:
+                    console.print("[dim]" + t("bind.help_502_body", body=body) + "[/dim]")
+            except Exception:
+                pass
+            console.print("[dim]" + t("bind.help_502") + "[/dim]")
+            console.print("[dim]" + t("bind.help_502_curl") + "[/dim]")
+        elif e.response.status_code == 503:
+            console.print("[dim]" + t("bind.help_503") + "[/dim]")
+        raise typer.Exit(1)
+    except httpx.ConnectError as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        console.print("[dim]" + t("bind.help_502") + "[/dim]")
         raise typer.Exit(1)
     except Exception as e:
         console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
@@ -270,9 +297,10 @@ def bind_cmd(
 
     poll_url = f"{base_url}/api/cli/bind/poll"
     deadline = time.monotonic() + 300  # 5 min
+    trust_env = "localhost" not in base_url and "127.0.0.1" not in base_url
     while time.monotonic() < deadline:
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=10.0, trust_env=trust_env) as client:
                 r = client.get(poll_url, params={"code": bind_code})
                 r.raise_for_status()
                 result = r.json()

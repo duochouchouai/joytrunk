@@ -107,6 +107,11 @@ MESSAGES = {
     "bind.polling": "等待授权中…",
     "bind.success": "绑定成功，已写入 config。",
     "bind.failed_start": "获取绑定码失败: {error}",
+    "bind.help_502": "请确认：1) 官网后端已启动（nodejs 目录 npm start）；2) 端口 32891 可访问。",
+    "bind.help_502_curl": "可在 PowerShell 用 curl 测试: curl -X POST http://127.0.0.1:32891/api/cli/bind/start -H \"Content-Type: application/json\" -d \"{}\"；若设置了 HTTP_PROXY 可先取消再试。",
+    "bind.help_502_body": "响应内容: {body}",
+    "bind.retry_127": "502 时尝试改用 127.0.0.1 重试…",
+    "bind.help_503": "绑定依赖 Redis。请启动 Redis 或在 nodejs/.env 中配置 REDIS_URL / REDIS_HOST。",
     "bind.failed_poll": "轮询失败: {error}",
     "bind.timeout": "授权超时（约 5 分钟），请重试。",
 }

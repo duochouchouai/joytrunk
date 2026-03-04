@@ -3,7 +3,6 @@
  * 依赖 Redis；未配置时 start/poll 返回 503。
  */
 const crypto = require('crypto');
-const config = require('../config/default');
 const { getRedis, isRedisAvailable } = require('../db/redis');
 const userService = require('./user');
 
@@ -19,10 +18,10 @@ function getBindKey(code) {
 }
 
 /**
- * 前端绑定页 base URL，用于生成 bind_url（如 http://localhost:32892）
+ * 前端绑定页 base URL，用于生成 bind_url（后端托管前端时与后端同源，默认 32891）
  */
 function getFrontendBindBaseUrl() {
-  const base = process.env.OFFICIAL_FRONTEND_URL || process.env.CLI_BIND_FRONTEND_URL || 'http://localhost:32892';
+  const base = process.env.OFFICIAL_FRONTEND_URL || process.env.CLI_BIND_FRONTEND_URL || 'http://localhost:32891';
   return base.replace(/\/$/, '');
 }
 
