@@ -9,8 +9,11 @@ import SettingsView from '../views/SettingsView.vue'
 import OfficialLandingView from '../views/OfficialLandingView.vue'
 import OfficialDocsView from '../views/OfficialDocsView.vue'
 import OfficialPricingView from '../views/OfficialPricingView.vue'
+import OfficialAboutView from '../views/OfficialAboutView.vue'
+import OfficialPluginsView from '../views/OfficialPluginsView.vue'
 import OfficialLoginView from '../views/OfficialLoginView.vue'
 import OfficialImView from '../views/OfficialImView.vue'
+import TokenView from '../views/TokenView.vue'
 
 const routes = [
   {
@@ -18,8 +21,10 @@ const routes = [
     component: OfficialLayout,
     children: [
       { path: '', name: 'official-home', component: OfficialLandingView },
+      { path: 'plugins', name: 'official-plugins', component: OfficialPluginsView },
       { path: 'docs', name: 'official-docs', component: OfficialDocsView },
       { path: 'pricing', name: 'official-pricing', component: OfficialPricingView },
+      { path: 'about', name: 'official-about', component: OfficialAboutView },
     ],
   },
   { path: '/login', name: 'login', component: OfficialLoginView, meta: { fullPage: true } },
@@ -29,6 +34,7 @@ const routes = [
     children: [
       { path: '', redirect: '/app/im' },
       { path: 'im', name: 'official-im', component: OfficialImView },
+      { path: 'token', name: 'token', component: TokenView },
       { path: 'overview', name: 'home', component: HomeView },
       { path: 'chat', name: 'chat', component: ChatView },
       { path: 'employees', name: 'employees', component: EmployeesView },

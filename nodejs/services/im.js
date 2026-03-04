@@ -459,7 +459,7 @@ async function getMessages(conversationId, userId, opts = {}) {
 
   if (after != null && !Number.isNaN(after)) {
     const result = await pool.query(
-      `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted
+      `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted, image_url
        FROM messages WHERE conversation_id = $1 AND is_deleted = 0 AND id > $2
        ORDER BY created_at ASC LIMIT $3`,
       [conversationId, after, limit]
@@ -478,7 +478,7 @@ async function getMessages(conversationId, userId, opts = {}) {
     const parsed = parseCursor(before);
     if (parsed) {
       const result = await pool.query(
-        `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted
+        `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted, image_url
          FROM messages WHERE conversation_id = $1 AND is_deleted = 0
          AND (created_at < $2 OR (created_at = $3 AND id < $4))
          ORDER BY created_at DESC LIMIT $5`,
@@ -487,7 +487,7 @@ async function getMessages(conversationId, userId, opts = {}) {
       rows = result.rows || [];
     } else {
       const result = await pool.query(
-        `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted
+        `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted, image_url
          FROM messages WHERE conversation_id = $1 AND is_deleted = 0
          ORDER BY created_at DESC LIMIT $2`,
         [conversationId, limit]
@@ -496,7 +496,7 @@ async function getMessages(conversationId, userId, opts = {}) {
     }
   } else {
     const result = await pool.query(
-      `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted
+      `SELECT id, conversation_id, sender_id, content, status, created_at, updated_at, is_deleted, image_url
        FROM messages WHERE conversation_id = $1 AND is_deleted = 0
        ORDER BY created_at DESC LIMIT $2`,
       [conversationId, limit]
@@ -528,6 +528,7 @@ function toMessageItem(r) {
     created_at: r.created_at,
     updated_at: r.updated_at,
     mention_user_ids: r.mention_user_ids != null ? r.mention_user_ids : null,
+    image_url: r.image_url != null ? r.image_url : null,
   };
 }
 
@@ -544,7 +545,7 @@ function parseCursor(cursor) {
   return null;
 }
 
-async function sendMessage(conversationId, userId, content, mentionUserIds = null) {
+async function sendMessage(conversationId, userId, content, mentionUserIds = null, imageUrl = null) {
   const ok = await ensureParticipant(userId, conversationId);
   if (!ok) return { error: '无权限', status: 403 };
   const pool = getDb();
@@ -558,11 +559,13 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
     if (until > Date.now()) return { error: '你已被禁言', code: 'MUTED', status: 403 };
   }
   const trimmed = typeof content === 'string' ? content.trim() : '';
-  if (!trimmed) return { error: '消息内容不能为空', status: 400 };
+  const hasImage = typeof imageUrl === 'string' && imageUrl.trim().length > 0;
+  if (!trimmed && !hasImage) return { error: '消息内容不能为空', status: 400 };
   if (trimmed.length > MSG_MAX) return { error: '内容超长', code: 'CONTENT_TOO_LONG', status: 400 };
+  const contentToSave = trimmed || (hasImage ? '[图片]' : '');
 
   let finalMentionIds = Array.isArray(mentionUserIds) ? [...mentionUserIds] : [];
-  if (trimmed.includes('@所有人')) {
+  if (contentToSave.includes('@所有人')) {
     const partResult = await pool.query(
       'SELECT user_id FROM participants WHERE conversation_id = $1',
       [conversationId]
@@ -573,8 +576,8 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
     finalMentionIds = Array.from(set);
   }
   const insertResult = await pool.query(
-    `INSERT INTO messages (conversation_id, sender_id, content, status, mention_user_ids) VALUES ($1, $2, $3, 'sent', $4) RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at, mention_user_ids`,
-    [conversationId, userId, trimmed, finalMentionIds.length ? finalMentionIds : null]
+    `INSERT INTO messages (conversation_id, sender_id, content, status, mention_user_ids, image_url) VALUES ($1, $2, $3, 'sent', $4, $5) RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at, mention_user_ids, image_url`,
+    [conversationId, userId, contentToSave, finalMentionIds.length ? finalMentionIds : null, hasImage ? imageUrl.trim() : null]
   );
   const row = insertResult.rows[0];
   await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);

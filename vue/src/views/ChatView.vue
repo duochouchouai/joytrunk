@@ -61,7 +61,7 @@ async function sendChat() {
 </script>
 
 <style scoped>
-.page { max-width: 560px; }
+.page { max-width: 560px; margin: 0 auto; }
 .page-title { margin: 0 0 1.25rem; font-size: 1.5rem; font-weight: 600; }
 .card {
   background: var(--jt-card-bg);

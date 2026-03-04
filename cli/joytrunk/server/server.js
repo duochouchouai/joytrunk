@@ -661,9 +661,9 @@ if (fs.existsSync(path.join(STATIC_DIR, 'index.html'))) {
     res.send(`
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>JoyTrunk 喜象 Agent</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>JoyTrunk 快乐象鼻™ Agent</title></head>
 <body>
-  <h1>JoyTrunk（喜象 Agent）</h1>
+  <h1>JoyTrunk（快乐象鼻™ Agent）</h1>
   <p>本地管理页占位。端口: ${PORT}</p>
   <p>请先构建本地 UI：<code>cd joytrunk/ui && npm install && npm run build</code></p>
   <p><a href="/api/health">API 健康检查</a> | <a href="/api/teams/current">当前团队</a></p>

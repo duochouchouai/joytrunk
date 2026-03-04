@@ -8,24 +8,24 @@
   --jt-card-shadow: 0 1px 3px rgba(0,0,0,0.06);
   --jt-text: #1e293b;
   --jt-text-muted: #64748b;
-  --jt-primary: #0f766e;
-  --jt-primary-hover: #0d9488;
+  --jt-primary: #2563eb;
+  --jt-primary-hover: #1d4ed8;
   --jt-border: #e2e8f0;
   --jt-radius: 8px;
   --jt-sidebar-w: 220px;
 }
 
 [data-theme="dark"] {
-  --jt-bg: #0f172a;
-  --jt-sidebar-bg: #1e293b;
-  --jt-sidebar-border: #334155;
-  --jt-card-bg: #1e293b;
-  --jt-card-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  --jt-text: #f1f5f9;
-  --jt-text-muted: #94a3b8;
-  --jt-primary: #2dd4bf;
-  --jt-primary-hover: #5eead4;
-  --jt-border: #334155;
+  --jt-bg: #0d0d0d;
+  --jt-sidebar-bg: #171717;
+  --jt-sidebar-border: #262626;
+  --jt-card-bg: #1a1a1a;
+  --jt-card-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  --jt-text: #fafafa;
+  --jt-text-muted: #a3a3a3;
+  --jt-primary: #3b82f6;
+  --jt-primary-hover: #60a5fa;
+  --jt-border: #262626;
   --jt-radius: 8px;
   --jt-sidebar-w: 220px;
 }
@@ -38,4 +38,30 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 15px;
   line-height: 1.5;
+}
+
+/* 全局下拉框样式（可选：为 select 添加 class="jt-select"） */
+select.jt-select {
+  min-width: 120px;
+  padding: 0.55rem 2rem 0.55rem 0.85rem;
+  border: 1px solid var(--jt-border);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  background-color: var(--jt-bg);
+  color: var(--jt-text);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+select.jt-select:hover { border-color: var(--jt-text-muted, #94a3b8); }
+select.jt-select:focus {
+  outline: none;
+  border-color: var(--jt-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jt-primary) 18%, transparent);
+}
+[data-theme="dark"] select.jt-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }

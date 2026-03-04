@@ -1,10 +1,10 @@
-# JoyTrunk（喜象 Agent）产品原型
+# JoyTrunk（快乐象鼻™ Agent）产品原型
 
 ## 1. 产品概述
 
 ### 1.1 产品名称
 
-**JoyTrunk**，中文名 **喜象 Agent**。
+**JoyTrunk**，中文名 **快乐象鼻™ Agent**。
 
 ### 1.2 一句话介绍
 

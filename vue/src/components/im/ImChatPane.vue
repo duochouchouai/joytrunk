@@ -2,10 +2,15 @@
   <section class="im-chat-pane">
     <template v-if="conversationId">
       <div v-if="conversation" class="chat-header">
-        <span class="chat-title">{{ conversation.title || ('会话 ' + conversationId) }}</span>
-        <button v-if="conversation.type === 'group'" type="button" class="btn-group-info" @click="$emit('openGroupInfo')">
-          {{ t('official.im.groupInfoTitle') }}
-        </button>
+        <div class="chat-header-inner">
+          <button v-if="showBack" type="button" class="chat-back" :aria-label="t('common.back')" @click="$emit('back')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <span class="chat-title">{{ conversation.title || ('会话 ' + conversationId) }}</span>
+          <button v-if="conversation.type === 'group'" type="button" class="btn-group-info" @click="$emit('openGroupInfo')">
+            {{ t('official.im.groupInfoTitle') }}
+          </button>
+        </div>
       </div>
       <div class="messages-wrap" ref="scrollRef" @scroll="onScroll">
         <div v-if="loadingMore" class="load-more">
@@ -30,10 +35,28 @@
             :key="m.id"
             :message="m"
             :is-self="currentUserId != null && m.sender_id === currentUserId"
+            :avatar-url="getSenderAvatar(m).avatarUrl"
+            :initial="getSenderAvatar(m).initial"
           />
         </div>
       </div>
       <form @submit.prevent="sendMessage" class="input-row">
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          class="input-file-hidden"
+          @change="onImageFileChange"
+        />
+        <button
+          type="button"
+          class="btn-tool"
+          :disabled="sending || isMuted"
+          :title="t('official.im.sendImage')"
+          @click="triggerImageInput"
+        >
+          <svg class="btn-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </button>
         <div class="input-wrap">
           <input
             ref="inputRef"
@@ -66,8 +89,9 @@
             <div v-if="filteredMentionOptions.length === 0" class="mention-empty">{{ t('official.im.mentionNoMatch') }}</div>
           </div>
         </div>
-        <button type="submit" class="btn primary" :disabled="sending || !inputText.trim() || isMuted">
-          {{ sending ? t('common.loading') : t('official.im.send') }}
+        <button type="submit" class="btn-send" :disabled="sending || !inputText.trim() || isMuted">
+          <span v-if="sending" class="btn-send-loading"></span>
+          <span v-else>{{ t('official.im.send') }}</span>
         </button>
       </form>
       <div v-if="isMuted" class="muted-hint">{{ mutedHintText }}</div>
@@ -76,7 +100,13 @@
         <button type="button" class="btn-retry" @click="sendError = null">×</button>
       </div>
     </template>
-    <div v-else class="empty">{{ t('official.im.noConversations') }}</div>
+    <div v-else class="empty">
+      <div class="empty-card">
+        <span class="empty-icon">💬</span>
+        <p class="empty-text">{{ t('official.im.noConversations') }}</p>
+        <p class="empty-hint">{{ t('official.im.emptyHint') }}</p>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -91,9 +121,14 @@ const props = defineProps({
   conversationId: { type: [Number, String], default: null },
   currentUserId: { type: [Number, String], default: null },
   conversation: { type: Object, default: null },
+  mockMessages: { type: Array, default: null },
+  me: { type: Object, default: null },
+  senderMap: { type: Object, default: () => ({}) },
+  /** 移动端时在头部显示返回按钮 */
+  showBack: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['read', 'openGroupInfo']);
+const emit = defineEmits(['read', 'openGroupInfo', 'back']);
 
 const { t } = useI18n();
 const scrollRef = ref(null);
@@ -113,6 +148,7 @@ const filterQuery = ref('');
 const selectedMentionIndex = ref(0);
 const pickerRef = ref(null);
 const inputRef = ref(null);
+const fileInputRef = ref(null);
 let mutedCheckTimer = null;
 
 const MENTION_EVERYONE = '@所有人';
@@ -120,6 +156,34 @@ const MENTION_EVERYONE_LABEL = '所有人';
 
 function getMemberDisplayName(p) {
   return p?.name || ('UID ' + (p?.uid ?? p?.user_id ?? ''));
+}
+
+/** 根据消息发送者返回头像 URL 与首字（用于气泡旁头像） */
+function getSenderAvatar(message) {
+  const isSelf = props.currentUserId != null && message.sender_id === props.currentUserId;
+  if (isSelf) {
+    return {
+      avatarUrl: props.me?.avatar_url ?? null,
+      initial: (props.me?.name || '我').trim().charAt(0) || '我',
+    };
+  }
+  const fromMap = props.senderMap?.[message.sender_id];
+  if (fromMap) {
+    return {
+      avatarUrl: fromMap.avatar_url ?? null,
+      initial: (fromMap.name || '?').trim().charAt(0) || '?',
+    };
+  }
+  const fromParticipant = props.groupParticipants?.find(
+    (p) => Number(p.user_id) === Number(message.sender_id)
+  );
+  if (fromParticipant) {
+    return {
+      avatarUrl: fromParticipant.avatar_url ?? null,
+      initial: (getMemberDisplayName(fromParticipant) || '?').trim().charAt(0) || '?',
+    };
+  }
+  return { avatarUrl: null, initial: '?' };
 }
 
 /** 从光标前找到最近一个 @ 的起始下标；若 @ 与光标之间有空格则返回 -1 */
@@ -293,6 +357,54 @@ function onScroll() {
   scrollTops.set(props.conversationId, scrollRef.value.scrollTop);
 }
 
+function triggerImageInput() {
+  fileInputRef.value?.click();
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function onImageFileChange(e) {
+  const file = e.target?.files?.[0];
+  e.target.value = '';
+  if (!file || !file.type.startsWith('image/') || !props.conversationId || sending.value || isMuted.value) return;
+  sending.value = true;
+  sendError.value = null;
+  const isMock = Array.isArray(props.mockMessages);
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    if (isMock) {
+      const newMsg = {
+        id: Date.now(),
+        sender_id: props.currentUserId,
+        content: '[图片]',
+        created_at: new Date().toISOString(),
+        image_url: dataUrl,
+      };
+      messages.value.push(newMsg);
+      await nextTick();
+      if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+    } else {
+      const msg = await api.im.send(props.conversationId, { content: '[图片]', image_url: dataUrl });
+      messages.value.push(msg);
+      await nextTick();
+      if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+      const latestId = msg.id;
+      if (latestId != null) api.im.markRead(props.conversationId, { last_read_msg_id: latestId }).then(() => emit('read')).catch(() => {});
+    }
+  } catch (err) {
+    sendError.value = true;
+  } finally {
+    sending.value = false;
+  }
+}
+
 watch(
   () => props.conversationId,
   (id) => {
@@ -306,6 +418,17 @@ watch(
       mutedCheckTimer = null;
     }
     if (!id) return;
+    const isMock = Array.isArray(props.mockMessages);
+    if (isMock && props.mockMessages) {
+      messages.value = [...props.mockMessages];
+      hasMore.value = false;
+      loading.value = false;
+      loadingMore.value = false;
+      nextTick(() => {
+        if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+      });
+      return;
+    }
     const saved = scrollTops.get(id);
     loadMessages(false).then(() => {
       nextTick(() => {
@@ -335,6 +458,21 @@ watch(
     }, 60000);
   },
   { immediate: true }
+);
+
+watch(
+  () => props.mockMessages,
+  (mock) => {
+    if (props.conversationId && Array.isArray(mock)) {
+      messages.value = [...mock];
+      hasMore.value = false;
+      loading.value = false;
+      nextTick(() => {
+        if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+      });
+    }
+  },
+  { flush: 'post' }
 );
 
 watch(
@@ -387,17 +525,31 @@ async function sendMessage() {
   if (!text || !props.conversationId || sending.value || isMuted.value) return;
   sending.value = true;
   sendError.value = null;
+  const isMock = Array.isArray(props.mockMessages);
   try {
-    const body = { content: text };
-    if (props.conversation?.type === 'group' && groupParticipants.value.length > 0) {
-      const mentionIds = parseMentionUserIds(text, groupParticipants.value);
-      if (mentionIds && mentionIds.length > 0) body.mention_user_ids = mentionIds;
+    if (isMock) {
+      const newMsg = {
+        id: Date.now(),
+        sender_id: props.currentUserId,
+        content: text,
+        created_at: new Date().toISOString(),
+      };
+      messages.value.push(newMsg);
+      inputText.value = '';
+      await nextTick();
+      if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+    } else {
+      const body = { content: text };
+      if (props.conversation?.type === 'group' && groupParticipants.value.length > 0) {
+        const mentionIds = parseMentionUserIds(text, groupParticipants.value);
+        if (mentionIds && mentionIds.length > 0) body.mention_user_ids = mentionIds;
+      }
+      const msg = await api.im.send(props.conversationId, body);
+      messages.value.push(msg);
+      inputText.value = '';
+      await nextTick();
+      if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
     }
-    const msg = await api.im.send(props.conversationId, body);
-    messages.value.push(msg);
-    inputText.value = '';
-    await nextTick();
-    if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
   } catch (e) {
     sendError.value = true;
     if (e?.code === 'MUTED') {
@@ -412,29 +564,215 @@ async function sendMessage() {
 </script>
 
 <style scoped>
-.im-chat-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 1rem; border-bottom: 1px solid var(--jt-border); background: var(--jt-card-bg); }
-.chat-title { font-weight: 500; font-size: 0.9375rem; }
-.btn-group-info { padding: 0.35rem 0.6rem; font-size: 0.8125rem; border-radius: 6px; border: 1px solid var(--jt-border); background: var(--jt-bg); color: var(--jt-text); cursor: pointer; }
-.messages-wrap { flex: 1; overflow: auto; padding: 1rem; display: flex; flex-direction: column; align-items: center; }
-.load-more, .btn-load-more, .all-loaded { margin-bottom: 0.5rem; font-size: 0.875rem; }
-.btn-load-more { padding: 0.35rem 0.75rem; border-radius: 8px; border: 1px solid var(--jt-border); background: var(--jt-bg); cursor: pointer; color: var(--jt-text); }
-.messages { width: 100%; display: flex; flex-direction: column; gap: 0.75rem; }
-.center { text-align: center; padding: 1rem; }
-.input-row { display: flex; align-items: flex-start; gap: 0.5rem; padding: 1rem; border-top: 1px solid var(--jt-border); }
+.im-chat-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--jt-bg); }
+.chat-header {
+  flex-shrink: 0;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--jt-border);
+  background: var(--jt-card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.chat-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.chat-back {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin: -8px 0 -8px -8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--jt-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.chat-back:hover { background: color-mix(in srgb, var(--jt-primary) 10%, transparent); }
+.chat-back svg { width: 22px; height: 22px; }
+.chat-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  color: var(--jt-text);
+}
+.btn-group-info {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 8px;
+  border: 1px solid var(--jt-border);
+  background: var(--jt-bg);
+  color: var(--jt-text);
+  cursor: pointer;
+  font-weight: 500;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-group-info:hover { border-color: var(--jt-primary); background: color-mix(in srgb, var(--jt-primary) 8%, transparent); }
+.messages-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--jt-bg);
+}
+.load-more, .btn-load-more, .all-loaded { margin-bottom: 0.75rem; font-size: 0.875rem; }
+.btn-load-more {
+  padding: 0.4rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--jt-border);
+  background: var(--jt-card-bg);
+  cursor: pointer;
+  color: var(--jt-text);
+  font-size: 0.8125rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-load-more:hover:not(:disabled) { border-color: var(--jt-primary); background: color-mix(in srgb, var(--jt-primary) 8%, transparent); }
+.messages { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 0.25rem; }
+.center { text-align: center; padding: 1.5rem; }
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--jt-border);
+  background: var(--jt-card-bg);
+}
 .input-wrap { flex: 1; position: relative; min-width: 0; }
-.input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--jt-border); border-radius: 8px; font-size: 0.9375rem; box-sizing: border-box; }
-.mention-picker { position: absolute; left: 0; bottom: 100%; margin-bottom: 0.25rem; max-height: 12rem; overflow: auto; background: var(--jt-card-bg); border: 1px solid var(--jt-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; display: flex; flex-direction: column; min-width: 10rem; }
-.mention-item { display: block; width: 100%; padding: 0.4rem 0.75rem; text-align: left; border: none; background: none; color: var(--jt-text); font-size: 0.875rem; cursor: pointer; }
-.mention-item:hover { background: var(--jt-border); }
-.mention-item-active { background: var(--jt-primary); color: #fff; }
-.mention-empty { padding: 0.4rem 0.75rem; font-size: 0.875rem; color: var(--jt-text-muted, #999); }
-.input.input-muted { background: var(--jt-card-bg, #f1f5f9); cursor: not-allowed; }
-.btn.primary { padding: 0.5rem 1rem; border-radius: 8px; background: var(--jt-primary); color: #fff; border: none; cursor: pointer; font-size: 0.9375rem; }
-.btn.primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.muted-hint { padding: 0 1rem 0.25rem; font-size: 0.75rem; color: var(--jt-text-muted, #999); line-height: 1.2; }
-.send-error { padding: 0 1rem 0.5rem; font-size: 0.875rem; color: var(--jt-error, #c00); display: flex; align-items: center; gap: 0.5rem; }
-.btn-retry { background: none; border: none; cursor: pointer; font-size: 1.25rem; color: inherit; }
-.empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--jt-text-muted); font-size: 0.9375rem; }
+.input {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--jt-border);
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  box-sizing: border-box;
+  background: var(--jt-bg);
+  color: var(--jt-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder { color: var(--jt-text-muted); }
+.input:focus {
+  outline: none;
+  border-color: var(--jt-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jt-primary) 15%, transparent);
+}
+.mention-picker {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 0.35rem;
+  max-height: 12rem;
+  overflow: auto;
+  background: var(--jt-card-bg);
+  border: 1px solid var(--jt-border);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+}
+.mention-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--jt-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.mention-item:hover { background: var(--jt-bg); }
+.mention-item-active { background: color-mix(in srgb, var(--jt-primary) 15%, transparent); color: var(--jt-primary); font-weight: 500; }
+.mention-empty { padding: 0.5rem 0.85rem; font-size: 0.875rem; color: var(--jt-text-muted); }
+.input.input-muted { background: var(--jt-card-bg); cursor: not-allowed; opacity: 0.85; }
+.btn-send {
+  flex-shrink: 0;
+  padding: 0.65rem 1.25rem;
+  border-radius: 12px;
+  background: var(--jt-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: opacity 0.15s, transform 0.05s;
+}
+.btn-send:hover:not(:disabled) { opacity: 0.92; }
+.btn-send:active:not(:disabled) { transform: scale(0.98); }
+.btn-send:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-send-loading {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.muted-hint { padding: 0 1.25rem 0.35rem; font-size: 0.75rem; color: var(--jt-text-muted); line-height: 1.2; background: var(--jt-card-bg); }
+.send-error {
+  padding: 0 1.25rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--jt-error, #dc2626);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--jt-card-bg);
+}
+.btn-retry { background: none; border: none; cursor: pointer; font-size: 1.25rem; color: inherit; padding: 0 0.25rem; }
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--jt-bg);
+}
+.empty-card {
+  text-align: center;
+  padding: 2.5rem 2rem;
+  background: var(--jt-card-bg);
+  border: 1px solid var(--jt-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  max-width: 320px;
+}
+.empty-icon { font-size: 3rem; display: block; margin-bottom: 0.75rem; opacity: 0.7; }
+.empty-text { margin: 0 0 0.35rem; font-size: 1rem; font-weight: 500; color: var(--jt-text); }
+.empty-hint { margin: 0; font-size: 0.875rem; color: var(--jt-text-muted); }
 .muted { color: var(--jt-text-muted); }
+.input-file-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.btn-tool {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--jt-border);
+  border-radius: 10px;
+  background: var(--jt-bg);
+  color: var(--jt-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-tool:hover:not(:disabled) { color: var(--jt-primary); border-color: var(--jt-primary); }
+.btn-tool:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-tool-icon { width: 22px; height: 22px; }
 </style>
