@@ -69,6 +69,9 @@ export const api = {
   },
   users: {
     me: () => request('GET', '/api/users/me'),
+    updateMe: (body) => request('PATCH', '/api/users/me', body),
+    generateApiKey: () => request('POST', '/api/users/me/api-key'),
+    usage: () => request('GET', '/api/users/me/usage'),
     updatePassword: (body) => request('PATCH', '/api/users/me/password', body),
     deactivate: () => request('POST', '/api/users/me/deactivate', {}),
   },
@@ -86,7 +89,7 @@ export const api = {
   config: () => request('GET', '/api/config'),
   configPatchCustomLLM: (body) => request('PATCH', '/api/config/custom-llm', body),
   configClearCustomLLM: () => request('DELETE', '/api/config/custom-llm'),
-  usage: () => request('GET', '/api/usage'),
+  usage: () => request('GET', '/api/users/me/usage'),
   im: {
     conversations: () => request('GET', '/api/im/conversations'),
     createConversation: (body) => request('POST', '/api/im/conversations', body),

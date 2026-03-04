@@ -206,6 +206,12 @@ async function runMigrations(pool) {
     if (!msgCols.includes('mention_user_ids')) {
       await client.query('ALTER TABLE messages ADD COLUMN mention_user_ids INTEGER[]');
     }
+    if (!msgCols.includes('image_url')) {
+      await client.query('ALTER TABLE messages ADD COLUMN image_url TEXT');
+    }
+    if (!columns.includes('joytrunk_api_key')) {
+      await client.query('ALTER TABLE users ADD COLUMN joytrunk_api_key TEXT');
+    }
   } finally {
     client.release();
   }

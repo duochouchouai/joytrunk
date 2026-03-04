@@ -8,6 +8,9 @@ const userController = require('../controllers/userController');
 const router = express.Router();
 
 router.get('/me', userController.getMe);
+router.patch('/me', userController.updateMe);
+router.post('/me/api-key', userController.generateApiKey);
+router.get('/me/usage', userController.getUsage);
 router.patch('/me/password', userController.updatePassword);
 router.post('/me/deactivate', userController.deactivate);
 

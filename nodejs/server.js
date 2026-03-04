@@ -19,7 +19,23 @@ const app = express();
 const PORT = config.PORT;
 const HOST = config.HOST;
 
-app.use(cors({ origin: true, credentials: true }));
+// CORS：显式允许前端开发源，避免预检/错误响应缺头
+const allowedOrigins = [
+  'http://localhost:32892',
+  'http://127.0.0.1:32892',
+];
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Owner-Id'],
+    optionsSuccessStatus: 200,
+  })
+);
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
@@ -43,6 +59,11 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/im', authMiddleware, imRoutes);
 
 app.use((err, req, res, next) => {
+  const origin = req.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   if (err && err.code === 'REDIS_UNAVAILABLE') {
     return res.status(503).json({
       error: '服务暂不可用',
@@ -56,6 +77,17 @@ app.use((err, req, res, next) => {
     });
   }
   next(err);
+});
+
+app.use((err, req, res, next) => {
+  const origin = req.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  if (res.headersSent) return next(err);
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
 async function seedIfEmpty() {

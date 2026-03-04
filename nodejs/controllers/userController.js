@@ -40,4 +40,35 @@ async function deactivate(req, res, next) {
   }
 }
 
-module.exports = { getMe, updatePassword, deactivate };
+async function updateMe(req, res, next) {
+  try {
+    const { name, avatar_url } = req.body || {};
+    const result = await userService.updateMe(req.ownerId, { name, avatar_url });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function generateApiKey(req, res, next) {
+  try {
+    const result = await userService.generateApiKey(req.ownerId);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function getUsage(req, res, next) {
+  try {
+    const result = await userService.getUsage(req.ownerId);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+module.exports = { getMe, updatePassword, deactivate, updateMe, generateApiKey, getUsage };

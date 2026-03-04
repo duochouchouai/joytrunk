@@ -198,7 +198,7 @@ watch(employeeId, () => {
 </script>
 
 <style scoped>
-.page { max-width: 900px; }
+.page { max-width: 900px; margin: 0 auto; }
 .page-header {
   display: flex;
   align-items: center;
@@ -270,14 +270,14 @@ watch(employeeId, () => {
   border-radius: 4px;
   font-size: 0.8125rem;
 }
-.log-event.event-loop-start { background: rgba(15, 118, 110, 0.15); color: var(--jt-primary); }
+.log-event.event-loop-start { background: rgba(37, 99, 235, 0.15); color: var(--jt-primary); }
 .log-event.event-iteration { background: rgba(59, 130, 246, 0.15); color: #2563eb; }
 .log-event.event-llm-request { background: rgba(14, 165, 233, 0.2); color: #0369a1; }
 .log-event.event-llm-response { background: rgba(34, 197, 94, 0.15); color: #15803d; }
 .log-event.event-tool-calls { background: rgba(168, 85, 247, 0.15); color: #7c3aed; }
 .log-event.event-tool-result { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
 .log-event.event-final-reply { background: rgba(234, 179, 8, 0.15); color: #a16207; }
-.log-event.event-loop-done { background: rgba(15, 118, 110, 0.2); color: var(--jt-primary); }
+.log-event.event-loop-done { background: rgba(37, 99, 235, 0.2); color: var(--jt-primary); }
 .log-event.event-append-turn-done { background: rgba(107, 114, 128, 0.15); color: #4b5563; }
 .log-run-id { font-family: ui-monospace, monospace; color: var(--jt-text-muted); font-size: 0.75rem; }
 .log-payload { margin-top: 0.5rem; }

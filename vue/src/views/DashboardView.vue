@@ -219,7 +219,7 @@ onMounted(() => {
 label { display: block; margin-bottom: 0.75rem; }
 label input { width: 100%; max-width: 320px; padding: 0.5rem; margin-top: 0.25rem; box-sizing: border-box; }
 .btn { padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
-.btn.primary { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+.btn.primary { background: var(--jt-primary); color: #fff; border-color: var(--jt-primary); }
 .btn.outline { background: transparent; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .error { color: #dc3545; margin-top: 0.5rem; }
