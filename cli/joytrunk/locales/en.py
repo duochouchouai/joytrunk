@@ -101,4 +101,12 @@ MESSAGES = {
     "log.tui.cleared": "Run logs cleared.",
     "log.tui.clear_failed": "Clear failed: {error}",
     "log.tui.select_entry": "Select one to view details",
+    "bind.already_bound": "This device is already bound. To rebind, remove official.api_key from config or use joytrunk bind --force.",
+    "bind.not_inited": "Not initialized. Run joytrunk onboard first.",
+    "bind.opening_browser": "Opening browser. Please complete authorization on the page…",
+    "bind.polling": "Waiting for authorization…",
+    "bind.success": "Bound successfully. API key saved to config.",
+    "bind.failed_start": "Failed to get bind code: {error}",
+    "bind.failed_poll": "Poll failed: {error}",
+    "bind.timeout": "Authorization timed out (~5 min). Please try again.",
 }

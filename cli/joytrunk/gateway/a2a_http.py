@@ -41,6 +41,8 @@ def create_app(
     worker_concurrency: int = 4,
     task_store_ttl_seconds: int = 86400,
     task_store_cleanup_interval_seconds: int = 60,
+    official_api_key: str | None = None,
+    official_url: str | None = None,
 ) -> FastAPI:
     """Create FastAPI app with lifespan that starts the worker (plan 2.1)."""
     global BLOCKING_TIMEOUT_SECONDS, WORKER_CONCURRENCY
@@ -52,14 +54,26 @@ def create_app(
     )
     bus = get_default_bus()
     worker_task: asyncio.Task | None = None
+    official_ws_task: asyncio.Task | None = None
 
     @asynccontextmanager
     async def lifespan(fastapi_app: FastAPI):
-        nonlocal worker_task
+        nonlocal worker_task, official_ws_task
         worker_task = asyncio.create_task(
             run_worker_loop(bus=bus, store=store, concurrency=WORKER_CONCURRENCY)
         )
+        if official_api_key and official_url:
+            from joytrunk.official_ws_client import run_official_ws_client
+            official_ws_task = asyncio.create_task(
+                run_official_ws_client(api_key=official_api_key, base_url=official_url)
+            )
         yield
+        if official_ws_task:
+            official_ws_task.cancel()
+            try:
+                await official_ws_task
+            except asyncio.CancelledError:
+                pass
         if worker_task:
             worker_task.cancel()
             try:

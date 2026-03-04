@@ -210,6 +210,92 @@ def docs_cmd(
     console.print(t("docs.opened", url=f"[link={DOCS_OFFICIAL_URL}]{DOCS_OFFICIAL_URL}[/link]"))
 
 
+@app.command("bind")
+def bind_cmd(
+    force: bool = typer.Option(False, "--force", "-f", help="已绑定时仍执行绑定流程（覆盖现有 api_key）"),
+) -> None:
+    """绑定本机 JoyTrunk 到官网账号（打开浏览器授权，写入 official.api_key）。"""
+    import time
+    import httpx
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import load_config, save_config
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("bind.not_inited") + "[/yellow]")
+        raise typer.Exit(1)
+    config_path = get_config_path()
+    if not config_path.exists():
+        console.print("[yellow]" + t("bind.not_inited") + "[/yellow]")
+        raise typer.Exit(1)
+
+    config = load_config()
+    official = config.get("official") or {}
+    existing_key = (official.get("api_key") or "").strip()
+    if existing_key and not force:
+        console.print("[yellow]" + t("bind.already_bound") + "[/yellow]")
+        raise typer.Exit(0)
+
+    base_url = (official.get("url") or os.environ.get("JOYTRUNK_OFFICIAL_URL") or "http://localhost:32891").rstrip("/")
+    device_name = None
+    try:
+        import socket
+        device_name = socket.gethostname() or None
+    except Exception:
+        pass
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(
+                f"{base_url}/api/cli/bind/start",
+                json={"device_name": device_name},
+            )
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPStatusError as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        raise typer.Exit(1)
+
+    bind_code = data.get("bind_code") or ""
+    bind_url = data.get("bind_url") or f"{base_url.replace('/api', '')}/bind?code={bind_code}"
+    if not bind_code:
+        console.print("[red]" + t("bind.failed_start", error="bind_code missing") + "[/red]")
+        raise typer.Exit(1)
+
+    console.print("[dim]" + t("bind.opening_browser") + "[/dim]")
+    webbrowser.open(bind_url)
+
+    poll_url = f"{base_url}/api/cli/bind/poll"
+    deadline = time.monotonic() + 300  # 5 min
+    while time.monotonic() < deadline:
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                r = client.get(poll_url, params={"code": bind_code})
+                r.raise_for_status()
+                result = r.json()
+        except Exception as e:
+            console.print("[dim]" + t("bind.polling") + "[/dim]")
+            time.sleep(2)
+            continue
+        if result.get("status") == "authorized" and result.get("api_key"):
+            api_key = result["api_key"]
+            if "official" not in config or not isinstance(config["official"], dict):
+                config["official"] = {}
+            config["official"]["api_key"] = api_key
+            config["official"]["url"] = base_url
+            save_config(config)
+            console.print("[green]✓[/green]", t("bind.success"))
+            return
+        time.sleep(2)
+        console.print("[dim]" + t("bind.polling") + "[/dim]")
+
+    console.print("[red]" + t("bind.timeout") + "[/red]")
+    raise typer.Exit(1)
+
+
 @app.command("status")
 def status_cmd() -> None:
     """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 server）。"""

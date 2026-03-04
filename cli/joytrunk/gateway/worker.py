@@ -31,10 +31,16 @@ async def _process_one(inbound: InboundMessage, store: TaskStore) -> None:
         )
         agent_msg = Message(role="agent", parts=[Part(type="text", text=final_content or "")])
         await store.complete(task_id, "completed", agent_msg, usage=usage)
+        if inbound.channel == "official":
+            from joytrunk.official_ws_client import send_task_result
+            await send_task_result(task_id, "completed", final_content or "", None, usage, inbound.chat_id)
     except Exception as e:
         logger.exception("Worker run_employee_loop failed for task_id=%s", task_id)
         agent_msg = Message(role="agent", parts=[Part(type="text", text="")])
         await store.complete(task_id, "failed", agent_msg, error=str(e))
+        if inbound.channel == "official":
+            from joytrunk.official_ws_client import send_task_result
+            await send_task_result(task_id, "failed", "", str(e), None, inbound.chat_id)
 
 
 async def run_worker_loop(

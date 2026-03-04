@@ -113,6 +113,7 @@ export default {
     save: 'Save',
     saveFailed: 'Save failed',
     saved: 'Saved',
+    syncJoytrunkChat: 'Keep JoyTrunk chat history in the cloud',
   },
   login: {
     subtitle: 'Bind account (optional) — for JoyTrunk IM',
@@ -242,6 +243,15 @@ export default {
       default: 'Default: JoyTrunk Router, no API key required, default model MINIMAX-M2.1.',
       custom: 'Advanced users can configure their own LLM in the local UI; custom usage is not billed.',
       details: 'See JoyTrunk terms and official site for billing details.',
+    },
+    bind: {
+      title: 'Authorize this device',
+      desc: 'After running joytrunk bind in the terminal, click the button below to authorize and bind this device to your account.',
+      noCode: 'Missing bind code. Please run joytrunk bind in the terminal first.',
+      codeHint: 'Bind code (should match the terminal)',
+      confirmBtn: 'Authorize this JoyTrunk',
+      success: 'Bound successfully. Return to the terminal to continue.',
+      confirmFailed: 'Authorization failed. Please try again.',
     },
     im: {
       title: 'Messages',

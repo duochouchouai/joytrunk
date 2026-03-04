@@ -37,7 +37,8 @@ const mode = computed(() => (route.query.register === '1' ? 'register' : 'login'
 
 function onSuccess(token) {
   setToken(token)
-  router.push('/app/im')
+  const redirect = route.query.redirect
+  router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/app/im')
 }
 
 function goRegister() {

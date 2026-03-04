@@ -4,6 +4,7 @@
  * 架构：路由层 → 控制层 → 服务层
  */
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const config = require('./config/default');
@@ -14,6 +15,9 @@ const { authMiddleware } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const imRoutes = require('./routes/im');
+const cliBindRoutes = require('./routes/cliBind');
+const { attachCliWs } = require('./ws/cliWs');
+const { attachImWs } = require('./ws/imWs');
 
 const app = express();
 const PORT = config.PORT;
@@ -57,6 +61,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/im', authMiddleware, imRoutes);
+app.use('/api/cli', cliBindRoutes);
 
 app.use((err, req, res, next) => {
   const origin = req.get('Origin');
@@ -109,7 +114,16 @@ if (require.main === module) {
     await initDb();
     await initRedis();
     await seedIfEmpty();
-    app.listen(PORT, HOST, () => {
+    const server = http.createServer(app);
+    const cliWs = attachCliWs(server);
+    const imWs = attachImWs(server);
+    server.on('upgrade', (request, socket, head) => {
+      const path = request.url?.split('?')[0] || '';
+      if (path === cliWs.path) return cliWs.handleUpgrade(request, socket, head);
+      if (path === imWs.path) return imWs.handleUpgrade(request, socket, head);
+      socket.destroy();
+    });
+    server.listen(PORT, HOST, () => {
       console.log(`JoyTrunk official backend on http://${HOST}:${PORT}`);
     });
   })().catch((e) => {

@@ -13,6 +13,7 @@ import OfficialAboutView from '../views/OfficialAboutView.vue'
 import OfficialPluginsView from '../views/OfficialPluginsView.vue'
 import OfficialLoginView from '../views/OfficialLoginView.vue'
 import OfficialImView from '../views/OfficialImView.vue'
+import OfficialBindView from '../views/OfficialBindView.vue'
 import TokenView from '../views/TokenView.vue'
 
 const routes = [
@@ -28,6 +29,7 @@ const routes = [
     ],
   },
   { path: '/login', name: 'login', component: OfficialLoginView, meta: { fullPage: true } },
+  { path: '/bind', name: 'official-bind', component: OfficialBindView, meta: { fullPage: true } },
   {
     path: '/app',
     component: MainLayout,

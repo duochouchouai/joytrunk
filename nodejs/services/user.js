@@ -13,7 +13,7 @@ async function getMe(userId) {
   if (userId == null) return { error: '未登录', status: 401 };
   const pool = getDb();
   const result = await pool.query(
-    'SELECT id, name, avatar_url, balance, joytrunk_api_key, phone, email, uid FROM users WHERE id = $1 AND deleted_at IS NULL',
+    'SELECT id, name, avatar_url, balance, joytrunk_api_key, phone, email, uid, sync_joytrunk_chat FROM users WHERE id = $1 AND deleted_at IS NULL',
     [Number(userId)]
   );
   const u = result.rows[0] ?? null;
@@ -32,13 +32,14 @@ async function getMe(userId) {
     phone,
     email,
     uid: u.uid != null ? String(u.uid) : undefined,
+    sync_joytrunk_chat: u.sync_joytrunk_chat !== false,
   };
 }
 
 /**
- * 更新当前用户资料（name、avatar_url）
+ * 更新当前用户资料（name、avatar_url、sync_joytrunk_chat）
  */
-async function updateMe(userId, { name, avatar_url }) {
+async function updateMe(userId, { name, avatar_url, sync_joytrunk_chat }) {
   if (userId == null) return { error: '未登录', status: 401 };
   const pool = getDb();
   const updates = [];
@@ -55,6 +56,10 @@ async function updateMe(userId, { name, avatar_url }) {
     if (url !== null && url.length > 500) return { error: '头像 URL 过长', status: 400 };
     updates.push(`avatar_url = $${idx++}`);
     values.push(url || null);
+  }
+  if (sync_joytrunk_chat !== undefined) {
+    updates.push(`sync_joytrunk_chat = $${idx++}`);
+    values.push(sync_joytrunk_chat === true);
   }
   if (updates.length === 0) return getMe(userId);
   values.push(Number(userId));
