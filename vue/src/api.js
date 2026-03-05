@@ -86,6 +86,13 @@ export const api = {
   teams: {
     current: () => request('GET', '/api/teams/current'),
   },
+  cli: {
+    bind: {
+      start: (body) => request('POST', '/api/cli/bind/start', body),
+      poll: (code) => request('GET', `/api/cli/bind/poll?code=${encodeURIComponent(code)}`),
+      confirm: (code) => request('POST', '/api/cli/bind/confirm', { code }),
+    },
+  },
   config: () => request('GET', '/api/config'),
   configPatchCustomLLM: (body) => request('PATCH', '/api/config/custom-llm', body),
   configClearCustomLLM: () => request('DELETE', '/api/config/custom-llm'),

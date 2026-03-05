@@ -89,6 +89,19 @@
                 </Transition>
               </div>
             </div>
+            <div class="pref-row pref-row-toggle">
+              <span class="pref-label">{{ t('settings.syncJoytrunkChat') }}</span>
+              <button
+                type="button"
+                class="toggle-btn"
+                :class="{ on: syncJoytrunkChat }"
+                role="switch"
+                :aria-checked="syncJoytrunkChat"
+                @click="syncJoytrunkChat = !syncJoytrunkChat"
+              >
+                <span class="toggle-thumb"></span>
+              </button>
+            </div>
           </div>
         </section>
         <div class="actions">
@@ -192,6 +205,19 @@
             </Transition>
           </div>
         </div>
+        <div class="pref-row pref-row-toggle">
+          <span class="pref-label">{{ t('settings.syncJoytrunkChat') }}</span>
+          <button
+            type="button"
+            class="toggle-btn"
+            :class="{ on: syncJoytrunkChat }"
+            role="switch"
+            :aria-checked="syncJoytrunkChat"
+            @click="syncJoytrunkChat = !syncJoytrunkChat"
+          >
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -223,6 +249,7 @@ const isMobile = inject('isMobile', null)
 const me = ref(null)
 const nickname = ref('')
 const avatarUrl = ref('')
+const syncJoytrunkChat = ref(true)
 const avatarError = ref(false)
 const saving = ref(false)
 const saveError = ref('')
@@ -259,6 +286,7 @@ async function loadMe() {
     me.value = await api.users.me()
     nickname.value = me.value?.name ?? ''
     avatarUrl.value = me.value?.avatar_url ?? ''
+    syncJoytrunkChat.value = me.value?.sync_joytrunk_chat !== false
     avatarError.value = false
   } catch {
     me.value = null
@@ -273,6 +301,7 @@ async function saveProfile() {
     await api.users.updateMe({
       name: nickname.value.trim() || undefined,
       avatar_url: avatarUrl.value.trim() || null,
+      sync_joytrunk_chat: syncJoytrunkChat.value,
     })
     saveSuccess.value = true
     setTimeout(() => { saveSuccess.value = false }, 2000)
@@ -449,6 +478,43 @@ onUnmounted(() => {
 
 .pref-row:last-child {
   border-bottom: none;
+}
+
+.pref-row-toggle {
+  flex-wrap: wrap;
+}
+
+.toggle-btn {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--jt-border);
+  background: var(--jt-text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.toggle-btn.on {
+  background: var(--jt-primary);
+  border-color: var(--jt-primary);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s ease;
+}
+
+.toggle-btn.on .toggle-thumb {
+  transform: translateX(20px);
 }
 
 .pref-label {

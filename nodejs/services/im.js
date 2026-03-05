@@ -67,16 +67,24 @@ async function findOrCreateDirectConversation(userId, peerUid) {
   const pool = getDb();
   const uidStr = peerUid != null ? String(peerUid).trim() : '';
   if (!uidStr) return { error: '请提供对方用户 uid', status: 400 };
+
+  const isJoytrunk = uidStr.toLowerCase() === 'joytrunk';
   let peerRow;
-  try {
-    const peerResult = await pool.query(
-      'SELECT id FROM users WHERE uid = $1 AND deleted_at IS NULL',
-      [uidStr]
-    );
-    peerRow = peerResult.rows[0] ?? null;
-  } catch (e) {
-    if (e.code === '22P02' || e.code === '22003') return { error: '对应用户不存在', status: 404 };
-    throw e;
+  if (isJoytrunk) {
+    const joytrunkResult = await pool.query('SELECT id FROM users WHERE uid = 0 AND deleted_at IS NULL');
+    peerRow = joytrunkResult.rows[0] ?? null;
+    if (!peerRow) return { error: 'JoyTrunk 系统用户未就绪', status: 500 };
+  } else {
+    try {
+      const peerResult = await pool.query(
+        'SELECT id FROM users WHERE uid = $1 AND deleted_at IS NULL',
+        [uidStr]
+      );
+      peerRow = peerResult.rows[0] ?? null;
+    } catch (e) {
+      if (e.code === '22P02' || e.code === '22003') return { error: '对应用户不存在', status: 404 };
+      throw e;
+    }
   }
   if (!peerRow) return { error: '对应用户不存在', status: 404 };
 
@@ -88,13 +96,20 @@ async function findOrCreateDirectConversation(userId, peerUid) {
 
   const existingResult = await pool.query('SELECT id FROM conversations WHERE type = $1 AND peer_ids = $2', ['direct', peerIds]);
   const existing = existingResult.rows[0] ?? null;
-  if (existing) return { conversationId: existing.id };
+  if (existing) {
+    if (isJoytrunk) {
+      await pool.query('UPDATE conversations SET joytrunk_conversation = true WHERE id = $1', [existing.id]);
+    }
+    return { conversationId: existing.id };
+  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const insertResult = await client.query(
-      'INSERT INTO conversations (type, peer_ids, creator_id, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id',
+      isJoytrunk
+        ? 'INSERT INTO conversations (type, peer_ids, creator_id, updated_at, joytrunk_conversation) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, true) RETURNING id'
+        : 'INSERT INTO conversations (type, peer_ids, creator_id, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id',
       ['direct', peerIds, userId]
     );
     const convId = insertResult.rows[0].id;
@@ -564,6 +579,10 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
   if (trimmed.length > MSG_MAX) return { error: '内容超长', code: 'CONTENT_TOO_LONG', status: 400 };
   const contentToSave = trimmed || (hasImage ? '[图片]' : '');
 
+  const convRow = (await pool.query('SELECT joytrunk_conversation FROM conversations WHERE id = $1', [conversationId])).rows[0];
+  const userSyncRow = (await pool.query('SELECT sync_joytrunk_chat FROM users WHERE id = $1 AND deleted_at IS NULL', [userId])).rows[0];
+  const isJoytrunkNoSync = convRow?.joytrunk_conversation && userSyncRow && userSyncRow.sync_joytrunk_chat === false;
+
   let finalMentionIds = Array.isArray(mentionUserIds) ? [...mentionUserIds] : [];
   if (contentToSave.includes('@所有人')) {
     const partResult = await pool.query(
@@ -575,13 +594,59 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
     allIds.forEach((id) => set.add(id));
     finalMentionIds = Array.from(set);
   }
-  const insertResult = await pool.query(
-    `INSERT INTO messages (conversation_id, sender_id, content, status, mention_user_ids, image_url) VALUES ($1, $2, $3, 'sent', $4, $5) RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at, mention_user_ids, image_url`,
-    [conversationId, userId, contentToSave, finalMentionIds.length ? finalMentionIds : null, hasImage ? imageUrl.trim() : null]
-  );
-  const row = insertResult.rows[0];
-  await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);
+
+  let row;
+  if (isJoytrunkNoSync) {
+    await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);
+    row = {
+      id: null,
+      conversation_id: Number(conversationId),
+      sender_id: userId,
+      content: contentToSave,
+      status: 'sent',
+      created_at: new Date(),
+      updated_at: new Date(),
+      mention_user_ids: finalMentionIds.length ? finalMentionIds : null,
+      image_url: hasImage ? imageUrl.trim() : null,
+    };
+  } else {
+    const insertResult = await pool.query(
+      `INSERT INTO messages (conversation_id, sender_id, content, status, mention_user_ids, image_url) VALUES ($1, $2, $3, 'sent', $4, $5) RETURNING id, conversation_id, sender_id, content, status, created_at, updated_at, mention_user_ids, image_url`,
+      [conversationId, userId, contentToSave, finalMentionIds.length ? finalMentionIds : null, hasImage ? imageUrl.trim() : null]
+    );
+    row = insertResult.rows[0];
+    await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);
+  }
+
+  if (convRow && convRow.joytrunk_conversation) {
+    const pendingCliTasks = require('./pendingCliTasks');
+    const crypto = require('crypto');
+    const taskId = crypto.randomBytes(16).toString('hex');
+    const payload = {
+      owner_id: userId,
+      employee_id: '',
+      content: contentToSave,
+      session_key: 'owner',
+      conversation_id: String(conversationId),
+    };
+    pendingCliTasks.pushOrEnqueueTask(userId, taskId, payload).catch((e) => console.error('pushOrEnqueueTask', e));
+  }
+
   return { message: toMessageItem(row) };
+}
+
+/** 当 sync_joytrunk_chat 为 true 时，将会话中的 JoyTrunk 回复写入 messages 表（供 task_result 回调） */
+async function insertJoytrunkReply(userId, conversationId, content) {
+  const pool = getDb();
+  const userRow = (await pool.query('SELECT sync_joytrunk_chat FROM users WHERE id = $1 AND deleted_at IS NULL', [Number(userId)])).rows[0];
+  if (!userRow || userRow.sync_joytrunk_chat === false) return;
+  const botRow = (await pool.query('SELECT id FROM users WHERE uid = 0')).rows[0];
+  if (!botRow) return;
+  await pool.query(
+    'INSERT INTO messages (conversation_id, sender_id, content, status) VALUES ($1, $2, $3, $4)',
+    [Number(conversationId), botRow.id, String(content || '').trim() || '(无内容)', 'sent']
+  );
+  await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [conversationId]);
 }
 
 module.exports = {
@@ -599,4 +664,5 @@ module.exports = {
   dismissConversation,
   getMessages,
   sendMessage,
+  insertJoytrunkReply,
 };

@@ -192,6 +192,19 @@ async function runMigrations(pool) {
     if (!convCols.includes('announcement_updated_at')) {
       await client.query('ALTER TABLE conversations ADD COLUMN announcement_updated_at TIMESTAMPTZ');
     }
+    if (!convCols.includes('joytrunk_conversation')) {
+      await client.query('ALTER TABLE conversations ADD COLUMN joytrunk_conversation BOOLEAN DEFAULT false');
+    }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pending_cli_tasks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        task_id TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pending_cli_tasks_user_id ON pending_cli_tasks (user_id)');
     const partColumns = await client.query(
       `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'participants'`
     );
@@ -211,6 +224,15 @@ async function runMigrations(pool) {
     }
     if (!columns.includes('joytrunk_api_key')) {
       await client.query('ALTER TABLE users ADD COLUMN joytrunk_api_key TEXT');
+    }
+    if (!columns.includes('sync_joytrunk_chat')) {
+      await client.query('ALTER TABLE users ADD COLUMN sync_joytrunk_chat BOOLEAN DEFAULT true');
+    }
+    const joytrunkBot = await client.query('SELECT id FROM users WHERE uid = 0');
+    if (!joytrunkBot.rows[0]) {
+      await client.query(
+        "INSERT INTO users (type, name, uid) SELECT 'agent', 'JoyTrunk', 0 WHERE NOT EXISTS (SELECT 1 FROM users WHERE uid = 0)"
+      );
     }
   } finally {
     client.release();

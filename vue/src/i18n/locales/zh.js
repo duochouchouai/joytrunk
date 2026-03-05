@@ -113,6 +113,7 @@ export default {
     save: '保存',
     saveFailed: '保存失败',
     saved: '已保存',
+    syncJoytrunkChat: '在云端保留与 JoyTrunk 的对话记录',
   },
   login: {
     subtitle: '绑定账号（可选）— 用于使用 JoyTrunk 即时通讯',
@@ -256,6 +257,15 @@ export default {
       default: '默认使用 JoyTrunk Router，无需配置 API Key，默认模型 MINIMAX-M2.1。',
       custom: '高级用户可在本地管理界面配置自有 LLM，自有用量不计费。',
       details: '具体计费规则以 JoyTrunk 服务条款及官网说明为准。',
+    },
+    bind: {
+      title: '授权本机 JoyTrunk',
+      desc: '在终端运行 joytrunk bind 后，请在此页面点击下方按钮完成授权，将本机与您的账号绑定。',
+      noCode: '缺少绑定码，请先在终端运行 joytrunk bind。',
+      codeHint: '绑定码（请与终端中一致）',
+      confirmBtn: '授权本机 JoyTrunk',
+      success: '绑定成功，请回到终端查看。',
+      confirmFailed: '授权失败，请重试。',
     },
     im: {
       title: '即时通讯',

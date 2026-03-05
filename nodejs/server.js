@@ -4,6 +4,9 @@
  * 架构：路由层 → 控制层 → 服务层
  */
 require('dotenv').config();
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const config = require('./config/default');
@@ -14,15 +17,24 @@ const { authMiddleware } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const imRoutes = require('./routes/im');
+const cliBindRoutes = require('./routes/cliBind');
+const { attachCliWs } = require('./ws/cliWs');
+const { attachImWs } = require('./ws/imWs');
 
 const app = express();
 const PORT = config.PORT;
 const HOST = config.HOST;
 
+// 若已构建前端（vue/dist 存在），则根路径由前端托管
+const frontendDist = path.join(__dirname, '../vue/dist');
+const serveFrontend = fs.existsSync(frontendDist);
+
 // CORS：显式允许前端开发源，避免预检/错误响应缺头
 const allowedOrigins = [
   'http://localhost:32892',
   'http://127.0.0.1:32892',
+  'http://localhost:32891',
+  'http://127.0.0.1:32891',
 ];
 app.use(
   cors({
@@ -47,16 +59,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/', (req, res) => {
-  res.json({
-    service: 'JoyTrunk 官方后端',
-    docs: '本地管理请使用 joytrunk server 启动 cli 内 server，访问 http://localhost:32890',
+if (!serveFrontend) {
+  app.get('/', (req, res) => {
+    res.json({
+      service: 'JoyTrunk 官方后端',
+      docs: '本地管理请使用 joytrunk server 启动 cli 内 server，访问 http://localhost:32890',
+    });
   });
-});
+}
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/im', authMiddleware, imRoutes);
+app.use('/api/cli', cliBindRoutes);
 
 app.use((err, req, res, next) => {
   const origin = req.get('Origin');
@@ -90,6 +105,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
+// 托管前端静态（需先在 vue 目录执行 npm run build）
+if (serveFrontend) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+}
+
 async function seedIfEmpty() {
   const pool = getDb();
   const result = await pool.query('SELECT COUNT(*) AS n FROM users');
@@ -109,8 +130,18 @@ if (require.main === module) {
     await initDb();
     await initRedis();
     await seedIfEmpty();
-    app.listen(PORT, HOST, () => {
+    const server = http.createServer(app);
+    const cliWs = attachCliWs(server);
+    const imWs = attachImWs(server);
+    server.on('upgrade', (request, socket, head) => {
+      const urlPath = request.url?.split('?')[0] || '';
+      if (urlPath === cliWs.path) return cliWs.handleUpgrade(request, socket, head);
+      if (urlPath === imWs.path) return imWs.handleUpgrade(request, socket, head);
+      socket.destroy();
+    });
+    server.listen(PORT, HOST, () => {
       console.log(`JoyTrunk official backend on http://${HOST}:${PORT}`);
+      if (serveFrontend) console.log('Frontend (vue/dist) is served at /');
     });
   })().catch((e) => {
     console.error('Startup failed:', e);

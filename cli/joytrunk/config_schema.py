@@ -71,6 +71,10 @@ DEFAULT_CONFIG = {
         },
         "mcp_servers": {},
     },
+    "official": {
+        "url": None,  # 官网后端 base URL，如 http://localhost:32891
+        "api_key": None,  # joytrunk bind 后写入，用于 WebSocket 与 API 鉴权
+    },
 }
 
 # 兼容旧版：曾用 gatewayPort / defaultEmployeeId / customLLM 平铺在顶层
@@ -136,6 +140,8 @@ def migrate_from_legacy(data: dict) -> dict:
                 }
             else:
                 out["tools"] = dict(DEFAULT_CONFIG["tools"])
+        elif k == "official":
+            out["official"] = data.get("official") if isinstance(data.get("official"), dict) else dict(DEFAULT_CONFIG["official"])
         else:
             out[k] = data.get(k, v)
     return out

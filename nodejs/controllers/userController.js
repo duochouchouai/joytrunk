@@ -42,8 +42,8 @@ async function deactivate(req, res, next) {
 
 async function updateMe(req, res, next) {
   try {
-    const { name, avatar_url } = req.body || {};
-    const result = await userService.updateMe(req.ownerId, { name, avatar_url });
+    const { name, avatar_url, sync_joytrunk_chat } = req.body || {};
+    const result = await userService.updateMe(req.ownerId, { name, avatar_url, sync_joytrunk_chat });
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   } catch (e) {
