@@ -83,6 +83,30 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 - **记忆**：使用 MiniMax embedding 时需在 `memory.embedding` 中填 `group_id`（或设置环境变量 `MINIMAX_GROUP_ID`），否则易报 2013。
 - 修改 config 后需**重启 joytrunk server**（若在跑），gateway 无需重启。
 
+### 1.5 如何复现本次效果（完整步骤）
+
+按下列顺序执行，即可在官网 IM 中与 JoyTrunk 对话并看到回复（含思考过程折叠展示）。
+
+**前提**：本机已安装 Node.js 18+、Python 3.11+，并已执行 `cd cli && pip install -e ".[dev]" && joytrunk onboard`。PostgreSQL、Redis 已启动并已在 `nodejs/.env` 中配置（或使用默认）。
+
+| 步骤 | 操作 | 预期结果 |
+|------|------|----------|
+| 1 | 构建官网前端：`cd vue && npm run build` | 生成 `vue/dist` |
+| 2 | 启动官网后端（调试模式便于看日志）：`cd nodejs && npm run start:debug` | 控制台输出 `JoyTrunk official backend on http://localhost:32891`，浏览器访问 http://localhost:32891 可打开官网 |
+| 3 | 新开终端，绑定 CLI：`joytrunk bind` | 浏览器弹出绑定页，登录后点击「授权本机 JoyTrunk」，终端提示绑定成功；`~/.joytrunk/config.json` 中有 `official.api_key`、`official.url` |
+| 4 | 新开终端，启动 Gateway：`joytrunk gateway` | 终端输出连接官网 WebSocket、`auth_ok`、员工同步等；后端控制台出现 `[ws/cli] connection opened`、`[ws/cli] auth_ok user_id= N`、`employees synced count= 1`（或更多） |
+| 5 | 浏览器打开 http://localhost:32891/app/im（控制台 / IM 聊天） | 左侧为会话列表，若有「与 JoyTrunk 的对话」则选中；若无则通过「新建会话」创建类型为「与 JoyTrunk 对话」的会话 |
+| 6 | 在当前会话输入「你好」并发送 | 消息出现在气泡中；后端控制台出现 `[im] joytrunk message: pushing task ...`、`[pendingCliTasks] pushed task to CLI ...`；Gateway 终端出现任务入队、LLM 调用、`task_id=... completed` 等 |
+| 7 | 等待数秒 | 同一会话中收到一条**助手回复**气泡（JoyTrunk 助手）；后端控制台出现 `[ws/cli] task_result received ...`、`[ws/im] broadcastToUser user_id= N sockets= 1`（或大于 0）、`task_result broadcast done` |
+| 8 | 若 LLM 返回内容含 `<think>...</think>` 块 | 回复气泡**顶部**出现「展开思考过程 (1)」按钮，默认折叠；点击后展开思考内容，再次点击可收起 |
+
+**复现要点**：
+
+- **必须同时运行**：官网后端（nodejs）、CLI gateway（`joytrunk gateway`）；前端可由后端托管（方式 A）或单独 Vite（方式 B）。
+- **必须同一账号**：绑定 CLI 的账号与浏览器登录的官网账号一致，否则收不到该用户的 task 或 joytrunk_reply。
+- **IM 页需在发消息前打开**：这样 `/ws/im` 才会在 `loadCurrentUser` 后建立并鉴权，后端 `broadcastToUser` 时 `sockets > 0`，前端才能收到 `joytrunk_reply` 并展示回复。
+- **思考过程**：仅当模型返回内容中包含 `<think>...</think>` 时才会出现「展开思考过程」；若模型不返回 think 块，则只显示普通回复气泡。
+
 ---
 
 ## 2. 阶段一：绑定流程
