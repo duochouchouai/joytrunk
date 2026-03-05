@@ -1,6 +1,9 @@
 """
 A2A Client (plan phase 2): call Gateway Send Message / Get Task.
-Used by CLI and (phase 3) by agent tools. Gateway unavailable → fallback to direct run_employee_loop.
+Used by CLI and (phase 3) by agent tools.
+
+与 gateway 共用同一聊天组件：Gateway 可用时请求由 gateway worker 执行 run_employee_loop；
+不可用时返回 None，调用方（joytrunk chat / TUI）应回退为本地直接调用 run_employee_loop，保证同一套逻辑。
 """
 
 from __future__ import annotations

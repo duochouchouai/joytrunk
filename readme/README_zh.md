@@ -164,6 +164,7 @@ npm start
 | 文档 | 说明 |
 |------|------|
 | [readme/README_zh.md](README_zh.md) | 中文说明（安装、server、gateway、对话、Vue UI、日志）。 |
+| [readme/websocket.md](websocket.md) | 官网–CLI WebSocket 链路：绑定、/ws/cli、/ws/im、task_result、joytrunk_reply 及故障排查。 |
 | [product.md](../product.md) | 产品定义（负责人–员工模型、本地 UI 与官方站、流程、MVP、生存规则、默认模型 MINIMAX-M2.1）。 |
 | [agent.md](../agent.md) | 实现蓝图（cli/vue/nodejs、双后端、路径、入驻、进度）。 |
 | **CLI 命令指南** | `joytrunk docs` 打开在线指南；`joytrunk docs --local` 打开本地。源码：`cli/joytrunk/docs/`。 |

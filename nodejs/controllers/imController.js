@@ -14,13 +14,13 @@ async function listConversations(req, res, next) {
 }
 
 async function createConversation(req, res, next) {
-  const { type, peer_uid, title, member_uids } = req.body || {};
+  const { type, peer_uid, title, member_uids, employee_id } = req.body || {};
   if (type === 'direct') {
     if (peer_uid == null || (typeof peer_uid === 'string' && !peer_uid.trim())) {
       return res.status(400).json({ error: '单聊需提供 peer_uid' });
     }
     try {
-      const result = await imService.findOrCreateDirectConversation(req.ownerId, peer_uid);
+      const result = await imService.findOrCreateDirectConversation(req.ownerId, peer_uid, { employee_id });
       if (result.error) return res.status(result.status).json({ error: result.error });
       return res.status(201).json({ id: result.conversationId });
     } catch (e) {

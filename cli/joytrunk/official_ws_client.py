@@ -41,7 +41,7 @@ async def send_task_result(
     usage: dict[str, int] | None = None,
     conversation_id: str = "",
 ) -> None:
-    """Worker 完成后调用，将结果发回官网（若已连接）。"""
+    """Worker 完成后调用，将结果发回官网（若已连接）。不依赖 ws.closed（websockets 无此属性），直接尝试发送并捕获异常。"""
     payload = {
         "type": "task_result",
         "task_id": task_id,
@@ -53,11 +53,14 @@ async def send_task_result(
     if error:
         payload["error"] = error
     async with _lock:
-        if _ws is not None and not _ws.closed:
-            try:
-                await _ws.send(json.dumps(payload))
-            except Exception as e:
-                logger.warning("official_ws send_task_result failed: %s", e)
+        if _ws is None:
+            logger.warning("official_ws send_task_result skipped: no connection (task_id=%s)", task_id)
+            return
+        try:
+            await _ws.send(json.dumps(payload))
+            logger.info("official_ws send_task_result ok task_id=%s conv_id=%s", task_id, conversation_id)
+        except Exception as e:
+            logger.warning("official_ws send_task_result failed: %s", e)
 
 
 async def run_official_ws_client(
@@ -95,6 +98,23 @@ async def run_official_ws_client(
                     continue
                 backoff = RECONNECT_BASE
                 logger.info("official_ws connected")
+                # 同步当前 CLI 员工列表到云端，供 IM 获取并选择员工下发任务
+                try:
+                    from joytrunk.config_store import load_config, list_employees_from_config
+                    config = load_config()
+                    owner_id = (config.get("ownerId") or "").strip()
+                    employees = list_employees_from_config(owner_id) if owner_id else []
+                    payload = {
+                        "type": "employees",
+                        "employees": [
+                            {"id": (e.get("id") or "").strip(), "name": (e.get("name") or "").strip()}
+                            for e in employees
+                            if isinstance(e, dict) and (e.get("id") or "").strip()
+                        ],
+                    }
+                    await ws.send(json.dumps(payload))
+                except Exception as e:
+                    logger.warning("official_ws sync employees failed: %s", e)
                 last_ping = time.monotonic()
                 last_pong = last_ping
 

@@ -92,6 +92,7 @@ export const api = {
       poll: (code) => request('GET', `/api/cli/bind/poll?code=${encodeURIComponent(code)}`),
       confirm: (code) => request('POST', '/api/cli/bind/confirm', { code }),
     },
+    employees: () => request('GET', '/api/cli/employees'),
   },
   config: () => request('GET', '/api/config'),
   configPatchCustomLLM: (body) => request('PATCH', '/api/config/custom-llm', body),
@@ -119,4 +120,4 @@ export const api = {
   },
 };
 
-export { getToken, setToken, clearToken, getOwnerId };
+export { getToken, setToken, clearToken, getOwnerId, getBase };

@@ -83,7 +83,7 @@ describe('configSchema', () => {
 
   it('DEFAULT_CONFIG has gateway section with a2a_port and defaults', () => {
     assert.ok(DEFAULT_CONFIG.gateway);
-    assert.strictEqual(DEFAULT_CONFIG.gateway.a2a_port, 32891);
+    assert.strictEqual(DEFAULT_CONFIG.gateway.a2a_port, 32900);
     assert.strictEqual(DEFAULT_CONFIG.gateway.a2a_backend_url, null);
     assert.strictEqual(DEFAULT_CONFIG.gateway.worker_concurrency, 4);
     assert.strictEqual(DEFAULT_CONFIG.gateway.blocking_timeout_seconds, 300);
@@ -102,6 +102,6 @@ describe('configSchema', () => {
   it('migrateFromLegacy uses default gateway when missing', () => {
     const out = migrateFromLegacy({ version: 1, ownerId: 'o1' });
     assert.ok(out.gateway);
-    assert.strictEqual(out.gateway.a2a_port, 32891);
+    assert.strictEqual(out.gateway.a2a_port, 32900);
   });
 });

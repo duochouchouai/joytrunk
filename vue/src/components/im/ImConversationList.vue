@@ -140,7 +140,7 @@ function formatTime(val) {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
-.list { list-style: none; padding: 0.5rem 0; margin: 0; flex: 1; overflow: auto; }
+.list { list-style: none; padding: 0.5rem 0; margin: 0; flex: 1; min-height: 0; overflow: auto; }
 .im-conversation-list-headless .list {
   padding-top: 0.5rem;
 }

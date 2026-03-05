@@ -195,6 +195,9 @@ async function runMigrations(pool) {
     if (!convCols.includes('joytrunk_conversation')) {
       await client.query('ALTER TABLE conversations ADD COLUMN joytrunk_conversation BOOLEAN DEFAULT false');
     }
+    if (!convCols.includes('joytrunk_employee_id')) {
+      await client.query('ALTER TABLE conversations ADD COLUMN joytrunk_employee_id TEXT');
+    }
     await client.query(`
       CREATE TABLE IF NOT EXISTS pending_cli_tasks (
         id SERIAL PRIMARY KEY,
@@ -228,6 +231,16 @@ async function runMigrations(pool) {
     if (!columns.includes('sync_joytrunk_chat')) {
       await client.query('ALTER TABLE users ADD COLUMN sync_joytrunk_chat BOOLEAN DEFAULT true');
     }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_cli_employees (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        employee_id TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        synced_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, employee_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_cli_employees_user_id ON user_cli_employees (user_id)');
     const joytrunkBot = await client.query('SELECT id FROM users WHERE uid = 0');
     if (!joytrunkBot.rows[0]) {
       await client.query(

@@ -63,7 +63,7 @@ async function getConversationsForUser(userId) {
   return out;
 }
 
-async function findOrCreateDirectConversation(userId, peerUid) {
+async function findOrCreateDirectConversation(userId, peerUid, options) {
   const pool = getDb();
   const uidStr = peerUid != null ? String(peerUid).trim() : '';
   if (!uidStr) return { error: '请提供对方用户 uid', status: 400 };
@@ -96,9 +96,13 @@ async function findOrCreateDirectConversation(userId, peerUid) {
 
   const existingResult = await pool.query('SELECT id FROM conversations WHERE type = $1 AND peer_ids = $2', ['direct', peerIds]);
   const existing = existingResult.rows[0] ?? null;
+  const employeeId = options && options.employee_id != null ? String(options.employee_id).trim() : null;
   if (existing) {
     if (isJoytrunk) {
-      await pool.query('UPDATE conversations SET joytrunk_conversation = true WHERE id = $1', [existing.id]);
+      await pool.query(
+        'UPDATE conversations SET joytrunk_conversation = true, joytrunk_employee_id = COALESCE($2, joytrunk_employee_id) WHERE id = $1',
+        [existing.id, employeeId || null]
+      );
     }
     return { conversationId: existing.id };
   }
@@ -108,9 +112,9 @@ async function findOrCreateDirectConversation(userId, peerUid) {
     await client.query('BEGIN');
     const insertResult = await client.query(
       isJoytrunk
-        ? 'INSERT INTO conversations (type, peer_ids, creator_id, updated_at, joytrunk_conversation) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, true) RETURNING id'
+        ? 'INSERT INTO conversations (type, peer_ids, creator_id, updated_at, joytrunk_conversation, joytrunk_employee_id) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, true, $4) RETURNING id'
         : 'INSERT INTO conversations (type, peer_ids, creator_id, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id',
-      ['direct', peerIds, userId]
+      isJoytrunk ? ['direct', peerIds, userId, employeeId || null] : ['direct', peerIds, userId]
     );
     const convId = insertResult.rows[0].id;
     await client.query('INSERT INTO participants (conversation_id, user_id, role) VALUES ($1, $2, $3)', [convId, a, 'member']);
@@ -579,7 +583,7 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
   if (trimmed.length > MSG_MAX) return { error: '内容超长', code: 'CONTENT_TOO_LONG', status: 400 };
   const contentToSave = trimmed || (hasImage ? '[图片]' : '');
 
-  const convRow = (await pool.query('SELECT joytrunk_conversation FROM conversations WHERE id = $1', [conversationId])).rows[0];
+  const convRow = (await pool.query('SELECT joytrunk_conversation, joytrunk_employee_id FROM conversations WHERE id = $1', [conversationId])).rows[0];
   const userSyncRow = (await pool.query('SELECT sync_joytrunk_chat FROM users WHERE id = $1 AND deleted_at IS NULL', [userId])).rows[0];
   const isJoytrunkNoSync = convRow?.joytrunk_conversation && userSyncRow && userSyncRow.sync_joytrunk_chat === false;
 
@@ -624,11 +628,12 @@ async function sendMessage(conversationId, userId, content, mentionUserIds = nul
     const taskId = crypto.randomBytes(16).toString('hex');
     const payload = {
       owner_id: userId,
-      employee_id: '',
+      employee_id: (convRow.joytrunk_employee_id && String(convRow.joytrunk_employee_id).trim()) || '',
       content: contentToSave,
       session_key: 'owner',
       conversation_id: String(conversationId),
     };
+    console.log('[im] joytrunk message: pushing task user_id=', userId, 'task_id=', taskId, 'conversation_id=', conversationId);
     pendingCliTasks.pushOrEnqueueTask(userId, taskId, payload).catch((e) => console.error('pushOrEnqueueTask', e));
   }
 

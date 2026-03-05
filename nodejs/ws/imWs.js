@@ -19,6 +19,10 @@ function getImWsSetByUserId(userId) {
 
 function broadcastToUser(userId, data) {
   const set = userIdToImWs.get(Number(userId));
+  const count = set ? set.size : 0;
+  if (process.env.DEBUG_WS === '1' || (process.env.JOYTRUNK_DEBUG || '').toLowerCase().includes('ws')) {
+    console.log('[ws/im] broadcastToUser', 'user_id=', userId, 'sockets=', count, 'type=', data && data.type);
+  }
   if (!set) return;
   const payload = typeof data === 'string' ? data : JSON.stringify(data);
   for (const ws of set) {
@@ -46,8 +50,13 @@ function attachImWs(server) {
           ws.close(4003, 'auth required');
           return;
         }
-        const decoded = jwt.verify(token, config.JWT_SECRET, { algorithms: [config.JWT_ALGORITHM] });
-        const uid = decoded.sub != null ? decoded.sub : decoded.userId;
+        let uid = null;
+        if (typeof token === 'string' && token.length > 50 && token.includes('.')) {
+          const decoded = jwt.verify(token, config.JWT_SECRET, { algorithms: [config.JWT_ALGORITHM] });
+          uid = decoded.sub != null ? decoded.sub : decoded.userId;
+        } else if (config.ALLOW_X_OWNER_ID_FALLBACK && /^\d+$/.test(String(token).trim())) {
+          uid = Number(String(token).trim());
+        }
         if (uid == null) {
           ws.close(4003, 'invalid token');
           return;
@@ -55,6 +64,9 @@ function attachImWs(server) {
         userId = Number(uid);
         const set = getImWsSetByUserId(userId);
         set.add(ws);
+        if (process.env.DEBUG_WS === '1' || (process.env.JOYTRUNK_DEBUG || '').toLowerCase().includes('ws')) {
+          console.log('[ws/im] auth_ok user_id=', userId);
+        }
         ws.send(JSON.stringify({ type: 'auth_ok' }));
       } catch (e) {
         ws.close(4003, 'auth failed');

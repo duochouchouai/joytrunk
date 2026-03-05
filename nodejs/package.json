@@ -5,12 +5,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:debug": "cross-env DEBUG_WS=1 node server.js",
     "test": "node --test tests/*.js",
     "seed": "node scripts/seed-test-users.js",
     "debug:im": "node scripts/debug-im-visibility.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.5.0",

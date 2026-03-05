@@ -1,6 +1,7 @@
 /**
  * WebSocket /ws/cli：CLI 长连，鉴权（api_key -> user_id）、心跳、单用户单连接
  * 供 server.js 在 upgrade 时调用。
+ * 环境变量 DEBUG_WS=1 或 JOYTRUNK_DEBUG=ws 时打印连接/鉴权/关闭日志。
  */
 const { WebSocketServer } = require('ws');
 const { getDb } = require('../db/pg');
@@ -10,12 +11,19 @@ const { broadcastToUser } = require('./imWs');
 const CLI_WS_PATH = '/ws/cli';
 const HEARTBEAT_IDLE_MS = 90 * 1000; // 90s 无消息则关闭
 
+const debugWs = process.env.DEBUG_WS === '1' || (process.env.JOYTRUNK_DEBUG || '').toLowerCase().includes('ws');
+
+function log(...args) {
+  if (debugWs) console.log('[ws/cli]', ...args);
+}
+
 function attachCliWs(server) {
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on('connection', (ws, request) => {
     let userId = null;
     let heartbeatTimer = null;
+    log('connection opened');
 
     function clearHeartbeat() {
       if (heartbeatTimer) {
@@ -44,6 +52,7 @@ function attachCliWs(server) {
               .then((res) => {
                 const row = res.rows[0];
                 if (!row) {
+                  log('auth failed: invalid api_key');
                   ws.send(JSON.stringify({ type: 'auth_error', error: 'invalid api_key' }));
                   ws.close(4003, 'auth failed');
                   return;
@@ -57,6 +66,7 @@ function attachCliWs(server) {
                 }
                 userIdToCliWs.set(uid, ws);
                 userId = uid;
+                log('auth_ok user_id=', uid);
                 ws.send(JSON.stringify({ type: 'auth_ok' }));
                 const pendingCliTasks = require('../services/pendingCliTasks');
                 pendingCliTasks.getPendingTasks(uid).then((rows) => {
@@ -74,6 +84,7 @@ function attachCliWs(server) {
                 ws.close(5000);
               });
           } else {
+            log('auth failed: send auth first');
             ws.send(JSON.stringify({ type: 'auth_error', error: 'send auth first' }));
             ws.close(4003);
           }
@@ -83,12 +94,22 @@ function attachCliWs(server) {
           ws.send(JSON.stringify({ type: 'pong', ts: msg.ts }));
           return;
         }
+        if (debugWs) console.log('[ws/cli] received type=', msg.type);
+        if (msg.type === 'employees' && Array.isArray(msg.employees) && userId != null) {
+          const cliEmployees = require('../services/cliEmployees');
+          cliEmployees.saveCliEmployees(userId, msg.employees).then(() => {
+            if (debugWs) log('employees synced count=', msg.employees.length);
+          }).catch((e) => console.error('saveCliEmployees', e));
+          return;
+        }
         if (msg.type === 'task_result' && userId != null) {
           const taskId = msg.task_id;
           const status = msg.status;
           const content = msg.content || '';
           const error = msg.error;
           const conversationId = msg.conversation_id || msg.chat_id;
+          console.log('[ws/cli] task_result received task_id=', taskId, 'status=', status, 'conv_id=', conversationId, 'content_len=', content.length);
+          if (debugWs) log('task_result', taskId, status, 'conv=', conversationId, 'content_len=', content.length);
           broadcastToUser(userId, {
             type: 'joytrunk_reply',
             task_id: taskId,
@@ -97,6 +118,8 @@ function attachCliWs(server) {
             error: error || null,
             conversation_id: conversationId,
           });
+          console.log('[ws/cli] task_result broadcast done user_id=', userId);
+          if (debugWs) log('task_result broadcast done for user_id=', userId);
           if (conversationId && status === 'completed') {
             const imService = require('../services/im');
             imService.insertJoytrunkReply(userId, conversationId, content).catch((e) => console.error('insertJoytrunkReply', e));
@@ -111,6 +134,7 @@ function attachCliWs(server) {
     ws.on('message', handleMessage);
     ws.on('close', () => {
       clearHeartbeat();
+      log('connection closed', userId != null ? `user_id=${userId}` : '(no auth)');
       if (userId != null && userIdToCliWs.get(userId) === ws) {
         userIdToCliWs.delete(userId);
       }

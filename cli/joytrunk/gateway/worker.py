@@ -1,6 +1,9 @@
 """
 Worker: consume MessageBus, call run_employee_loop, write TaskStore (plan 10.4, 10.14).
 Runs N concurrent consumers (gateway.worker_concurrency).
+
+与 joytrunk chat 共用同一聊天组件：本 worker 唯一执行入口为 run_employee_loop；
+CLI chat 经 A2A 发到本 gateway 时也由此 run_employee_loop 处理，无其他聊天路径。
 """
 
 from __future__ import annotations
@@ -34,6 +37,10 @@ async def _process_one(inbound: InboundMessage, store: TaskStore) -> None:
         if inbound.channel == "official":
             from joytrunk.official_ws_client import send_task_result
             await send_task_result(task_id, "completed", final_content or "", None, usage, inbound.chat_id)
+        preview = (final_content or "")[:200]
+        if len(final_content or "") > 200:
+            preview += "..."
+        logger.info("task_id=%s completed reply_len=%d preview=%s", task_id, len(final_content or ""), preview)
     except Exception as e:
         logger.exception("Worker run_employee_loop failed for task_id=%s", task_id)
         agent_msg = Message(role="agent", parts=[Part(type="text", text="")])

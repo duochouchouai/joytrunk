@@ -6,25 +6,67 @@
     </div>
     <div class="bubble">
       <template v-if="message.image_url">
+        <div v-if="parsed.thinkBlocks.length" class="think-section">
+          <button
+            type="button"
+            class="think-toggle"
+            :aria-expanded="thinkExpanded"
+            @click="thinkExpanded = !thinkExpanded"
+          >
+            <span class="think-toggle-icon">{{ thinkExpanded ? '▼' : '▶' }}</span>
+            <span class="think-toggle-label">{{ thinkExpanded ? '收起思考过程' : '展开思考过程' }}</span>
+            <span class="think-toggle-count">({{ parsed.thinkBlocks.length }})</span>
+          </button>
+          <div v-show="thinkExpanded" class="think-content">
+            <div
+              v-for="(block, i) in parsed.thinkBlocks"
+              :key="'t-' + i"
+              class="think-block"
+            >{{ block }}</div>
+          </div>
+        </div>
         <a :href="message.image_url" target="_blank" rel="noopener" class="bubble-image-wrap">
           <img v-if="!imageError" :src="message.image_url" alt="" class="bubble-image" @error="imageError = true" />
           <span v-else class="bubble-image-fail">[图片]</span>
         </a>
-        <span v-if="message.content" class="text">
+        <template v-if="message.content">
+          <span v-if="parsed.visible" class="text">
+            <span
+              v-for="(part, i) in partsForText(parsed.visible)"
+              :key="'v-' + i"
+              :class="{ mention: part.mention }"
+            >{{ part.text }}</span>
+          </span>
+        </template>
+      </template>
+      <template v-else>
+        <div v-if="parsed.thinkBlocks.length" class="think-section">
+          <button
+            type="button"
+            class="think-toggle"
+            :aria-expanded="thinkExpanded"
+            @click="thinkExpanded = !thinkExpanded"
+          >
+            <span class="think-toggle-icon">{{ thinkExpanded ? '▼' : '▶' }}</span>
+            <span class="think-toggle-label">{{ thinkExpanded ? '收起思考过程' : '展开思考过程' }}</span>
+            <span class="think-toggle-count">({{ parsed.thinkBlocks.length }})</span>
+          </button>
+          <div v-show="thinkExpanded" class="think-content">
+            <div
+              v-for="(block, i) in parsed.thinkBlocks"
+              :key="'t-' + i"
+              class="think-block"
+            >{{ block }}</div>
+          </div>
+        </div>
+        <span v-if="parsed.visible" class="text">
           <span
-            v-for="(part, i) in contentParts"
-            :key="i"
+            v-for="(part, i) in partsForText(parsed.visible)"
+            :key="'v-' + i"
             :class="{ mention: part.mention }"
           >{{ part.text }}</span>
         </span>
       </template>
-      <span v-else class="text">
-        <span
-          v-for="(part, i) in contentParts"
-          :key="i"
-          :class="{ mention: part.mention }"
-        >{{ part.text }}</span>
-      </span>
       <span class="time">{{ formatTime(message.created_at) }}</span>
     </div>
     <div class="avatar-wrap self-avatar" v-if="isSelf">
@@ -46,6 +88,7 @@ const props = defineProps({
 
 const avatarError = ref(false);
 const imageError = ref(false);
+const thinkExpanded = ref(false);
 const displayInitial = computed(() => {
   const s = (props.initial || '?').trim();
   return s ? s.charAt(0).toUpperCase() : '?';
@@ -53,17 +96,29 @@ const displayInitial = computed(() => {
 
 const MENTION_EVERYONE = '@所有人';
 const MENTION_REG = /(@所有人|@[^\s@]+)/g;
+const THINK_REG = /<think>([\s\S]*?)<\/think>/gi;
 
 function isMentionPart(text) {
   return text === MENTION_EVERYONE || (text.startsWith('@') && /^@[^\s@]+$/.test(text));
 }
 
-const contentParts = computed(() => {
+/** 解析 content：抽出 <think> 块，得到可见文本 + think 块列表 */
+const parsed = computed(() => {
   const content = props.message?.content;
-  if (typeof content !== 'string') return [];
-  const parts = content.split(MENTION_REG).filter((p) => p.length > 0);
-  return parts.map((text) => ({ text, mention: isMentionPart(text) }));
+  if (typeof content !== 'string') return { visible: '', thinkBlocks: [] };
+  const thinkBlocks = [];
+  const visible = content.replace(THINK_REG, (_, inner) => {
+    thinkBlocks.push(inner.trim());
+    return '';
+  }).trim();
+  return { visible, thinkBlocks };
 });
+
+function partsForText(text) {
+  if (!text) return [];
+  const parts = text.split(MENTION_REG).filter((p) => p.length > 0);
+  return parts.map((t) => ({ text: t, mention: isMentionPart(t) }));
+}
 
 function formatTime(val) {
   if (!val) return '';
@@ -135,5 +190,70 @@ function formatTime(val) {
 .bubble-image-fail {
   font-size: 0.875rem;
   opacity: 0.8;
+}
+.think-section {
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 0.4rem;
+}
+.im-message.self .bubble .think-section {
+  border-bottom-color: rgba(255, 255, 255, 0.25);
+}
+.think-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--jt-text-muted);
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.im-message.self .bubble .think-toggle {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.15);
+}
+.think-toggle:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--jt-text);
+}
+.im-message.self .bubble .think-toggle:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.think-toggle-icon {
+  font-size: 0.65rem;
+  opacity: 0.9;
+}
+.think-toggle-label {
+  font-weight: 500;
+}
+.think-toggle-count {
+  opacity: 0.8;
+}
+.think-content {
+  margin-top: 0.4rem;
+  margin-bottom: 0.25rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.im-message.self .bubble .think-content {
+  background: rgba(255, 255, 255, 0.15);
+}
+.think-block {
+  margin-bottom: 0.35rem;
+}
+.think-block:last-child {
+  margin-bottom: 0;
 }
 </style>
