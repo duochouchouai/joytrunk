@@ -39,10 +39,14 @@ function pushOrEnqueueTask(userId, taskId, payload) {
   if (ws && ws.readyState === 1) {
     try {
       ws.send(JSON.stringify({ type: 'task', task_id: taskId, ...payload }));
+      console.log('[pendingCliTasks] pushed task to CLI user_id=', userId, 'task_id=', taskId, 'conv_id=', payload.conversation_id);
       return Promise.resolve(); // 已推送，不入队
     } catch (e) {
+      console.log('[pendingCliTasks] ws.send failed', e.message);
       // 推送失败则入队
     }
+  } else {
+    console.log('[pendingCliTasks] no CLI ws for user_id=', userId, '(enqueueing) task_id=', taskId);
   }
   return enqueueTask(userId, taskId, payload);
 }

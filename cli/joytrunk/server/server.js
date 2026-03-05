@@ -473,7 +473,7 @@ function getA2aBaseUrl() {
     return gw.a2a_backend_url.replace(/\/$/, '');
   }
   const host = (c.server && c.server.host) || '127.0.0.1';
-  const port = Number(gw.a2a_port) || 32891;
+  const port = Number(gw.a2a_port) || 32900;
   return `http://${host}:${port}`;
 }
 
@@ -486,6 +486,7 @@ app.post('/api/employees/:id/chat', async (req, res) => {
 
   const baseUrl = getA2aBaseUrl();
   if (baseUrl) {
+    // 与 gateway / joytrunk chat 共用同一聊天组件：仅通过 A2A 由 gateway 执行 run_employee_loop，不在此进程实现聊天逻辑
     const timeoutMs = (config.loadConfig().gateway && config.loadConfig().gateway.blocking_timeout_seconds) || 300;
     const sendUrl = `${baseUrl}/a2a/v1/tenants/${encodeURIComponent(ownerId)}/employees/${encodeURIComponent(emp.id)}/message:send`;
     const body = {
@@ -546,36 +547,78 @@ app.post('/api/employees/:id/chat', async (req, res) => {
 
 // ---------- JoyTrunk Router 代理（未配置自有 LLM 时 CLI/前端通过此端点调用大模型）----------
 app.post('/api/llm/chat/completions', async (req, res) => {
-  const routerUrl = process.env.JOYTRUNK_ROUTER_URL || (config.loadConfig().providers && config.loadConfig().providers.joytrunk && config.loadConfig().providers.joytrunk.apiBase);
-  if (!routerUrl || typeof routerUrl !== 'string' || !routerUrl.trim()) {
+  const c = config.loadConfig();
+  const routerUrl = process.env.JOYTRUNK_ROUTER_URL || (c.providers && c.providers.joytrunk && c.providers.joytrunk.apiBase);
+  const routerUrlTrimmed = (routerUrl && typeof routerUrl === 'string' && routerUrl.trim()) ? routerUrl.trim() : null;
+
+  // 优先使用 JoyTrunk Router
+  if (routerUrlTrimmed) {
+    const ownerId = req.headers['x-owner-id'] || req.headers['authorization'] || c.ownerId;
+    const url = routerUrlTrimmed.replace(/\/$/, '') + '/chat/completions';
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(ownerId ? { 'X-Owner-Id': ownerId } : {}),
+        },
+        body: JSON.stringify(req.body || {}),
+      });
+      const text = await resp.text();
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: text || 'Router 请求失败' });
+      }
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return res.status(502).json({ error: 'Router 返回非 JSON' });
+      }
+      return res.json(data);
+    } catch (e) {
+      return res.status(502).json({ error: e.message || '转发 JoyTrunk Router 失败' });
+    }
+  }
+
+  // 未配置 Router 时复用自有 LLM（providers.custom）对话逻辑，与 CLI/网页测试过的路径一致
+  const custom = c.providers && c.providers.custom ? c.providers.custom : c.customLLM || null;
+  const baseUrl = (custom && (custom.apiBase || custom.baseUrl)) ? String(custom.apiBase || custom.baseUrl).trim() : null;
+  if (!baseUrl) {
     return res.status(503).json({
-      error: 'JoyTrunk Router 未配置。请设置环境变量 JOYTRUNK_ROUTER_URL 或在配置中设置 providers.joytrunk.apiBase，或使用自有 LLM。',
+      error: 'JoyTrunk Router 未配置。请设置环境变量 JOYTRUNK_ROUTER_URL 或在配置中设置 providers.joytrunk.apiBase；或配置自有 LLM（providers.custom.apiBase + apiKey）后使用。',
     });
   }
-  const ownerId = req.headers['x-owner-id'] || req.headers['authorization'] || config.loadConfig().ownerId;
-  const url = routerUrl.replace(/\/$/, '') + '/chat/completions';
+  const apiKey = (custom && custom.apiKey) ? String(custom.apiKey) : '';
+  const url = baseUrl.replace(/\/$/, '') + '/chat/completions';
+  if (!url.startsWith('http')) {
+    return res.status(503).json({ error: 'providers.custom.apiBase 需为完整 URL（如 https://api.openai.com/v1）' });
+  }
+  const body = { ...(req.body || {}) };
+  if (custom && custom.model && String(custom.model).trim()) {
+    body.model = String(custom.model).trim();
+  }
   try {
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(ownerId ? { 'X-Owner-Id': ownerId } : {}),
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
-      body: JSON.stringify(req.body || {}),
+      body: JSON.stringify(body),
     });
     const text = await resp.text();
     if (!resp.ok) {
-      return res.status(resp.status).json({ error: text || 'Router 请求失败' });
+      return res.status(resp.status).json({ error: text || 'LLM 请求失败' });
     }
     let data;
     try {
       data = JSON.parse(text);
     } catch {
-      return res.status(502).json({ error: 'Router 返回非 JSON' });
+      return res.status(502).json({ error: 'LLM 返回非 JSON' });
     }
     res.json(data);
   } catch (e) {
-    res.status(502).json({ error: e.message || '转发 JoyTrunk Router 失败' });
+    res.status(502).json({ error: e.message || '调用自有 LLM 失败' });
   }
 });
 

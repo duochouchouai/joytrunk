@@ -158,7 +158,7 @@ class SearchMemoryTool(Tool):
                     if llm_params["source"] == "custom":
                         r = await provider_chat(llm_params["base_url"], llm_params["api_key"], llm_params["model"], msgs)
                     else:
-                        r = await chat_via_router(llm_params["gateway_base_url"], llm_params["owner_id"], llm_params["model"], msgs)
+                        r = await chat_via_router(llm_params["server_base_url"], llm_params["owner_id"], llm_params["model"], msgs)
                     return (r.content or "").strip()
                 llm_chat = _chat
             if (method == "rag" and not embed_client) or (method == "llm" and not llm_chat):

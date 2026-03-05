@@ -9,12 +9,13 @@
         @new-conversation="showCreate = true"
       />
       <ImChatPane
+        ref="chatPaneRef"
         :conversation-id="currentId"
         :current-user-id="currentUserId"
         :conversation="currentConversation"
         :mock-messages="currentMockMessages"
         :me="me"
-        :sender-map="mockSenderMap"
+        :sender-map="imSenderMap"
         @read="loadConversations"
         @open-group-info="showGroupInfo = true"
       />
@@ -51,12 +52,13 @@
           </template>
           <ImChatPane
             v-else
+            ref="chatPaneRef"
             :conversation-id="currentId"
             :current-user-id="currentUserId"
             :conversation="currentConversation"
             :mock-messages="currentMockMessages"
             :me="me"
-            :sender-map="mockSenderMap"
+            :sender-map="imSenderMap"
             :show-back="true"
             @read="loadConversations"
             @open-group-info="showGroupInfo = true"
@@ -84,9 +86,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { api } from '../api';
+import { api, getToken, getBase } from '../api';
 import MobileTitleBar from '../components/MobileTitleBar.vue';
 import ImConversationList from '../components/im/ImConversationList.vue';
 import ImChatPane from '../components/im/ImChatPane.vue';
@@ -96,6 +98,8 @@ import ImGroupInfo from '../components/im/ImGroupInfo.vue';
 const { t } = useI18n();
 const isMobile = inject('isMobile', ref(false));
 const searchQuery = ref('');
+const chatPaneRef = ref(null);
+let imWs = null;
 
 /** 左侧 mock 会话列表（类微信，无后端会话时展示） */
 const MOCK_CONVERSATIONS = [
@@ -151,6 +155,9 @@ const mockSenderMap = {
   0: { name: 'JoyTrunk 助手' },
   2: { name: '张三' },
 };
+
+/** 实际会话也需能显示 JoyTrunk 回复（sender_id=0），与 mock 共用 0 的展示名 */
+const imSenderMap = computed(() => ({ 0: { name: 'JoyTrunk 助手' }, ...mockSenderMap }));
 
 const conversations = ref([]);
 const currentId = ref(null);
@@ -235,21 +242,83 @@ function onLeaveOrDismiss() {
   });
 }
 
+function connectImWs() {
+  // 优先 localStorage token；无 token 时用当前用户 id 作 fallback（后端 ALLOW_X_OWNER_ID_FALLBACK 时接受数字）
+  const token = getToken() || (currentUserId.value != null ? String(currentUserId.value) : null);
+  if (!token) return;
+  const base = getBase();
+  let wsUrl;
+  if (!base) {
+    const proto = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrl = `${proto}//${typeof location !== 'undefined' ? location.host : ''}/ws/im`;
+  } else {
+    const isSecure = base.startsWith('https');
+    const host = base.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    wsUrl = (isSecure ? 'wss:' : 'ws:') + '//' + host + '/ws/im';
+  }
+  try {
+    imWs = new WebSocket(wsUrl);
+    imWs.onopen = () => {
+      imWs.send(JSON.stringify({ type: 'auth', token }));
+    };
+    imWs.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'auth_ok') return;
+        if (msg.type === 'joytrunk_reply') {
+          const convMatch = currentId.value != null && String(msg.conversation_id) === String(currentId.value);
+          if (typeof console !== 'undefined' && console.log) {
+            console.log('[IM] joytrunk_reply', 'conv_id=', msg.conversation_id, 'currentId=', currentId.value, 'match=', convMatch, 'len=', (msg.content || '').length);
+          }
+          if (convMatch) {
+            const raw = chatPaneRef.value;
+            const pane = Array.isArray(raw) ? raw.find((p) => p && typeof p.appendJoytrunkReply === 'function') : raw;
+            if (pane && typeof pane.appendJoytrunkReply === 'function') {
+              pane.appendJoytrunkReply(msg.content || '', msg.status, msg.error);
+            }
+          }
+        }
+      } catch (_) {}
+    };
+    imWs.onclose = () => {
+      imWs = null;
+    };
+    imWs.onerror = () => {}
+  } catch (_) {}
+}
+
 onMounted(() => {
-  loadCurrentUser();
+  loadCurrentUser().then(() => {
+    connectImWs();
+  });
   loadConversations();
+});
+
+onUnmounted(() => {
+  if (imWs) {
+    imWs.close();
+    imWs = null;
+  }
 });
 </script>
 
 <style scoped>
 .im-page {
   display: flex;
+  flex: 1;
+  min-height: 0;
   height: 100%;
-  min-height: 60vh;
   font-family: 'Segoe UI', system-ui, sans-serif;
   background: var(--jt-bg);
   overflow: hidden;
   border-radius: 0;
+}
+.im-page :deep(.im-chat-pane) {
+  min-height: 0;
+}
+.im-page :deep(.im-conversation-list) {
+  flex-shrink: 0;
+  min-height: 0;
 }
 .im-page-mobile {
   display: block;

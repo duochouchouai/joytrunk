@@ -45,11 +45,13 @@
       </div>
     </aside>
     <main class="main" :class="{ 'main-mobile': isMobile }">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
+      <div class="main-inner">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </div>
     </main>
     <!-- 移动端底部 TabBar：聊天、概览、Token、设置 -->
     <nav v-if="isMobile" class="tabbar" role="tablist">
@@ -158,8 +160,10 @@ onMounted(() => {
 <style scoped>
 .layout {
   display: flex;
+  height: 100vh;
   min-height: 100vh;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
 }
 .sidebar {
   width: var(--jt-sidebar-w);
@@ -306,9 +310,22 @@ onMounted(() => {
 
 .main {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   padding: 1.5rem 2rem;
   background: var(--jt-bg);
+}
+.main-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.main-inner > * {
+  flex: 1;
+  min-height: 0;
 }
 .main-mobile {
   padding: 0;

@@ -164,6 +164,7 @@ To run the full stack (CLI, web UI, or Vue dev), follow **Getting started** abov
 | Document | Description |
 |----------|-------------|
 | [readme/README_zh.md](readme/README_zh.md) | Quick start in Chinese (install, server, gateway, chat, Vue UI, logs). |
+| [readme/websocket.md](readme/websocket.md) | Official site–CLI WebSocket flow: bind, /ws/cli, /ws/im, task_result, joytrunk_reply, and troubleshooting. |
 | [product.md](product.md) | Product definition (owner–employee model, local UI vs official website, flows, MVP, survival rules, default model MINIMAX-M2.1). |
 | [agent.md](agent.md)   | Implementation blueprint (cli/vue/nodejs, dual backend, paths, onboarding, progress). |
 | **CLI command guide** | `joytrunk docs` opens the online guide; `joytrunk docs --local` for local. Source: `cli/joytrunk/docs/`. |

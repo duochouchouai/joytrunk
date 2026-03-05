@@ -130,6 +130,26 @@ const props = defineProps({
 
 const emit = defineEmits(['read', 'openGroupInfo', 'back']);
 
+/** JoyTrunk 助手在 IM 中的 sender_id（与后端 uid=0 对应，用于头像/名称） */
+const JOYTRUNK_SENDER_ID = 0;
+
+/** 由父组件在收到 /ws/im 的 joytrunk_reply 时调用，追加一条助手回复到当前会话 */
+function appendJoytrunkReply(content, status, error) {
+  if (!props.conversationId) return;
+  const text = status === 'completed' ? (content || '') : (error || content || '请求失败');
+  messages.value.push({
+    id: `joytrunk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    sender_id: JOYTRUNK_SENDER_ID,
+    content: text,
+    created_at: new Date().toISOString(),
+  });
+  nextTick(() => {
+    if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+  });
+}
+
+defineExpose({ appendJoytrunkReply });
+
 const { t } = useI18n();
 const scrollRef = ref(null);
 const messages = ref([]);
@@ -564,7 +584,14 @@ async function sendMessage() {
 </script>
 
 <style scoped>
-.im-chat-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--jt-bg); }
+.im-chat-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--jt-bg);
+}
 .chat-header {
   flex-shrink: 0;
   padding: 0.75rem 1.25rem;
@@ -621,6 +648,8 @@ async function sendMessage() {
 .btn-group-info:hover { border-color: var(--jt-primary); background: color-mix(in srgb, var(--jt-primary) 8%, transparent); }
 .messages-wrap {
   flex: 1;
+  min-height: 0;
+  max-height: calc(100vh - 200px);
   overflow: auto;
   padding: 1.25rem 1.5rem;
   display: flex;

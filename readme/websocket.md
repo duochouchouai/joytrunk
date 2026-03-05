@@ -14,6 +14,7 @@
 | Redis | 绑定会话（bind code）存储 | 默认 6379，`nodejs/.env` 中 `REDIS_URL` 或 `REDIS_HOST` |
 | 官网后端 | Node.js（Express + WebSocket） | 默认 `http://localhost:32891` |
 | 官网前端 | Vue 3；开发用 Vite 或构建后由后端托管 | 开发：Vite `http://localhost:32892`；生产/单进程：后端 32891 托管 `vue/dist` |
+| CLI A2A Gateway | joytrunk gateway（Python，接官网任务、跑 agent） | 默认 `127.0.0.1:32900`（`gateway.a2a_port`），与官网 32891 分离避免冲突 |
 | CLI | Python joytrunk 包 | 本地，需先 `joytrunk onboard` |
 
 ### 1.2 启动方式（二选一）
@@ -44,6 +45,43 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 
 - **官网后端**（`nodejs/.env`）：`DATABASE_URL`、`REDIS_URL`、`PORT`。`OFFICIAL_FRONTEND_URL` 为绑定页 base URL，默认 `http://localhost:32891`（后端托管时与后端同源）；开发时若用 Vite 可设为 `http://localhost:32892`。
 - **CLI**：默认请求 `http://localhost:32891`；可在 `~/.joytrunk/config.json` 的 `official.url` 或环境变量 `JOYTRUNK_OFFICIAL_URL` 覆盖。对 localhost/127.0.0.1 会跳过代理（避免 `HTTP_PROXY` 导致 502）。
+
+### 1.4 CLI 本地配置（~/.joytrunk/config.json）与 MiniMax
+
+官网 IM 发消息给 CLI 时，gateway 会通过 joytrunk server（默认 32890）调用大模型；未配置 JoyTrunk Router 时使用**自有 LLM**（`providers.custom`）。若使用 **MiniMax**，需在 `~/.joytrunk/config.json` 中配置对话模型 ID（MiniMax 不支持 `gpt-3.5-turbo`，需填写其文档中的模型名）。
+
+**示例（MiniMax 文本对话 + 记忆 embedding）：**
+
+```json
+{
+  "providers": {
+    "custom": {
+      "apiBase": "https://api.minimaxi.com/v1",
+      "apiKey": "你的 MiniMax API Key",
+      "model": "abab6.5s-32k"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "abab6.5s-32k",
+      "maxTokens": 2048,
+      "temperature": 0.1
+    }
+  },
+  "memory": {
+    "embedding": {
+      "base_url": "https://api.minimaxi.com/v1",
+      "api_key": "你的 MiniMax API Key",
+      "embed_model": "embo-01",
+      "group_id": "你的 GroupId"
+    }
+  }
+}
+```
+
+- **对话模型**：`providers.custom.model` 与 `agents.defaults.model` 建议一致，且为 MiniMax 支持的 ID，如 `abab6.5s-32k`、`abab5.5s` 等（以 MiniMax 开放平台文档为准）。
+- **记忆**：使用 MiniMax embedding 时需在 `memory.embedding` 中填 `group_id`（或设置环境变量 `MINIMAX_GROUP_ID`），否则易报 2013。
+- 修改 config 后需**重启 joytrunk server**（若在跑），gateway 无需重启。
 
 ---
 
@@ -77,19 +115,25 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 ### 3.1 如何运行
 
 1. 确保已完成阶段一（`joytrunk bind` 且 config 中有 `official.api_key`）。
-2. 启动官网后端（含 `/ws/cli`）。
+2. 启动官网后端（含 `/ws/cli`）。若需在后端控制台看到 CLI 连接/鉴权/断开日志，请用**调试模式**：
+   ```bash
+   cd nodejs
+   npm run start:debug
+   ```
+   或设置环境变量后启动：`DEBUG_WS=1 node server.js`（Windows 下可 `set DEBUG_WS=1&& node server.js`）。
 3. 在另一终端执行：
    ```bash
    joytrunk gateway
    ```
-4. 网关启动后会连官网 WebSocket（`ws://localhost:32891/ws/cli`），发送 `auth` 后应收到 `auth_ok`。
+4. 网关启动后会连官网 WebSocket（`ws://<official.url>/ws/cli`，默认 `ws://localhost:32891/ws/cli`），发送 `auth` 后应收到 `auth_ok`。
 
 ### 3.2 如何测试
 
-- **后端日志**：CLI 连上后，后端控制台可打日志（若已加）或通过「有 CLI 连接」的接口/状态判断。
-- **断线重连**：关掉官网后端或断网数秒再恢复，CLI 应自动重连（指数退避）；恢复后日志应有「official_ws connected」类输出。
+- **后端日志**：使用 `npm run start:debug` 时，CLI 连上后控制台会打印 `[ws/cli] connection opened`、`[ws/cli] auth_ok user_id= <id>`；断开时打印 `[ws/cli] connection closed user_id=<id>`。未开调试时后端默认不打印这些日志。
+- **员工同步**：CLI 鉴权成功后会自动发送当前本机员工列表（`type: "employees"`），后端写入表 `user_cli_employees`；调试模式下会打印 `employees synced count= N`。IM 可通过 **GET /api/cli/employees**（需登录）获取该用户已同步的 CLI 员工列表，用于选择员工并下发带 `employee_id` 的任务。
+- **断线重连**：关掉官网后端或断网数秒再恢复，CLI 应自动重连（指数退避）；恢复后 CLI 会再次同步员工列表。
 - **心跳**：CLI 每约 30 秒发 `ping`，后端回 `pong`；超时未收 pong 则 CLI 视为断开并重连。
-- **鉴权**：用脚本连 `ws://localhost:32891/ws/cli` 并首帧发 `{"type":"auth","api_key":"invalid"}`，应收到 `auth_error` 或连接被关闭。
+- **鉴权**：用脚本连 `ws://localhost:32891/ws/cli` 并首帧发 `{"type":"auth","api_key":"invalid"}`，应收到 `auth_error` 或连接被关闭；start:debug 下会打印 `auth failed: invalid api_key`。
 
 ---
 
@@ -112,7 +156,10 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 ### 4.3 IM WebSocket（/ws/im）
 
 - 前端连接 `ws://localhost:32891/ws/im`，首帧发送：`{ "type": "auth", "token": "<JWT>" }`（与登录态一致）。
+- **鉴权**：`token` 可为 JWT，或开发环境下为数字用户 ID 字符串（后端 `ALLOW_X_OWNER_ID_FALLBACK` 时接受）。IM 页会在 `loadCurrentUser` 后再建立连接，无 JWT 时可用当前用户 ID 作为 token，以便后端将连接登记到对应用户，从而收到 `joytrunk_reply` 推送。
 - 收到 `auth_ok` 后即可接收服务端推送；收到 `type: "joytrunk_reply"` 时可根据 `conversation_id` 更新对应会话的回复。
+- **回复展示**：若 LLM 返回内容中包含 `<think>...</think>` 块（如 DeepSeek-R1 等思考模型），前端会将其折叠为「展开思考过程」按钮，默认不显示，点击后可展开/收起。
+- **故障**：若后端日志出现 `broadcastToUser user_id= N sockets= 0`，说明该用户没有已鉴权的 `/ws/im` 连接；请确认 IM 页已打开且已完成 auth（JWT 或数字 ID），或检查前端是否在 `loadCurrentUser` 之后再调用 `connectImWs`。
 
 ---
 
@@ -139,7 +186,8 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 | 绑定页打开后端口错 | 后端生成的 bind_url 用了错误的前端 base | 确认 `OFFICIAL_FRONTEND_URL`（默认 32891）；后端托管前端时不要设为 32892 |
 | WebSocket 连不上 / 立刻断 | 后端未起；端口或 path 错误；防火墙 | 确认后端已起；CLI 的 `official.url` 与后端一致（ws 由 http 自动替换） |
 | 收不到任务 | 会话未标为 JoyTrunk；user_id 与绑定账号不一致 | 创建会话时 `peer_uid: "joytrunk"`；登录账号与 CLI 绑定账号一致 |
-| 收不到 joytrunk_reply | 前端未连 `/ws/im` 或未处理 `joytrunk_reply` | 确认 IM 页建立 `/ws/im` 并解析 `type: "joytrunk_reply"` |
+| 收不到 joytrunk_reply | 前端未连 `/ws/im` 或未处理 `joytrunk_reply`；或该用户无已鉴权 IM 连接（sockets=0） | 确认 IM 页建立 `/ws/im` 并解析 `type: "joytrunk_reply"`；auth 使用 JWT 或（开发环境）数字用户 ID；IM 页在 loadCurrentUser 后再 connectImWs |
+| Gateway 不向官网回传 task_result | 官方 WS 客户端误判连接已关闭（如依赖不存在的 `ws.closed`） | Gateway 使用 `official_ws_client.send_task_result` 时仅判断 `_ws is not None` 并 try/except 发送；websockets 库无 `closed` 属性 |
 
 ---
 
@@ -159,9 +207,13 @@ joytrunk gateway   # 绑定后需启动，以便连 /ws/cli
 - **WebSocket /ws/cli**  
   首帧：`{ "type": "auth", "api_key": "jt_..." }`  
   服务端回：`{ "type": "auth_ok" }`  
+  客户端同步员工（鉴权成功后发送）：`{ "type": "employees", "employees": [ { "id": "<employee_id>", "name": "..." } ] }`，后端写入 `user_cli_employees` 表，供 IM 通过 GET /api/cli/employees 获取。  
   心跳：客户端 `{ "type": "ping", "ts": ... }`，服务端 `{ "type": "pong", "ts": ... }`  
   服务端下发任务：`{ "type": "task", "task_id", "owner_id", "employee_id", "content", "session_key", "conversation_id" }`  
   客户端上报：`{ "type": "task_result", "task_id", "status", "content", "conversation_id", "error?" }`
+
+- **GET /api/cli/employees**（需登录）  
+  响应：`{ "employees": [ { "id": "<employee_id>", "name": "..." } ] }`，为当前用户已同步的 CLI 员工列表；IM 发消息时可选择员工并将 `employee_id` 带入任务 payload。
 
 - **WebSocket /ws/im**  
   首帧：`{ "type": "auth", "token": "<JWT>" }`  

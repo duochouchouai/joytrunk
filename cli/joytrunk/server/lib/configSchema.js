@@ -9,7 +9,7 @@ const DEFAULT_CONFIG = {
   ownerId: null,
   server: { host: 'localhost', port: 32890 },
   gateway: {
-    a2a_port: 32891,
+    a2a_port: 32900,
     a2a_backend_url: null,
     worker_concurrency: 4,
     blocking_timeout_seconds: 300,
@@ -32,7 +32,7 @@ function migrateFromLegacy(data) {
   const channels = data.channels && typeof data.channels === 'object' ? data.channels : DEFAULT_CONFIG.channels;
   const gateway = data.gateway && typeof data.gateway === 'object'
     ? {
-        a2a_port: data.gateway.a2a_port ?? 32891,
+        a2a_port: data.gateway.a2a_port ?? 32900,
         a2a_backend_url: data.gateway.a2a_backend_url ?? null,
         worker_concurrency: data.gateway.worker_concurrency ?? 4,
         blocking_timeout_seconds: data.gateway.blocking_timeout_seconds ?? 300,

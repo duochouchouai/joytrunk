@@ -21,7 +21,7 @@ def main() -> None:
     config = load_config()
     gateway = config.get("gateway") or {}
     official = config.get("official") or {}
-    a2a_port = int(gateway.get("a2a_port", 32891))
+    a2a_port = int(gateway.get("a2a_port", 32900))
     worker_concurrency = int(gateway.get("worker_concurrency", 4))
     blocking_timeout = int(gateway.get("blocking_timeout_seconds", 300))
     ttl = int(gateway.get("task_store_ttl_seconds", 86400))

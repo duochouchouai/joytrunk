@@ -11,7 +11,7 @@ from joytrunk.config_schema import DEFAULT_CONFIG, migrate_from_legacy
 def test_default_config_has_gateway_section():
     assert "gateway" in DEFAULT_CONFIG
     gw = DEFAULT_CONFIG["gateway"]
-    assert gw["a2a_port"] == 32891
+    assert gw["a2a_port"] == 32900
     assert gw.get("a2a_backend_url") is None
     assert gw["worker_concurrency"] == 4
     assert gw["blocking_timeout_seconds"] == 300
@@ -31,11 +31,11 @@ def test_migrate_from_legacy_preserves_gateway():
 def test_migrate_from_legacy_no_gateway_uses_defaults():
     raw = {"version": 1, "ownerId": "o1"}
     out = migrate_from_legacy(raw)
-    assert out["gateway"]["a2a_port"] == 32891
+    assert out["gateway"]["a2a_port"] == 32900
     assert out["gateway"]["worker_concurrency"] == 4
 
 
 def test_migrate_from_legacy_none_returns_full_default():
     out = migrate_from_legacy(None)
     assert "gateway" in out
-    assert out["gateway"]["a2a_port"] == 32891
+    assert out["gateway"]["a2a_port"] == 32900

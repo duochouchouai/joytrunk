@@ -16,7 +16,7 @@ DEFAULT_CONFIG = {
         "port": 32890,
     },
     "gateway": {
-        "a2a_port": 32891,
+        "a2a_port": 32900,
         "a2a_backend_url": None,
         "worker_concurrency": 4,
         "blocking_timeout_seconds": 300,

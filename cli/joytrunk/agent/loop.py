@@ -1,4 +1,11 @@
-"""员工智能体循环：构建提示（意图+提示词+历史）→ 调用大模型 → 执行 tool_calls → 直至返回最终回复（参考 nanobot.agent.loop）。"""
+"""员工智能体循环：构建提示（意图+提示词+历史）→ 调用大模型 → 执行 tool_calls → 直至返回最终回复（参考 nanobot.agent.loop）。
+
+【共用约定】本模块 run_employee_loop 为 gateway 与 joytrunk chat 唯一聊天执行入口：
+- gateway worker 收到任务后直接调用 run_employee_loop；
+- joytrunk chat（CLI/TUI）优先经 a2a_client 发往 gateway（由 gateway 执行 run_employee_loop），
+  gateway 不可用时回退为本地直接调用 run_employee_loop；
+- 网页 /api/employees/:id/chat 仅代理到 A2A gateway，不在此进程执行聊天，保证与 CLI 同源。
+"""
 
 from __future__ import annotations
 
