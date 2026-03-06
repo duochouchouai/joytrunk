@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:android": "cross-env HOST=0.0.0.0 node server.js",
     "start:debug": "cross-env DEBUG_WS=1 node server.js",
     "test": "node --test tests/*.js",
     "seed": "node scripts/seed-test-users.js",
