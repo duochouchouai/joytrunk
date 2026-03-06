@@ -17,7 +17,7 @@
 
 ## 2. 技术栈与架构
 
-JoyTrunk 是**独立产品**，由 **cli/**、**vue/**、**nodejs/** 三个目录完整实现，**不依赖、不包含** nanobot 作为运行时代码。nanobot 仅作**学习与模仿对象**，目标是在架构与体验上超越 nanobot。架构上采用**双后端**：**本地管理后端**由 **cli** 提供并启动，监听 32901，供本地 Vue 与 CLI 使用，其实现**归属 cli**（当前在 nodejs 中的对应逻辑将迁移到 cli）；**JoyTrunk 官方后端**为 **nodejs/** 目录，实现全平台注册用户、JoyTrunk 即时通讯服务、LLM Router 等云端/官方能力。JoyTrunk **支持 Linux 与 Windows**；cli 与本地 server 在两平台上均可运行。JoyTrunk 以 **PyPI 包** 形式发布，包名 **`joytrunk`**，支持 `pip install joytrunk`（Linux / Windows）。**CLI 入口** 由该 Python 包提供（`joytrunk`、`joytrunk onboard` 等）；本地管理界面（Vue + 本地 server API）需能由该包**启动并监听 32901 端口**（例如通过 `joytrunk server` 或在 onboard 时提示启动）。
+JoyTrunk 是**独立产品**。**本仓库仅包含 cli/（完整开源）**；官网前端（Vue）与云后端（Node）已迁出至独立私有仓库，不随本仓库发布。nanobot 仅作**学习与模仿对象**，JoyTrunk 运行时不依赖、不包含 nanobot。架构上**本地管理后端**由 **cli** 提供并启动，监听 32901，供本地 Vue 与 CLI 使用；**JoyTrunk 官方后端**（注册用户、即时通讯、LLM Router 等）在独立私有仓库中部署。JoyTrunk **支持 Linux 与 Windows**；cli 与本地 server 在两平台上均可运行。以 **PyPI 包** 形式发布，包名 **`joytrunk`**，支持 `pip install joytrunk`。**CLI 入口** 由该 Python 包提供；本地管理界面（Vue 源码在 **cli/joytrunk/ui**）由该包**启动并监听 32901 端口**（`joytrunk server`）。
 
 ```mermaid
 flowchart LR
@@ -38,7 +38,7 @@ flowchart LR
     API[API]
     Agent[Agent]
   end
-  subgraph official [nodejs 官方]
+  subgraph official [JoyTrunk 官方后端（独立仓库）]
     Router[JoyTrunk Router]
   end
   CLI --> API
@@ -47,9 +47,8 @@ flowchart LR
   API -.->|"未配置自有 LLM"| Router
 ```
 
-- **cli/**：以 `joytrunk` 为入口命令，`joytrunk onboard` 初始化配置与工作区；**`joytrunk chat`** 默认进入**互动式 TUI**：显示本地员工列表（或「无员工」时引导新建），选择员工后进入对话，**新建员工后直接进入该员工对话下达指令**；作为「CLI 渠道」与员工对话；**内含并启动本地管理后端**（员工/团队 CRUD、本地 config/workspace、agent 与 32901 API）；**提供 `joytrunk docs`**，文档源位于 `joytrunk/docs`；可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。**不要求用户「绑定负责人」**：server 首次请求时自动创建本地上下文，本机多员工即可用。
-- **vue/**：**仅官网**前端（产品页、下载/文档/定价、手机验证码登录、云端 IM）。对接 **JoyTrunk 官方后端**（nodejs）。**本地管理界面**已迁入 **cli/joytrunk/ui**，由 `joytrunk server` 构建并随 32901 提供。
-- **nodejs/**：**JoyTrunk 官方后端**：全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量等；本地未配置自有 LLM 时由该 Router 提供大模型能力。
+- **cli/**：以 `joytrunk` 为入口命令，`joytrunk onboard` 初始化配置与工作区；**`joytrunk chat`** 默认进入**互动式 TUI**；**内含并启动本地管理后端**（员工/团队 CRUD、本地 config/workspace、agent 与 32901 API）；**本地管理界面**在 **cli/joytrunk/ui**，由 `joytrunk server` 构建并随 32901 提供；**提供 `joytrunk docs`**；可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。**不要求用户「绑定负责人」**：server 首次请求时自动创建本地上下文。
+- **官网与云后端**：官网前端（Vue）与 JoyTrunk 官方后端（Node，注册用户、IM、LLM Router、计费）已迁出至**独立私有仓库**，不在此仓库；本地单机使用仅需 cli。
 
 ### 大模型接入：默认 JoyTrunk Router，支持用户可选配置自有 LLM
 
@@ -69,7 +68,7 @@ flowchart LR
     Usage[用量]
     Decide{负责人是否配置自有LLM}
   end
-  subgraph official [JoyTrunk 官方后端 nodejs]
+  subgraph official [JoyTrunk 官方后端（独立仓库）]
     Router[JoyTrunk Router]
   end
   subgraph user_llm [用户自有]
@@ -112,7 +111,7 @@ flowchart LR
 ### 3.3 大模型、测试、发布、TUI
 
 - **大模型/计费**：同 §2；无 customLLM/providers 即走 Router；API Key 建议服务端加密。
-- **测试**：cli 用 `tests/` + pytest；vue/nodejs 见各 package.json。Windows 下 conda 环境 `joytrunk`，PowerShell：`cd cli; pytest -v`。交付前各子项目测试通过。
+- **测试**：本仓库仅含 **cli**，使用 `tests/` + pytest；Windows 下 conda 环境 `joytrunk`，PowerShell：`cd cli; pytest -v`。交付前 CLI 测试通过。
 - **发布**：PyPI 包 `joytrunk`；本地管理默认 **http://localhost:32901**。
 - **TUI**：**python-clack**（已移除 Textual）。↑↓ 移动、Enter 确定、空格多选（可选）。语言选择、员工选择/新建、对话循环在 `joytrunk/tui/clack_flows.py`（run_language_picker、run_chat_entry、run_chat_loop）。
 
@@ -123,9 +122,8 @@ flowchart LR
 - **消息拼接顺序**（`context.build_messages`）：**system**（人格/生存法则/长期记忆/技能） + **history**（上述最近 50 条） + **user（runtime）**（时间、channel、chat_id） + **user（当前用户输入）**。同一轮内若模型返回 tool_calls，会在内存中往 messages 后追加 assistant 与 tool 消息，再次请求大模型时带上整段 messages，不再重新读文件。
 - **落盘**：每轮结束后 `append_turn(employee_id, session_key, messages, skip_count)` 将本轮的 runtime user、当前 user、assistant、tool 等追加进 session 文件；`skip_count = 1 + len(history)` 表示从「当前 turn 的第一条 user（runtime）」起算本轮。tool 消息的 content 超过 500 字会截断后写入（`session.TOOL_RESULT_MAX_CHARS`）。
 
-- **cli**：`joytrunk onboard`、**cli 内本地管理后端**（员工/团队 CRUD、config/workspace、32901 API）、**`joytrunk chat` 互动式 TUI**（员工列表 / 新建后直接对话，无需绑定负责人）、可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。
-- **vue**：注册/登录、自有 IM 对话界面、创建并绑定至少一名员工、基础员工配置（人格/职责）；对接本地管理后端（32901），绑定账号时对接 JoyTrunk 官方后端。
-- **nodejs（JoyTrunk 官方后端）**：注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量；单通道（如先做 JoyTrunk 自有 IM 或与本地 gateway 协作）消息收发。
+- **cli**：`joytrunk onboard`、**cli 内本地管理后端**（员工/团队 CRUD、config/workspace、32901 API）、**`joytrunk chat` 互动式 TUI**、可选 `joytrunk server`、`joytrunk status`、`joytrunk language`。
+- **官网与云后端**：官网（Vue）与 JoyTrunk 官方后端（Node）在独立私有仓库；对接本地管理后端（32901）或官方后端时由各自部署实现。
 
 ---
 
@@ -171,15 +169,15 @@ flowchart LR
 
 ### 4.5 大模型接入与计费
 
-- **默认**：负责人未配置自有 LLM 时，所有大模型请求由**本地 gateway（cli）**转发至 **JoyTrunk 官方后端**的 **JoyTrunk Router**，携带负责人/会话鉴权；Router 返回 completion 与 token 数，**官方后端（nodejs）**落库并**计费**（预付费扣余额或后付费记账）。
+- **默认**：负责人未配置自有 LLM 时，所有大模型请求由**本地 gateway（cli）**转发至 **JoyTrunk 官方后端**的 **JoyTrunk Router**（官方后端在独立私有仓库）；Router 返回 completion 与 token 数，落库并**计费**。
 - **自有 LLM**：负责人已在设置中配置自有大模型（API Key、Base URL、模型名等）且有效时，该负责人的 agent 请求由**本地 gateway**直连用户 endpoint，**不经过 JoyTrunk Router**，不产生 JoyTrunk 计费；可选将 token 写入用量表（source=custom）仅用于展示。
 - **计费范围**：仅对经 **JoyTrunk Router** 的用量（source=router）计费；自有 LLM 用量不计费。配置存储：默认无 `customLLM`/`providers` 即走 Router；API Key 建议存服务端加密，不落盘本地 config。
 
 ### 4.6 测试
 
-- **测试目录与命令**：cli 使用 `tests/` 及 `pytest`（如 `pytest -v`）；vue 使用 Vitest 及 `npm run test`；nodejs 使用 Jest/Vitest 及 `npm test`。具体以各子项目 package.json 与 README 为准。
+- **测试目录与命令**：本仓库仅含 cli，使用 `tests/` 及 `pytest`（如 `pytest -v`）。Windows 下 conda 环境 `joytrunk`，PowerShell：`cd cli; pytest -v`。
 - **Windows 开发**：在 **conda 环境 `joytrunk`** 中运行 CLI 与测试；命令示例为 **PowerShell**（如 `conda activate joytrunk`；`cd cli; pytest -v`）。
-- **合并或交付前**：运行各子项目测试，确保无失败。
+- **合并或交付前**：运行 cli 测试，确保无失败。
 
 ### 4.7 发布与本地管理端口
 
@@ -208,23 +206,24 @@ CLI 以**互动式 TUI** 为主，提供与 Claude Code、Open Code 类似的**�
 
 - **已完成**：
   - product.md 定稿。
-  - 技术路径确定（cli / vue / nodejs 独立实现，nanobot 仅作参考）。
+  - 技术路径确定（本仓库仅 cli 开源，nanobot 仅作参考；官网与云后端在独立私有仓库）。
   - agent.md 蓝图撰写（本文档）。
   - **CLI 互动式 TUI**：`joytrunk chat` 默认进入 TUI，显示本地员工列表（或无员工时引导新建）；新建员工后**直接进入该员工对话**下达指令；无需「绑定负责人」，先启动 `joytrunk server` 即可；**语言选择**（onboard 无语言配置时、`joytrunk language` 无参数时）采用 **↑↓ 移动、Enter 确定** 的 TUI（§4.8）；`joytrunk language [zh|en]` 仍支持命令行参数直接设置。
   - **TUI 技术栈**：CLI 互动式界面**全部使用 python-clack**，**已移除 Textual**。语言选择、员工选择/新建、对话循环均在 `joytrunk/tui/clack_flows.py`（`run_language_picker`、`run_chat_entry`、`run_chat_loop`）；cli 依赖仅含 `python-clack`（无 textual）。
 - **待办**（按实现技术逻辑排序，供各 agent 按分工更新）：
-  1. **基础设施**：创建 cli/、vue/、nodejs/ 目录与各自项目脚手架；pip 包与 CLI 骨架（pyproject.toml、entry_points、`joytrunk` / `joytrunk onboard` 占位）；实现 `joytrunk onboard` 创建 ~/.joytrunk、config、workspace；本地服务可在 32901 提供占位页或 API。 ✅ 已完成（见协作标注）
-  2. **后端基础**：实现 **cli 内本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32901 API）；**nodejs** 为 JoyTrunk 官方后端（注册用户、IM、LLM Router、计费与用量）。 ✅ 已完成
-  3. **前端基础**：实现 vue 注册/登录、管理后台（员工、团队）在 localhost:32901 提供。 ✅ 已完成
+  1. **基础设施**：**cli/** 目录与 pip 包、CLI 骨架；`joytrunk onboard` 创建 ~/.joytrunk、config、workspace；本地服务在 32901 提供 API 与 Vue UI。 ✅ 已完成（官网与 nodejs 已迁出至私有仓库）
+  2. **后端基础**：实现 **cli 内本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32901 API）。JoyTrunk 官方后端（注册用户、IM、LLM Router）在独立私有仓库。 ✅ 已完成
+  3. **前端基础**：本地管理界面在 cli/joytrunk/ui，由 `joytrunk server` 在 32901 提供。 ✅ 已完成
   4. **通道与 agent**：单通道（Web 或 CLI）消息收发与 agent 调度、员工生存法则注入。 ✅ 已完成（占位 agent + POST /api/employees/:id/chat）
   5. **CLI 渠道**：实现 cli 作为 CLI 渠道与员工对话，可选 `joytrunk server`、`joytrunk status`。 ✅ 已完成（joytrunk chat、status 拉取员工列表）
   6. **大模型与计费**：实现双模式路由与 token 统计（**本地 gateway** 按负责人判断 Router vs 自有 LLM，解析并存储 token，仅 router 计费；自有 LLM 配置 CRUD API）；实现 **JoyTrunk 官方后端** Router 计费与前端用量/计费/自有 LLM 配置（官方后端用量/余额/账单查询 API；前端用量与计费页、自有 LLM 配置区块、「恢复默认 JoyTrunk」与用量区分展示）。 ✅ 后端占位已完成（GET /api/usage、PATCH/DELETE /api/config/custom-llm）；前端用量/计费页可后续迭代
-  7. **测试**：为 cli/vue/nodejs 建立测试框架与首条测试；功能开发由上述测试约定约束（完成前测试齐全且通过）。 ✅ 已完成（nodejs: node --test；vue: vitest；cli: pytest 已有 paths/onboard 测试）
+  7. **测试**：为 cli 建立测试框架与测试；功能开发由测试约定约束。 ✅ 已完成（cli: pytest；官网与 nodejs 已迁出）
 
 ### 5.2 Agent 协作标注
 
 | 时间 | Agent | 任务 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
+| 2025-03 | 用户 | **官网与云后端迁出** | 已完成 | vue/、nodejs/ 已从本仓库移除，迁至独立私有仓库；本仓库仅保留 cli/ 完整开源。README、README_zh、agent.md、.gitignore 已同步更新。 |
 | 2025-02-26 | Cursor Agent | **实现架构拆分**：cli 内本地 server、nodejs 仅官方后端 | 已完成 | cli/joytrunk/gateway/：Node 本地管理后端（server.js + lib/），`joytrunk server` 从包内启动并 npm install 若需；nodejs/ 改为占位（GET /api/health），删除 lib/ 与旧 server；gateway 测试迁至 cli/joytrunk/gateway/tests/。Vue 仍对接 32901。 |
 | 2025-02-26 | Cursor Agent | **架构拆分**：本地管理后端归属 cli 并由 CLI 启动，nodejs 为 JoyTrunk 官方后端（注册用户、IM、LLM Router） | 已完成 | 仅修改 agent.md：§2 双后端、§3 CLI/Vue/Node 职责、§4 约定、§5 待办、§6 技术选型、§7.2 协作标注。 |
 | 2025-02-26 | Cursor Agent | 基础设施：cli/vue/nodejs 脚手架、joytrunk CLI、onboard、32901 占位 | 已完成 | cli: pyproject.toml + joytrunk 包 + onboard；nodejs: Express 32890 + /api/health；vue: Vite+Vue3 占位。CLI 测试需在已安装 typer/pytest 环境中运行。 |

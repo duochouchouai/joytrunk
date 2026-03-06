@@ -124,7 +124,7 @@ If you’re developing from the repo, e.g. on `develop`:
 1. Clone and branch: `git clone <repo> && cd joytrunk && git checkout develop`
 2. **CLI:** From repo root, `cd cli && pip install -e ".[dev]" && joytrunk onboard`. Use `joytrunk`, `joytrunk server`, `joytrunk gateway`, `joytrunk chat` as above. Tests: `pytest -v` from `cli/`.
 3. **Web UI dev:** With `joytrunk server` running, run `cd cli/joytrunk/ui && npm run dev` for hot reload at http://localhost:32893 (proxies API to 32901).
-4. `vue/` is the marketing site, `nodejs/` the cloud backend. See [agent.md](agent.md) and [product.md](product.md) for details.
+4. Official site (Vue) and cloud backend (Node) live in separate private repos. See [agent.md](agent.md) and [product.md](product.md) for product and architecture details.
 
 ---
 
@@ -135,7 +135,7 @@ How the pieces fit together:
 - **CLI** (Python) — `onboard`, `chat`, `employee`, `server`, `gateway`, `status`, `memory`, `log`, `docs`, etc. Config: `~/.joytrunk/config.json`; per-employee dirs under `~/.joytrunk/workspace/employees/<id>/`.
 - **Local server** (Node, `joytrunk server`) — Serves the Vue UI and REST API on 32901; talks only to the gateway and local config.
 - **Gateway** (Python, `joytrunk gateway`) — A2A on 32900; runs the employee agent loop when you send a chat message.
-- **Official backend** (Node, `nodejs/`) — Cloud services (registration, IM, LLM Router), separate from the local server; used for account linking or cloud features.
+- **Official backend** (Node) — Cloud services (registration, IM, LLM Router) are in a separate private repo; used for account linking or cloud features when deployed.
 
 ---
 

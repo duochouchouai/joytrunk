@@ -122,7 +122,7 @@ English: [README.md](../README.md)
 1. 克隆并切分支：`git clone <repo> && cd joytrunk && git checkout develop`
 2. **CLI：** 在仓库根目录执行 `cd cli && pip install -e ".[dev]" && joytrunk onboard`。之后按上文使用 `joytrunk`、`joytrunk server`、`joytrunk gateway`、`joytrunk chat`。测试：在 `cli/` 下运行 `pytest -v`。
 3. **网页 UI 开发：** 在 `joytrunk server` 已运行的前提下，执行 `cd cli/joytrunk/ui && npm run dev`，在 http://localhost:32893 热更新（API 代理到 32901）。
-4. `vue/` 为官网，`nodejs/` 为云后端。详见 [agent.md](../agent.md) 与 [product.md](../product.md)。
+4. 官网（Vue）与云后端（Node）在独立私有仓库中。产品与架构详见 [agent.md](../agent.md) 与 [product.md](../product.md)。
 
 ---
 
@@ -133,7 +133,7 @@ English: [README.md](../README.md)
 - **CLI**（Python）— `onboard`、`chat`、`employee`、`server`、`gateway`、`status`、`memory`、`log`、`docs` 等。配置：`~/.joytrunk/config.json`；每员工目录：`~/.joytrunk/workspace/employees/<id>/`。
 - **本地 server**（Node，`joytrunk server`）— 在 32901 提供 Vue 界面与 REST API；仅与 gateway 及本地配置通信。
 - **Gateway**（Python，`joytrunk gateway`）— 32900 上的 A2A 服务；在你发送对话时运行员工智能体循环。
-- **官方后端**（Node，`nodejs/`）— 云服务（注册、IM、LLM Router），与本地 server 分离；用于账号绑定或云能力。
+- **官方后端**（Node）— 云服务（注册、IM、LLM Router）在独立私有仓库中；部署后用于账号绑定或云能力。
 
 ---
 
