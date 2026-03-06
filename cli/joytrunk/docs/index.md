@@ -23,7 +23,7 @@ pip install joytrunk
 | 命令 | 说明 |
 |------|------|
 | [joytrunk onboard](onboard.md) | 初始化本地配置与工作区（~/.joytrunk） |
-| [joytrunk server](server.md) | 启动本地管理后端（默认 32890，供网页/UI 使用，仅保留） |
+| [joytrunk server](server.md) | 启动本地管理后端（端口仅由 cli/.env 配置，默认 32901，供网页/UI 使用，仅保留） |
 | [joytrunk chat](chat.md) | 与员工对话（从 config 与 workspace 读取，TUI 列出员工，最后一项为新建） |
 | [joytrunk employee](employee.md) | 查看、新增、设置员工（config.json） |
 | [joytrunk status](status.md) | 查看运行状态与员工列表（从 config.json 读取） |

@@ -1,27 +1,46 @@
 """
-A2A server entry: load config, create app with lifespan (worker), run uvicorn (plan 2.1方案 A).
-Bind 127.0.0.1 only (plan 10.49).
+A2A server entry: load config for non-port settings, create app with lifespan (worker), run uvicorn.
+Port only from cli/.env JOYTRUNK_A2A_PORT (default 32900). Bind 127.0.0.1 only.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 import uvicorn
 
+from joytrunk import paths
 from joytrunk.config_store import load_config
+from joytrunk.env_loader import parse_dotenv
 from joytrunk.gateway.a2a_http import create_app
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
+
+DEFAULT_A2A_PORT = 32900
+
+
+def _get_a2a_port() -> int:
+    """端口仅从 cli/.env 的 JOYTRUNK_A2A_PORT 读取，未设置或无效时返回 DEFAULT_A2A_PORT。"""
+    raw = os.environ.get("JOYTRUNK_A2A_PORT", "").strip()
+    if not raw:
+        parsed = parse_dotenv(paths.get_cli_root() / ".env")
+        raw = parsed.get("JOYTRUNK_A2A_PORT", "").strip()
+    if not raw:
+        return DEFAULT_A2A_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_A2A_PORT
 
 
 def main() -> None:
     config = load_config()
     gateway = config.get("gateway") or {}
     official = config.get("official") or {}
-    a2a_port = int(gateway.get("a2a_port", 32900))
+    a2a_port = _get_a2a_port()
     worker_concurrency = int(gateway.get("worker_concurrency", 4))
     blocking_timeout = int(gateway.get("blocking_timeout_seconds", 300))
     ttl = int(gateway.get("task_store_ttl_seconds", 86400))

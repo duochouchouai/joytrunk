@@ -8,7 +8,8 @@ import httpx
 from joytrunk import paths
 from joytrunk.config_schema import migrate_from_legacy
 
-DEFAULT_PORT = 32890
+# 端口仅从 cli/.env 的 JOYTRUNK_SERVER_PORT 读取，默认 32901
+DEFAULT_PORT = 32901
 
 
 def _load_config():
@@ -22,13 +23,26 @@ def _load_config():
         return migrate_from_legacy(None)
 
 
+def _get_server_port() -> int:
+    """从 cli/.env 读取 JOYTRUNK_SERVER_PORT，未设置或无效时返回 DEFAULT_PORT。"""
+    from joytrunk.env_loader import parse_dotenv
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_SERVER_PORT", "").strip()
+    if not raw:
+        return DEFAULT_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_PORT
+
+
 def get_base_url():
     c = _load_config()
     s = c.get("server") or {}
     host = s.get("host") or "127.0.0.1"
     if host in ("localhost", "::1"):
         host = "127.0.0.1"
-    port = s.get("port") or DEFAULT_PORT
+    port = _get_server_port()
     return f"http://{host}:{port}"
 
 

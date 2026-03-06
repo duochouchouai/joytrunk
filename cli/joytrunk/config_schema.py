@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {
     },
     "server": {
         "host": "127.0.0.1",
-        "port": 32890,
+        "port": 32901,
     },
     "gateway": {
         "a2a_port": 32900,
@@ -88,7 +88,7 @@ def migrate_from_legacy(data: dict) -> dict:
             old_gw = data.get("gateway") if isinstance(data.get("gateway"), dict) else {}
             out["server"] = {
                 "host": old_gw.get("host", "127.0.0.1") if old_gw else "127.0.0.1",
-                "port": old_gw.get("port", data.get("gatewayPort", 32890)) if old_gw else data.get("gatewayPort", 32890),
+                "port": old_gw.get("port", data.get("gatewayPort", 32901)) if old_gw else data.get("gatewayPort", 32901),
             }
         elif k == "agents":
             agents = data.get("agents") or {}

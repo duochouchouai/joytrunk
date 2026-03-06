@@ -231,7 +231,7 @@ async def test_save_memory_tool_success_with_dummy_embed(employee_dir, joytrunk_
         json.dumps({
             "version": 1,
             "ownerId": "owner-1",
-            "server": {"host": "127.0.0.1", "port": 32890},
+            "server": {"host": "127.0.0.1", "port": 32901},
             "agents": {"defaults": {"model": "gpt-3.5-turbo", "maxTokens": 2048, "temperature": 0.1}},
             "memory": {"embedding": {"base_url": ""}, "retrieve": {"method": "rag"}},
             "providers": {"joytrunk": {}, "custom": {"apiKey": "", "apiBase": None, "model": "gpt-3.5-turbo"}},

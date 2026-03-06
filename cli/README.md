@@ -27,7 +27,7 @@ joytrunk chat
 | `joytrunk chat` | 与员工对话（TUI：列出员工，最后一项为「新建员工」；不依赖 server） |
 | `joytrunk employee` | 员工管理 TUI；`employee list` / `employee new` / `employee set <id> --name ...` |
 | `joytrunk status` | 查看根目录、server URL、员工列表（从各员工 config 读取） |
-| `joytrunk server` | 启动本地管理后端（端口 32890，供网页/UI 使用，可选） |
+| `joytrunk server` | 启动本地管理后端（端口仅由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置，默认 32901，供网页/UI 使用，可选） |
 | `joytrunk language [zh\|en]` | 配置 CLI 界面语言 |
 | `joytrunk docs` | 打开命令指南（`--local` 本地查看） |
 
@@ -39,7 +39,7 @@ joytrunk chat
 
 ## 开发/测试：cli 目录下的 .env
 
-在 **cli 主目录**（即本仓库的 `cli/` 目录，非 `~/.joytrunk/workspace`）可放置 `.env` 文件，写入 API Key 等配置。执行 `joytrunk onboard` 时，若检测到该目录下存在**有效的** `.env`（至少包含一个可导入变量且值非空），会提示是否将配置导入到 `~/.joytrunk/config.json`，便于本地测试整个项目。可选变量见 `cli/.env.example`（如 `OPENAI_API_KEY`、`OPENAI_API_BASE_URL`、`OPENAI_MODEL`、`JOYTRUNK_ROUTER_URL` 等）。`.env` 已由仓库根目录 `.gitignore` 忽略，请勿提交密钥。
+在 **cli 主目录**（即本仓库的 `cli/` 目录，非 `~/.joytrunk/workspace`）可放置 `.env` 文件，写入 API Key 等配置。**端口仅由此文件配置**：`JOYTRUNK_SERVER_PORT`（默认 32901）、`JOYTRUNK_A2A_PORT`（默认 32900），不读取 `~/.joytrunk/config.json` 的端口。执行 `joytrunk onboard` 时，若检测到该目录下存在**有效的** `.env`（至少包含一个可导入变量且值非空），会提示是否将配置导入到 `~/.joytrunk/config.json`，便于本地测试整个项目。可选变量见 `cli/.env.example`（如 `OPENAI_API_KEY`、`OPENAI_API_BASE_URL`、`OPENAI_MODEL`、`JOYTRUNK_ROUTER_URL` 等）。`.env` 已由仓库根目录 `.gitignore` 忽略，请勿提交密钥。
 
 ## 测试
 

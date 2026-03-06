@@ -1,7 +1,7 @@
 {
   "name": "joytrunk-server",
   "version": "0.1.0",
-  "description": "JoyTrunk 本地管理后端（cli 内），监听 32890",
+  "description": "JoyTrunk 本地管理后端（cli 内），端口由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置，默认 32901",
   "main": "server.js",
   "private": true,
   "engines": { "node": ">=18" },

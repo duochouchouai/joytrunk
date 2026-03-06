@@ -58,10 +58,10 @@ JoyTrunk 是一款部署在用户本地的、7×24 小时运行的智能体员�
 
 JoyTrunk 前端分为两类：**本地管理界面（CLI UI）** 与 **JoyTrunk 官方网站**。**CLI 是功能完整的本地智能体应用**（员工创建、对话、智能体等），内置后端与本地管理界面，便于开发者调试本地信息；后续可提供 Electron 桌面 UI。
 
-- **本地管理界面（CLI UI）**：随 `joytrunk` 安装，通过 `joytrunk` 命令启动（如 `joytrunk server`），在 **http://localhost:32890** 提供员工与团队管理、设置、与员工对话等；仅连接本地 server，默认免登录即可用。
+- **本地管理界面（CLI UI）**：随 `joytrunk` 安装，通过 `joytrunk` 命令启动（如 `joytrunk server`），在 **http://localhost:32901** 提供员工与团队管理、设置、与员工对话等；仅连接本地 server，默认免登录即可用。
 - **JoyTrunk 官方网站**：独立商业网站，提供产品介绍、注册/登录、CLI 文档与帮助、LLM Router 与计费说明、即时通讯等；用户可在此注册账号并绑定到本地使用（如多端同步、官方 IM）。
 
-**本地使用**：CLI（`joytrunk chat`）、**本地管理界面**（由 `joytrunk server` 等启动，访问 32890）、可选第三方渠道（飞书、QQ、Telegram 等）。
+**本地使用**：CLI（`joytrunk chat`）、**本地管理界面**（由 `joytrunk server` 等启动，访问 32901）、可选第三方渠道（飞书、QQ、Telegram 等）。
 
 **官方网站**：浏览器访问 JoyTrunk 官网，可注册账号、查阅 CLI 文档、使用官方 IM、了解 LLM Router 与计费。
 
@@ -99,7 +99,7 @@ JoyTrunk 官方网站（及官方后端）为**运营/商业化工具**，与本
 ## 6. 关键流程
 
 1. **安装与注册**
-   - **安装与本地初始化**：用户在 Windows / Linux / macOS 上可通过 **pip install joytrunk** 安装，使用 **joytrunk onboard** 初始化配置与工作区；**本地管理界面**由 `joytrunk` 命令启动（如 `joytrunk server`），访问 **http://localhost:32890**。
+   - **安装与本地初始化**：用户在 Windows / Linux / macOS 上可通过 **pip install joytrunk** 安装，使用 **joytrunk onboard** 初始化配置与工作区；**本地管理界面**由 `joytrunk` 命令启动（如 `joytrunk server`），访问 **http://localhost:32901**。
    - **注册**：在 **JoyTrunk 官方网站** 注册账号；绑定账号后可在本地管理界面或 CLI 中使用多端同步、官方 IM 等。默认可通过微信小程序与 App 与智能体联系，并可在设置中补充其他登录与联系方式。
 
 2. **创建员工并成为负责人**

@@ -20,8 +20,36 @@ app = typer.Typer(
 )
 console = Console()
 
-SERVER_PORT = 32890
-SERVER_URL = f"http://localhost:{SERVER_PORT}"
+# CLI 端口仅从 cli/.env 读取，默认与 nodejs 32891 分离
+DEFAULT_SERVER_PORT = 32901
+DEFAULT_A2A_PORT = 32900
+SERVER_URL = f"http://localhost:{DEFAULT_SERVER_PORT}"
+
+
+def _get_default_server_port() -> int:
+    """从 cli/.env 读取 JOYTRUNK_SERVER_PORT，无效或未设置时返回 DEFAULT_SERVER_PORT。"""
+    from joytrunk import paths
+    from joytrunk.env_loader import parse_dotenv
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_SERVER_PORT", "").strip()
+    if not raw:
+        return DEFAULT_SERVER_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_SERVER_PORT
+
+
+def _get_a2a_port_env() -> str:
+    """返回用于子进程的 JOYTRUNK_A2A_PORT 值（仅 .env 或当前环境），默认 32900。"""
+    from joytrunk import paths
+    from joytrunk.env_loader import parse_dotenv
+    raw = os.environ.get("JOYTRUNK_A2A_PORT", "").strip()
+    if raw:
+        return raw
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_A2A_PORT", "").strip()
+    return raw if raw else str(DEFAULT_A2A_PORT)
 
 
 def _safe_text_for_console(text: str) -> str:
@@ -98,9 +126,11 @@ def onboard_cmd() -> None:
 
 @app.command("server")
 def server_cmd(
-    port: int = typer.Option(SERVER_PORT, "--port", "-p", help="监听端口"),
+    port: int | None = typer.Option(None, "--port", "-p", help="监听端口"),
 ) -> None:
-    """启动本地常驻服务（cli 内本地管理后端），绑定 32890，提供网页管理界面与 API。"""
+    """启动本地常驻服务（cli 内本地管理后端），默认 32901，提供网页管理界面与 API。端口仅由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置。"""
+    if port is None:
+        port = _get_default_server_port()
     server_dir = Path(__file__).resolve().parent / "server"
     if not (server_dir / "package.json").exists():
         console.print("[red]" + t("server.not_found", path="[cyan]joytrunk/server/[/cyan]") + "[/red]")
@@ -134,6 +164,7 @@ def server_cmd(
     try:
         env = dict(os.environ)
         env["PORT"] = str(port)
+        env["JOYTRUNK_A2A_PORT"] = _get_a2a_port_env()
         if sys.platform == "win32":
             subprocess.run("node server.js", shell=True, cwd=str(server_dir), env=env)
         else:
@@ -159,12 +190,9 @@ def gateway_callback(ctx: typer.Context) -> None:
 
 @gateway_app.command("status")
 def gateway_status_cmd() -> None:
-    """检测 Gateway 是否可用并打印 base URL。"""
+    """检测 Gateway 是否可用并打印 base URL（端口仅从 cli/.env 的 JOYTRUNK_A2A_PORT 读取）。"""
     from joytrunk import a2a_client
     base = a2a_client.get_gateway_base_url()
-    if not base:
-        console.print("[yellow]未配置 Gateway（gateway.a2a_backend_url 或 gateway.a2a_port）[/yellow]")
-        return
     console.print("Gateway URL:", f"[cyan]{base}[/cyan]")
     if a2a_client.gateway_available():
         console.print("[green]✓[/green] Gateway 可用")
