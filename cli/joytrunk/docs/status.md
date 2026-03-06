@@ -10,7 +10,7 @@ joytrunk status
 
 ## 说明
 
-- 显示 **JoyTrunk 根目录** 与 **本地管理页** URL（默认 http://localhost:32890）。
+- 显示 **JoyTrunk 根目录** 与 **本地管理页** URL（端口由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置，默认 http://localhost:32901）。
 - 显示当前负责人下的**员工列表**（ID 与名称），数据来自 `config.json`。
 - 若尚未初始化或配置文件不存在，提示先执行 `joytrunk onboard`。
 

@@ -197,7 +197,7 @@ export default {
       downloadCopied: '已复制',
       downloadFooter: '支持 Windows、macOS 与 Linux。安装后运行 joytrunk onboard 完成初始化。',
       getStarted: '快速开始：',
-      getStartedSteps: 'joytrunk onboard → joytrunk server → 打开 http://localhost:32890',
+      getStartedSteps: 'joytrunk onboard → joytrunk server → 打开 http://localhost:32901',
       sectionCta: '开始使用',
       ctaDocs: '命令文档',
       ctaPricing: '计费说明',

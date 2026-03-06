@@ -2,41 +2,46 @@
 A2A Client (plan phase 2): call Gateway Send Message / Get Task.
 Used by CLI and (phase 3) by agent tools.
 
-与 gateway 共用同一聊天组件：Gateway 可用时请求由 gateway worker 执行 run_employee_loop；
-不可用时返回 None，调用方（joytrunk chat / TUI）应回退为本地直接调用 run_employee_loop，保证同一套逻辑。
+端口仅从 cli/.env 的 JOYTRUNK_A2A_PORT 读取（默认 32900），不读 config.json。
 """
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import httpx
 
+from joytrunk import paths
 from joytrunk.config_store import load_config
+from joytrunk.env_loader import parse_dotenv
+
+DEFAULT_A2A_PORT = 32900
 
 
-def get_gateway_base_url() -> str | None:
-    """Gateway base URL from config: gateway.a2a_backend_url or http://server.host:gateway.a2a_port."""
-    c = load_config()
-    gw = c.get("gateway")
-    if not gw or (gw.get("a2a_backend_url") is None and gw.get("a2a_port") is None):
-        return None
-    if gw.get("a2a_backend_url"):
-        return (gw["a2a_backend_url"] or "").rstrip("/") or None
-    host = (c.get("server") or {}).get("host") or "127.0.0.1"
-    if host in ("localhost", "::1"):
-        host = "127.0.0.1"
-    port = gw.get("a2a_port")
-    if port is None:
-        return None
-    return f"http://{host}:{port}"
+def _get_a2a_port() -> int:
+    """端口仅从 cli/.env 或环境变量 JOYTRUNK_A2A_PORT 读取，未设置或无效时返回 DEFAULT_A2A_PORT。"""
+    raw = os.environ.get("JOYTRUNK_A2A_PORT", "").strip()
+    if not raw:
+        parsed = parse_dotenv(paths.get_cli_root() / ".env")
+        raw = parsed.get("JOYTRUNK_A2A_PORT", "").strip()
+    if not raw:
+        return DEFAULT_A2A_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_A2A_PORT
+
+
+def get_gateway_base_url() -> str:
+    """Gateway base URL：端口仅从 cli/.env 的 JOYTRUNK_A2A_PORT 读取，默认 32900。"""
+    port = _get_a2a_port()
+    return f"http://127.0.0.1:{port}"
 
 
 def gateway_available(timeout: float = 2.0) -> bool:
     """Return True if Gateway responds (e.g. Get Task 404 counts as available)."""
     base = get_gateway_base_url()
-    if not base:
-        return False
     try:
         with httpx.Client(timeout=timeout) as client:
             r = client.get(f"{base}/a2a/v1/tenants/__ping__/tasks/__ping__")
@@ -59,8 +64,6 @@ def send_message(
     from_employee_id: optional, for Agent→Agent calls (plan 10.9).
     """
     base = get_gateway_base_url()
-    if not base:
-        return None
     c = load_config()
     timeout_seconds = timeout_seconds or (c.get("gateway") or {}).get("blocking_timeout_seconds") or 300
     url = f"{base}/a2a/v1/tenants/{owner_id}/employees/{employee_id}/message:send"
@@ -104,8 +107,6 @@ def send_message(
 def get_task(owner_id: str, task_id: str, timeout: float = 10.0) -> dict[str, Any] | None:
     """A2A Get Task. Returns task dict or None on error."""
     base = get_gateway_base_url()
-    if not base:
-        return None
     url = f"{base}/a2a/v1/tenants/{owner_id}/tasks/{task_id}"
     try:
         with httpx.Client(timeout=timeout) as client:

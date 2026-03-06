@@ -51,7 +51,7 @@ joytrunk chat
 
 ### 选项 A：使用自有 LLM（推荐自测）
 
-1. 启动 `joytrunk server` 后，在浏览器打开 http://localhost:32890 → 进入 **设置**；或直接编辑 `~/.joytrunk/config.json` 的 `providers.custom`。
+1. 启动 `joytrunk server` 后，在浏览器打开 http://localhost:32901 → 进入 **设置**；或直接编辑 `~/.joytrunk/config.json` 的 `providers.custom`。
 2. 配置 **自有 LLM**：API Key、Base URL、模型名等，保存。
 
 ### 选项 B：使用 JoyTrunk Router
@@ -162,7 +162,7 @@ joytrunk chat abc-123-def
 ## 8. 常见问题
 
 - **“尚未绑定负责人”**  
-  先打开 http://localhost:32890，在网页里完成一次「登录/注册」或使用默认负责人，使 `config.json` 里有 `ownerId`。
+  先打开 http://localhost:32901，在网页里完成一次「登录/注册」或使用默认负责人，使 `config.json` 里有 `ownerId`。
 
 - **“无法连接 server”**  
   先执行 `joytrunk server` 并保持运行，再执行 `joytrunk chat`。

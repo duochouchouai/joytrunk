@@ -1,5 +1,5 @@
 /**
- * JoyTrunk 本地管理后端（cli 内）：监听 32890，提供负责人/员工/团队 CRUD、config/workspace、agent 与 API。
+ * JoyTrunk 本地管理后端（cli 内）：监听端口仅由环境变量 PORT（默认 32901）配置，提供负责人/员工/团队 CRUD、config/workspace、agent 与 API。
  * 由 joytrunk server 启动；静态资源来自同目录下 static/（由 cli/joytrunk/ui 构建产出）。
  */
 
@@ -17,7 +17,8 @@ const employeeConfig = require('./lib/employeeConfig');
 
 const app = express();
 const cfg = config.loadConfig();
-const PORT = Number(process.env.PORT) || (cfg.server && cfg.server.port) || 32890;
+// 端口仅从 cli/.env（由 joytrunk server 注入 PORT / JOYTRUNK_A2A_PORT），不读 config.json
+const PORT = Number(process.env.PORT) || 32901;
 const HOST = (cfg.server && cfg.server.host) || '127.0.0.1';
 
 app.use(cors());
@@ -463,18 +464,11 @@ app.delete('/api/employees/:id/memory/relations/:relId', (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）----------
-// 若配置了 gateway（a2a_backend_url 或 a2a_port），则转发到 Python A2A，按 10.29 转回 { reply, usage }；未配置则 503（方案 10.12）
+// ---------- 单通道消息：与员工对话（agent 调度 + 员工生存法则）---------
+// A2A 端口仅从环境变量 JOYTRUNK_A2A_PORT 读取（默认 32900），不读 config.json
 function getA2aBaseUrl() {
-  const c = config.loadConfig();
-  const gw = c.gateway;
-  if (!gw || (gw.a2a_backend_url == null && (gw.a2a_port == null || gw.a2a_port === ''))) return null;
-  if (gw.a2a_backend_url && typeof gw.a2a_backend_url === 'string') {
-    return gw.a2a_backend_url.replace(/\/$/, '');
-  }
-  const host = (c.server && c.server.host) || '127.0.0.1';
-  const port = Number(gw.a2a_port) || 32900;
-  return `http://${host}:${port}`;
+  const port = Number(process.env.JOYTRUNK_A2A_PORT) || 32900;
+  return `http://127.0.0.1:${port}`;
 }
 
 app.post('/api/employees/:id/chat', async (req, res) => {
@@ -485,7 +479,7 @@ app.post('/api/employees/:id/chat', async (req, res) => {
   const contextId = req.body && req.body.contextId;
 
   const baseUrl = getA2aBaseUrl();
-  if (baseUrl) {
+  {
     // 与 gateway / joytrunk chat 共用同一聊天组件：仅通过 A2A 由 gateway 执行 run_employee_loop，不在此进程实现聊天逻辑
     const timeoutMs = (config.loadConfig().gateway && config.loadConfig().gateway.blocking_timeout_seconds) || 300;
     const sendUrl = `${baseUrl}/a2a/v1/tenants/${encodeURIComponent(ownerId)}/employees/${encodeURIComponent(emp.id)}/message:send`;
@@ -540,9 +534,6 @@ app.post('/api/employees/:id/chat', async (req, res) => {
     }
   }
 
-  return res.status(503).json({
-    error: '未配置 A2A Gateway。请配置 gateway.a2a_backend_url 或 gateway.a2a_port 并先运行 joytrunk gateway。',
-  });
 });
 
 // ---------- JoyTrunk Router 代理（未配置自有 LLM 时 CLI/前端通过此端点调用大模型）----------

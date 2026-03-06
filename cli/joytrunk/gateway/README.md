@@ -18,8 +18,8 @@ joytrunk server
 joytrunk gateway
 ```
 
-- 默认监听 `127.0.0.1:32900`（由配置 `gateway.a2a_port` 决定）。
-- 默认配置已包含 `gateway.a2a_port: 32900`，无需改配置即可使用。
+- 默认监听 `127.0.0.1:32900`（端口仅由 **cli/.env** 的 `JOYTRUNK_A2A_PORT` 配置，不读 config.json）。
+- 在 cli 目录下复制 `.env.example` 为 `.env` 即可；默认 `JOYTRUNK_A2A_PORT=32900`，无需改即可使用。
 - 启动后日志中会看到类似：`A2A Gateway listening on 127.0.0.1:32900`。
 
 ## 检查 Gateway 是否可用
@@ -33,7 +33,7 @@ joytrunk gateway status
 ## 流程简述
 
 1. 浏览器：`POST /api/employees/:id/chat`（发到 joytrunk server）
-2. Server：根据配置中的 `gateway.a2a_port` 或 `gateway.a2a_backend_url` 请求 `http://127.0.0.1:32900/a2a/v1/tenants/.../message:send`
+2. Server：根据 cli/.env 的 `JOYTRUNK_A2A_PORT`（默认 32900）请求 `http://127.0.0.1:32900/a2a/v1/tenants/.../message:send`
 3. Gateway：接收 A2A 请求，入队并由 Worker 执行 `run_employee_loop`，完成后将回复通过 A2A 返回给 Server
 4. Server：把回复与 usage 返回给浏览器
 

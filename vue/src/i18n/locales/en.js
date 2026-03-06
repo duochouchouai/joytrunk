@@ -183,7 +183,7 @@ export default {
       downloadCopied: 'Copied',
       downloadFooter: 'Works on Windows, macOS & Linux. After install, run joytrunk onboard to initialize.',
       getStarted: 'Quick start:',
-      getStartedSteps: 'joytrunk onboard → joytrunk server → open http://localhost:32890',
+      getStartedSteps: 'joytrunk onboard → joytrunk server → open http://localhost:32901',
       sectionCta: 'Get started',
       ctaDocs: 'Command docs',
       ctaPricing: 'Pricing',

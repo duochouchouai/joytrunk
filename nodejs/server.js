@@ -1,5 +1,5 @@
 /**
- * JoyTrunk 官方后端：注册用户、IM、LLM Router（与本地 32890 gateway 解耦）
+ * JoyTrunk 官方后端：注册用户、IM、LLM Router（与本地 32901 gateway 解耦）
  * Phase 1：PostgreSQL + JWT + 1:1 会话与消息
  * 架构：路由层 → 控制层 → 服务层
  */
@@ -64,7 +64,7 @@ if (!serveFrontend) {
   app.get('/', (req, res) => {
     res.json({
       service: 'JoyTrunk 官方后端',
-      docs: '本地管理请使用 joytrunk server 启动 cli 内 server，访问 http://localhost:32890',
+      docs: '本地管理请使用 joytrunk server 启动 cli 内 server，访问 http://localhost:32901',
     });
   });
 }

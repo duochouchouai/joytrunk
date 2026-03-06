@@ -17,10 +17,10 @@ cd cli/joytrunk/ui
 npm run dev
 ```
 
-浏览器打开 **http://localhost:32893**。前端请求 `/api` 会代理到 `http://localhost:32890`。
+浏览器打开 **http://localhost:32893**。前端请求 `/api` 会代理到 `http://localhost:32901`（端口由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置）。
 
 - 修改 Vue 代码会自动热更新，无需 `npm run build`。
-- 发布或不用 dev 时再执行 `npm run build`，然后直接访问 http://localhost:32890 使用 server 自带的静态资源。
+- 发布或不用 dev 时再执行 `npm run build`，然后直接访问 http://localhost:32901 使用 server 自带的静态资源。
 
 ## 构建（发布或不用 dev 时）
 
@@ -28,4 +28,4 @@ npm run dev
 npm run build
 ```
 
-之后 `joytrunk server` 会直接提供 `server/static` 下的页面，可访问 http://localhost:32890 。
+之后 `joytrunk server` 会直接提供 `server/static` 下的页面，可访问 http://localhost:32901 。

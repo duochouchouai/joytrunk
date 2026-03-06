@@ -1,8 +1,8 @@
 # JoyTrunk 官方后端（nodejs）
 
-全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量。与本地 32890 解耦。
+全平台注册用户、JoyTrunk 即时通讯后端、LLM Router、计费与用量。与本地 32901 解耦。
 
-**本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32890 API）已迁移至 **cli 包内**，由 `joytrunk server` 启动。Vue 与 CLI 对接本地 32890 时连接的是 cli 启动的 server。
+**本地管理后端**（负责人/员工/团队 CRUD、config/workspace、32901 API）已迁移至 **cli 包内**，由 `joytrunk server` 启动。Vue 与 CLI 对接本地 32901 时连接的是 cli 启动的 server。
 
 ## 本目录职责（规划）
 
