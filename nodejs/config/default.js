@@ -73,4 +73,27 @@ module.exports = {
   // --- 雪花算法 uid（多实例部署时每实例配置不同 WORKER_ID）---
   SNOWFLAKE_WORKER_ID: process.env.SNOWFLAKE_WORKER_ID != null ? Number(process.env.SNOWFLAKE_WORKER_ID) : 0,
   SNOWFLAKE_DATACENTER_ID: process.env.SNOWFLAKE_DATACENTER_ID != null ? Number(process.env.SNOWFLAKE_DATACENTER_ID) : 0,
+
+  // --- LLM Router（官方后端提供 /v1/chat/completions，默认模型 MINIMAX-M2.1）---
+  // 单一上游：ROUTER_UPSTREAM_* 优先于 MINIMAX_*，二选一
+  ROUTER_UPSTREAM_URL: process.env.ROUTER_UPSTREAM_URL || undefined,
+  ROUTER_UPSTREAM_KEY: process.env.ROUTER_UPSTREAM_KEY || process.env.MINIMAX_API_KEY || undefined,
+  MINIMAX_API_BASE: process.env.MINIMAX_API_BASE || undefined,
+  MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || undefined,
+  ROUTER_DEFAULT_MODEL: process.env.ROUTER_DEFAULT_MODEL || 'MINIMAX-M2.1',
+  ROUTER_ALLOWED_MODELS: process.env.ROUTER_ALLOWED_MODELS
+    ? (typeof process.env.ROUTER_ALLOWED_MODELS === 'string'
+        ? process.env.ROUTER_ALLOWED_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
+        : [])
+    : undefined,
+  ROUTER_MODEL_MAP: process.env.ROUTER_MODEL_MAP
+    ? (() => {
+        try {
+          return JSON.parse(process.env.ROUTER_MODEL_MAP);
+        } catch {
+          return undefined;
+        }
+      })()
+    : undefined,
+  ROUTER_UPSTREAM_TIMEOUT_MS: process.env.ROUTER_UPSTREAM_TIMEOUT_MS != null ? Number(process.env.ROUTER_UPSTREAM_TIMEOUT_MS) : 60000,
 };

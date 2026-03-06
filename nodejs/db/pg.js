@@ -247,6 +247,18 @@ async function runMigrations(pool) {
         "INSERT INTO users (type, name, uid) SELECT 'agent', 'JoyTrunk', 0 WHERE NOT EXISTS (SELECT 1 FROM users WHERE uid = 0)"
       );
     }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS llm_usage (
+        id BIGSERIAL PRIMARY KEY,
+        uid BIGINT NOT NULL,
+        source VARCHAR(32) NOT NULL DEFAULT 'router',
+        model VARCHAR(128),
+        prompt_tokens INT NOT NULL DEFAULT 0,
+        completion_tokens INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_llm_usage_uid_created ON llm_usage (uid, created_at DESC)');
   } finally {
     client.release();
   }

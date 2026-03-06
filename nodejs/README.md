@@ -69,7 +69,7 @@ npm install
 npm start
 ```
 
-- **测试**：`npm test`（会加载 `.env`，测试库使用 `joytrunk_test`；**需本地或 CI 起 Redis**，无密码时默认 `REDIS_URL=redis://localhost:6379`，有密码时在 .env 中设 `REDIS_URL` 或 `REDIS_PASSWORD`）。
+- **测试**：`npm test`（会加载 `.env`，测试库使用 `joytrunk_test`；**需本地或 CI 起 Redis**，无密码时默认 `REDIS_URL=redis://localhost:6379`，有密码时在 .env 中设 `REDIS_URL` 或 `REDIS_PASSWORD`）。若多文件并行导致 initDb 报 23505，可改为 `node --test --test-concurrency=1 tests/*.js`。LLM Router 用例见 `tests/llmRouter.test.js`（鉴权、校验、无上游 503、mock 上游 200 与 usage 聚合）。
 
 **测试用户（开发/联调）**
 
