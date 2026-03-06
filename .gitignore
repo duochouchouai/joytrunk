@@ -15,6 +15,7 @@ build/
 .venv/
 venv/
 app/.idea/
+.cursor/
 
 __pycache__/
 poetry.lock
