@@ -155,6 +155,12 @@ English: [README.md](../README.md)
 
 ---
 
+## 致谢
+
+本项目的灵感来源于 [nanobot](https://github.com/nanobot)。感谢 nanobot 团队的开源工作及其对 JoyTrunk 的启发。
+
+---
+
 <p align="center">
-  <sub>JoyTrunk 在本仓库中完成规格与设计。代码库中还包含 nanobot 作为参考；JoyTrunk 为独立产品，运行时不依赖 nanobot。</sub>
+  <sub>JoyTrunk 在本仓库中完成规格与设计。项目灵感来自 nanobot，感谢他们向社区开放其工作。JoyTrunk 为独立产品，运行时不依赖 nanobot。</sub>
 </p>
