@@ -91,7 +91,7 @@ async function generateApiKey(userId) {
 
 /**
  * 获取当前用户的 Token 用量与额度（可用于 LLM Router）
- * balance 来自 users.balance；quota 为可用额度（mock）；usage 为 router/custom 用量（mock）。
+ * balance 来自 users.balance；quota 为可用额度（mock）；usage 中 router 从 llm_usage 按 uid 聚合，custom 暂为 0。
  */
 async function getUsage(userId) {
   if (userId == null) return { error: '未登录', status: 401 };
@@ -99,8 +99,21 @@ async function getUsage(userId) {
   if (me.error) return me;
   const balance = me.balance != null ? Number(me.balance) : 0;
   const quota = 10000;
+  let routerTokens = 0;
+  if (me.uid != null) {
+    try {
+      const pool = getDb();
+      const result = await pool.query(
+        "SELECT COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS total FROM llm_usage WHERE uid = $1 AND source = 'router'",
+        [Number(me.uid)]
+      );
+      routerTokens = Math.max(0, parseInt(result.rows[0]?.total || '0', 10));
+    } catch (e) {
+      console.warn('[user.getUsage] llm_usage aggregate failed', e?.message);
+    }
+  }
   const usage = [
-    { source: 'router', tokens: 0 },
+    { source: 'router', tokens: routerTokens },
     { source: 'custom', tokens: 0 },
   ];
   return { balance, quota, usage };

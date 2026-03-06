@@ -18,6 +18,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const imRoutes = require('./routes/im');
 const cliBindRoutes = require('./routes/cliBind');
+const llmRoutes = require('./routes/llm');
 const { attachCliWs } = require('./ws/cliWs');
 const { attachImWs } = require('./ws/imWs');
 
@@ -48,7 +49,7 @@ app.use(
     optionsSuccessStatus: 200,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -72,6 +73,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/im', authMiddleware, imRoutes);
 app.use('/api/cli', cliBindRoutes);
+app.use('/v1', llmRoutes);
 
 app.use((err, req, res, next) => {
   const origin = req.get('Origin');
