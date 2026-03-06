@@ -157,6 +157,12 @@ Contributions are welcome. See [agent.md](agent.md) for the roadmap and implemen
 
 ---
 
+## Acknowledgments
+
+This project was inspired by [nanobot](https://github.com/nanobot). We thank the nanobot team for their open-source work and the ideas that helped shape JoyTrunk.
+
+---
+
 <p align="center">
-  <sub>JoyTrunk is specified and designed in this repository. The codebase also contains nanobot as a reference; JoyTrunk is a separate product and does not depend on nanobot at runtime.</sub>
+  <sub>JoyTrunk is specified and designed in this repository. Our project was inspired by nanobot; we thank them for opening their work to the community. JoyTrunk is a separate product and does not depend on nanobot at runtime.</sub>
 </p>
