@@ -36,7 +36,8 @@ class Tool(ABC):
         pass
 
     def validate_params(self, params: dict[str, Any]) -> list[str]:
-        schema = self.parameters or {}
+        params_schema = self.parameters() if callable(self.parameters) else self.parameters
+        schema = (params_schema or {}) if isinstance(params_schema, dict) else {}
         if schema.get("type", "object") != "object":
             return [f"Schema must be object type"]
         return self._validate(params, {**schema, "type": "object"}, "")
@@ -60,11 +61,15 @@ class Tool(ABC):
         return errors
 
     def to_schema(self) -> dict[str, Any]:
+        """返回 OpenAI function 格式；兼容子类用 @property 或普通方法实现 name/description/parameters。"""
+        name = self.name() if callable(self.name) else self.name
+        desc = self.description() if callable(self.description) else self.description
+        params = self.parameters() if callable(self.parameters) else self.parameters
         return {
             "type": "function",
             "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
+                "name": name,
+                "description": desc,
+                "parameters": params,
             },
         }

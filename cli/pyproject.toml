@@ -1,15 +1,15 @@
 [project]
 name = "joytrunk"
-version = "0.1.0"
-description = "JoyTrunk（喜象 Agent）- 本地 7×24 智能体员工，负责人通过即时通讯与员工交互"
+version = "1.0.0"
+description = "JoyTrunk CLI — 本地 7×24 智能体员工，像跟真人一样聊天，你的 AI 团队把事情做完"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "JoyTrunk contributors" }]
 keywords = ["ai", "agent", "joytrunk", "assistant"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: End Users/Desktop",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -21,6 +21,14 @@ dependencies = [
     "rich>=14.0.0,<15.0.0",
     "httpx>=0.27.0,<1.0.0",
     "python-clack>=0.1.0",
+    "mcp>=1.26.0,<2.0.0",
+    "readability-lxml>=0.8.4,<1.0.0",
+    "sqlmodel>=0.0.14,<1.0.0",
+    "numpy>=1.24.0,<3.0.0",
+    "defusedxml>=0.7.0,<1.0.0",
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn>=0.32.0,<1.0.0",
+    "websockets>=14.0,<15.0",
 ]
 
 [project.optional-dependencies]
@@ -43,7 +51,7 @@ packages = ["joytrunk"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "joytrunk/templates" = "joytrunk/templates"
-"joytrunk/gateway" = "joytrunk/gateway"
+"joytrunk/server" = "joytrunk/server"
 "joytrunk/docs" = "joytrunk/docs"
 "joytrunk/ui" = "joytrunk/ui"
 
@@ -54,3 +62,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "real_llm: tests that call real LLM API (require OPENAI_API_KEY)",
+]

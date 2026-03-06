@@ -18,6 +18,8 @@ from joytrunk.config_store import (
 )
 from joytrunk.i18n import t
 from joytrunk.agent.loop import run_employee_loop
+from joytrunk.agent.session import OWNER_CHAT_KEY
+from joytrunk.log_reader import load_entries, clear_log
 
 
 # 语言选项（value, label）
@@ -46,7 +48,7 @@ def run_language_picker() -> str | None:
 def run_new_employee(owner_id: str, skip_intro: bool = False) -> tuple[str, str, str] | None:
     """
     新建员工流程（供 chat 与 employee 命令共用）。
-    使用 config_store 写入 config.json，不连接 gateway。
+    使用 config_store 写入 config.json，不连接 server。
     使用 python-clack：text() 输入名称，create_employee_in_config 后返回 (employee_id, owner_id, employee_name)。
     取消或失败返回 None。skip_intro=True 时省略 intro（用于从 chat 入口进入时）。
     """
@@ -74,7 +76,7 @@ def run_new_employee(owner_id: str, skip_intro: bool = False) -> tuple[str, str,
 
 def run_chat_entry() -> tuple[str, str, str] | None:
     """
-    使用 python-clack 完成 chat 入口：从 config.json 读取员工，不连接 gateway。
+    使用 python-clack 完成 chat 入口：从 config.json 读取员工，不连接 server。
     选择或新建员工。返回 (employee_id, owner_id, employee_name)，取消或失败返回 None。
     """
     intro("JoyTrunk")
@@ -131,7 +133,7 @@ def run_chat_entry() -> tuple[str, str, str] | None:
 def run_employee_menu(owner_id: str) -> None:
     """
     员工管理 TUI 菜单（joytrunk employee 无子命令时）：列出员工 / 新建员工 / 退出。
-    从 config.json 读取，不连接 gateway。
+    从 config.json 读取，不连接 server。
     """
     while True:
         intro(t("employee.menu.title"))
@@ -173,6 +175,46 @@ def run_employee_menu(owner_id: str) -> None:
             continue
 
 
+def run_memory_export_flow(owner_id: str) -> None:
+    """
+    记忆导出 TUI：选择员工 → 可选输入输出路径 → 执行导出。
+    取消或失败时 return。
+    """
+    intro(t("memory.tui.title"))
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        log.warn(t("chat.no_employees"))
+        return
+    options = [
+        {"value": e["id"], "label": f"{e.get('name') or e['id']}  ({e['id']})"}
+        for e in employees
+    ]
+    options.append({"value": "__back__", "label": t("employee.menu.back")})
+    choice = select(t("memory.tui.select_employee"), options=options)
+    if is_cancel(choice) or choice == "__back__":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    emp = next((e for e in employees if e["id"] == choice), None)
+    if not emp:
+        return
+    employee_id = choice
+    out_prompt = t("memory.tui.output_prompt")
+    out_val = text(out_prompt, placeholder=t("memory.tui.output_placeholder"))
+    if is_cancel(out_val):
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    output_path = (out_val or "").strip() or None
+    if output_path:
+        from pathlib import Path
+        output_path = Path(output_path).resolve()
+    try:
+        from joytrunk.agent.memory.export_md import export_memory_to_md
+        out_path = export_memory_to_md(employee_id, output_path=output_path)
+        log.success(t("memory.export_done", path=str(out_path)))
+    except Exception as e:
+        log.error(t("memory.export_failed", error=str(e)))
+
+
 def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
     """
     使用 python-clack 的对话循环：intro 后循环 text() 输入，调用 run_employee_loop，用 log 输出回复与用量。
@@ -198,15 +240,20 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
         try:
             s = spinner()
             s.start(t("tui.entry.loading"))
-            reply, usage = asyncio.run(
-                run_employee_loop(
-                    employee_id,
-                    owner_id,
-                    raw,
-                    session_key="cli:direct",
-                    on_progress=None,
+            from joytrunk import a2a_client
+            result = a2a_client.send_message(owner_id, employee_id, raw, session_key=OWNER_CHAT_KEY)
+            if result is not None:
+                reply, usage = result
+            else:
+                reply, usage = asyncio.run(
+                    run_employee_loop(
+                        employee_id,
+                        owner_id,
+                        raw,
+                        session_key=OWNER_CHAT_KEY,
+                        on_progress=None,
+                    )
                 )
-            )
             s.stop("")
             log.success(t("chat.employee") + " " + (reply or ""))
             if usage and (usage.get("prompt_tokens") or usage.get("completion_tokens")):
@@ -220,3 +267,109 @@ def run_chat_loop(employee_id: str, owner_id: str, employee_name: str) -> None:
                 except Exception:
                     pass
             log.error(t("chat.send_failed", error=str(e)))
+
+
+def _format_ts(ts: str) -> str:
+    """ISO ts 转为简短本地显示（仅日期时间）。"""
+    if not ts:
+        return ""
+    try:
+        from datetime import datetime
+        if "T" in ts and "Z" in ts:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(ts.replace("Z", ""))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ts[:19].replace("T", " ") if len(ts) >= 19 else ts
+
+
+def run_log_view_entries(employee_id: str, employee_name: str) -> None:
+    """查看运行日志：列出最近条目，选择后显示 payload，可反复选择或返回。"""
+    import json
+    entries = load_entries(employee_id, sort_newest_first=True, limit=50)
+    if not entries:
+        log.warn(t("log.tui.empty"))
+        return
+    while True:
+        options = []
+        for i, e in enumerate(entries):
+            ts = _format_ts(e.get("ts") or "")
+            ev = e.get("event") or ""
+            run_id = (e.get("run_id") or "")[:8]
+            label = f"{ts}  {ev}  ({run_id})" if run_id else f"{ts}  {ev}"
+            options.append({"value": str(i), "label": label})
+        options.append({"value": "__back__", "label": t("log.tui.menu.back")})
+        choice = select(
+            t("log.tui.select_entry") + " — " + employee_name,
+            options=options,
+        )
+        if is_cancel(choice) or choice == "__back__":
+            return
+        idx = choice
+        if idx.isdigit() and 0 <= int(idx) < len(entries):
+            entry = entries[int(idx)]
+            payload = entry.get("payload") or {}
+            log.info(json.dumps(payload, ensure_ascii=False, indent=2))
+            text(t("tui.lang_picker.hint"), placeholder="")
+        else:
+            return
+
+
+def run_log_menu(owner_id: str, employee_id: str, employee_name: str) -> None:
+    """日志管理 TUI 菜单：查看 / 清空 / 返回。"""
+    while True:
+        intro(t("log.tui.menu.title") + " — " + employee_name)
+        choice = select(
+            t("employee.menu.prompt"),
+            options=[
+                {"value": "view", "label": t("log.tui.menu.view")},
+                {"value": "clear", "label": t("log.tui.menu.clear")},
+                {"value": "back", "label": t("log.tui.menu.back")},
+            ],
+        )
+        if is_cancel(choice) or choice == "back":
+            return
+        if choice == "view":
+            run_log_view_entries(employee_id, employee_name)
+            continue
+        if choice == "clear":
+            confirm = select(
+                t("log.tui.clear_confirm"),
+                options=[
+                    {"value": "yes", "label": t("log.tui.clear_yes")},
+                    {"value": "no", "label": t("log.tui.clear_no")},
+                ],
+            )
+            if is_cancel(confirm) or confirm == "no":
+                continue
+            try:
+                if clear_log(employee_id):
+                    log.success(t("log.tui.cleared"))
+                else:
+                    log.error(t("log.tui.clear_failed", error="unknown"))
+            except Exception as e:
+                log.error(t("log.tui.clear_failed", error=str(e)))
+            continue
+
+
+def run_log_entry(owner_id: str) -> None:
+    """运行日志 TUI 入口：选择员工后进入日志管理菜单。"""
+    intro(t("log.tui.title"))
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        log.warn(t("chat.no_employees"))
+        return
+    options = [
+        {"value": e["id"], "label": f"{e.get('name') or e['id']}  ({e['id']})"}
+        for e in employees
+    ]
+    options.append({"value": "__back__", "label": t("employee.menu.back")})
+    choice = select(t("log.tui.select_employee"), options=options)
+    if is_cancel(choice) or choice == "__back__":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    emp = next((e for e in employees if e["id"] == choice), None)
+    if not emp:
+        return
+    run_log_menu(owner_id, choice, emp.get("name") or choice)

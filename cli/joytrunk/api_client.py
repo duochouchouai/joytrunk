@@ -1,4 +1,4 @@
-"""调用本地 gateway API（本地员工/聊天）。员工归属本地，无需「绑定负责人」；gateway 首次请求时自动创建本地上下文。"""
+"""调用本地 server API（本地员工/聊天）。员工归属本地，无需「绑定负责人」；server 首次请求时自动创建本地上下文。"""
 
 import json
 from pathlib import Path
@@ -8,7 +8,8 @@ import httpx
 from joytrunk import paths
 from joytrunk.config_schema import migrate_from_legacy
 
-DEFAULT_PORT = 32890
+# 端口仅从 cli/.env 的 JOYTRUNK_SERVER_PORT 读取，默认 32901
+DEFAULT_PORT = 32901
 
 
 def _load_config():
@@ -22,13 +23,26 @@ def _load_config():
         return migrate_from_legacy(None)
 
 
+def _get_server_port() -> int:
+    """从 cli/.env 读取 JOYTRUNK_SERVER_PORT，未设置或无效时返回 DEFAULT_PORT。"""
+    from joytrunk.env_loader import parse_dotenv
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_SERVER_PORT", "").strip()
+    if not raw:
+        return DEFAULT_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_PORT
+
+
 def get_base_url():
     c = _load_config()
-    g = c.get("gateway") or {}
-    host = g.get("host") or "127.0.0.1"
+    s = c.get("server") or {}
+    host = s.get("host") or "127.0.0.1"
     if host in ("localhost", "::1"):
         host = "127.0.0.1"
-    port = g.get("port") or DEFAULT_PORT
+    port = _get_server_port()
     return f"http://{host}:{port}"
 
 
@@ -36,9 +50,9 @@ def get_owner_id():
     return _load_config().get("ownerId")
 
 
-def ensure_owner_via_gateway() -> tuple[str | None, str | None]:
+def ensure_owner_via_server() -> tuple[str | None, str | None]:
     """
-    通过调用 gateway GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
+    通过调用 server GET /api/owners/me 触发服务端创建本地默认上下文并写入 config，
     返回 (ownerId, None)；失败时返回 (None, 错误信息)。
     """
     try:

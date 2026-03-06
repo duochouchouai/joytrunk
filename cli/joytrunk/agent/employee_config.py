@@ -1,4 +1,4 @@
-"""员工合并配置：主 config + 员工 config 覆盖（与 gateway lib/employeeConfig.js 一致）。"""
+"""员工合并配置：主 config + 员工 config 覆盖（与 server lib/employeeConfig.js 一致）。"""
 
 from __future__ import annotations
 
@@ -54,10 +54,32 @@ def get_merged_config_for_employee(employee_id: str) -> dict:
         filtered["agents"] = emp["agents"]
     if isinstance(emp.get("providers"), dict):
         filtered["providers"] = emp["providers"]
+    if isinstance(emp.get("tools"), dict):
+        filtered["tools"] = emp["tools"]
+    if isinstance(emp.get("memory"), dict):
+        filtered["memory"] = emp["memory"]
     if not filtered:
         return main
     import copy
     return _deep_merge(copy.deepcopy(main), filtered)
+
+
+def get_memory_config(employee_id: str) -> dict:
+    """返回该员工的记忆配置（合并主配置与员工配置）。"""
+    config = get_merged_config_for_employee(employee_id)
+    mem = config.get("memory")
+    if not isinstance(mem, dict):
+        mem = {}
+    from joytrunk.config_schema import DEFAULT_CONFIG
+    default_mem = (DEFAULT_CONFIG.get("memory") or {})
+    out = dict(default_mem)
+    for k, v in mem.items():
+        if v is not None:
+            if isinstance(v, dict) and isinstance(out.get(k), dict):
+                out[k] = _deep_merge(dict(out[k]), v)
+            else:
+                out[k] = v
+    return out
 
 
 def has_custom_llm(config: dict, owner_id: str | None) -> bool:
@@ -91,11 +113,11 @@ def get_llm_params(employee_id: str, owner_id: str) -> dict[str, Any]:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-    # 使用 JoyTrunk Router（通过 gateway 代理）
+    # 使用 JoyTrunk Router（通过 server 代理）
     from joytrunk.api_client import get_base_url
     return {
         "source": "router",
-        "gateway_base_url": get_base_url().rstrip("/"),
+        "server_base_url": get_base_url().rstrip("/"),
         "owner_id": owner_id,
         "model": default_model,
         "max_tokens": max_tokens,

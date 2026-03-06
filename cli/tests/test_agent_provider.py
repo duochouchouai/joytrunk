@@ -118,7 +118,7 @@ async def test_chat_calls_url():
 
 
 @pytest.mark.asyncio
-async def test_chat_via_router_calls_gateway():
+async def test_chat_via_router_calls_server():
     resp_json = {
         "choices": [{"message": {"content": "From router", "role": "assistant"}}],
         "usage": {"prompt_tokens": 2, "completion_tokens": 2},
@@ -131,7 +131,7 @@ async def test_chat_via_router_calls_gateway():
         mock_client.__aexit__ = AsyncMock(return_value=None)
         m_httpx.AsyncClient.return_value = mock_client
         r = await chat_via_router(
-            "http://localhost:32890",
+            "http://localhost:32901",
             "owner-1",
             "gpt-3.5-turbo",
             [{"role": "user", "content": "Hi"}],

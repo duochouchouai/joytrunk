@@ -47,7 +47,7 @@ def test_get_llm_params_custom(config_with_custom_llm, employee_dir):
 def test_get_llm_params_router(config_without_custom_llm, joytrunk_root):
     params = get_llm_params("emp-001", "owner-1")
     assert params["source"] == "router"
-    assert "gateway_base_url" in params
+    assert "server_base_url" in params
     assert params["owner_id"] == "owner-1"
     assert params["model"] == "gpt-3.5-turbo"
 

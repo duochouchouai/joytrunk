@@ -7,6 +7,7 @@ workspace/employees/<employee_id>/config.json（覆盖全局配置）。
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -14,8 +15,6 @@ from datetime import datetime, timezone
 
 from joytrunk import paths
 from joytrunk.config_schema import migrate_from_legacy, DEFAULT_CONFIG
-
-BUNDLED_TEMPLATES = Path(__file__).resolve().parent / "templates"
 
 
 def load_config() -> dict:
@@ -106,29 +105,101 @@ def list_employees_from_config(owner_id: str | None = None) -> list[dict]:
     return result
 
 
+# 中文数字映射（用于「N号员工」解析）
+_CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def _parse_number_from_label(s: str) -> int | None:
+    """仅对「第N号」「第N个」解析为序号（1-based），用于“第几个”的语义；「1号员工」「2号员工」等视为名称不在此解析。"""
+    s = (s or "").strip()
+    if not s:
+        return None
+    # 仅明确带「第」的视为序号
+    m = re.search(r"第\s*(\d+)\s*[号个]?", s)
+    if m:
+        n = int(m.group(1))
+        return n if 1 <= n <= 999 else None
+    m = re.search(r"第\s*([一二两三四五六七八九十])\s*[号个]?", s)
+    if m:
+        return _CN_NUM.get(m.group(1))
+    return None
+
+
+def resolve_employee_id(owner_id: str, id_or_name: str) -> str | None:
+    """
+    将「员工 ID / 名称」解析为员工 ID。
+    - 先按 id 精确匹配，再按 name 精确匹配（「1号员工」「2号员工」等为名称时在此匹配）；
+    - 仅当输入为「第N号」「第N个」时按当前列表顺序取第 N 个（1-based）。
+    """
+    employees = list_employees_from_config(owner_id)
+    if not employees:
+        return None
+    employees = sorted(employees, key=lambda e: (e.get("id") or ""))
+    raw = (id_or_name or "").strip()
+    for e in employees:
+        if (e.get("id") or "").strip() == raw:
+            return e["id"]
+    for e in employees:
+        if (e.get("name") or "").strip() == raw:
+            return e.get("id")
+    # 名称包含匹配：如 "2号" 匹配 "2号员工"
+    if raw:
+        for e in employees:
+            name = (e.get("name") or "").strip()
+            if name and raw in name:
+                return e.get("id")
+    n = _parse_number_from_label(raw)
+    if n is not None and 1 <= n <= len(employees):
+        return employees[n - 1].get("id")
+    return None
+
+
 def _copy_templates_to_employee(employee_id: str) -> None:
-    """将包内 templates 复制到员工目录。"""
+    """将包内模板复制到员工目录：仅 SYSTEM_PROMPT.md、HEARTBEAT.md、memory/、skills/。复制完成后触发 get_store 以创建 memory.db 与 14 个 category。"""
     emp_dir = paths.get_employee_dir(employee_id)
-    if not BUNDLED_TEMPLATES.exists():
-        emp_dir.mkdir(parents=True, exist_ok=True)
-        (emp_dir / "memory").mkdir(parents=True, exist_ok=True)
-        (emp_dir / "skills").mkdir(parents=True, exist_ok=True)
-        return
+    tpl_dir = paths.get_bundled_templates_dir()
     emp_dir.mkdir(parents=True, exist_ok=True)
-    for item in BUNDLED_TEMPLATES.iterdir():
-        if item.name.startswith("."):
-            continue
-        dest = emp_dir / item.name
-        if item.is_file() and item.suffix == ".md":
-            if not dest.exists():
-                shutil.copy2(item, dest)
-        elif item.is_dir() and item.name == "memory":
-            mem_dest = emp_dir / "memory"
-            mem_dest.mkdir(parents=True, exist_ok=True)
-            for sub in item.iterdir():
-                if sub.is_file() and not (mem_dest / sub.name).exists():
-                    shutil.copy2(sub, mem_dest / sub.name)
+    (emp_dir / "memory").mkdir(parents=True, exist_ok=True)
     (emp_dir / "skills").mkdir(parents=True, exist_ok=True)
+    if not tpl_dir.exists():
+        _init_store_after_copy(employee_id)
+        return
+    # 只复制 SYSTEM_PROMPT.md、HEARTBEAT.md、memory/ 下文件
+    for name in ("SYSTEM_PROMPT.md", "HEARTBEAT.md"):
+        src = tpl_dir / name
+        if src.is_file():
+            dest = emp_dir / name
+            if not dest.exists():
+                shutil.copy2(src, dest)
+    mem_src = tpl_dir / "memory"
+    if mem_src.is_dir():
+        mem_dest = emp_dir / "memory"
+        for sub in mem_src.iterdir():
+            if sub.is_file() and not (mem_dest / sub.name).exists():
+                shutil.copy2(sub, mem_dest / sub.name)
+    _init_store_after_copy(employee_id)
+
+
+def _init_store_after_copy(employee_id: str) -> None:
+    """复制模板后初始化 memory.db：创建固定 category，并将员工名字以 identity item 写入。"""
+    try:
+        from joytrunk.agent.memory import get_store
+        store = get_store(employee_id)
+        store.load_existing()
+        cfg_path = paths.get_employee_dir(employee_id) / "config.json"
+        if cfg_path.exists():
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            name = (data.get("name") or "").strip()
+            if name:
+                cat = store.memory_category_repo.get_category_by_name("identity")
+                if cat:
+                    item = store.memory_item_repo.create_item(
+                        memory_type="profile",
+                        summary=f"名字：{name}",
+                    )
+                    store.category_item_repo.link_item_category(item.id, cat.id)
+    except Exception:
+        pass
 
 
 def create_employee_in_config(owner_id: str, name: str, **kwargs) -> dict:

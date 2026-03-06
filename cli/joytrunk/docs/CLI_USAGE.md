@@ -2,7 +2,7 @@
 
 按下面步骤可以在本机完整跑通「员工智能体」：你的意图 + 员工提示词 + 历史 → 大模型 → 执行返回结果（如工具调用）。
 
-**约定**：**所有配置均在 `config.json`**（`~/.joytrunk/config.json`），包括员工列表与负责人 ID；**不再使用 store.json**。chat、employee、status 均直接读写 config.json，**无需先启动 gateway**。
+**约定**：**所有配置均在 `config.json`**（`~/.joytrunk/config.json`），包括员工列表与负责人 ID；**不再使用 store.json**。chat、employee、status 均直接读写 config.json，**无需先启动 server**。
 
 ---
 
@@ -31,7 +31,7 @@ joytrunk onboard
 
 ---
 
-## 2. 创建员工并与员工对话（无需 gateway）
+## 2. 创建员工并与员工对话（无需 server）
 
 ```powershell
 joytrunk chat
@@ -41,7 +41,7 @@ joytrunk chat
 - 若有员工，TUI 列出所有员工，**最后一项为「新建员工」**，选择后进入对话或新建。
 - 或使用 `joytrunk employee new` 新建、`joytrunk employee list` 查看列表、`joytrunk employee set <id> --name ...` 设置属性。
 
-**可选**：若需网页管理界面或 Electron 等 UI，再执行 `joytrunk gateway` 并保持运行；gateway 与 CLI 共用同一 config.json。
+**可选**：若需网页管理界面或 Electron 等 UI，再执行 `joytrunk server` 并保持运行；server 与 CLI 共用同一 config.json。
 
 ---
 
@@ -51,7 +51,7 @@ joytrunk chat
 
 ### 选项 A：使用自有 LLM（推荐自测）
 
-1. 启动 `joytrunk gateway` 后，在浏览器打开 http://localhost:32890 → 进入 **设置**；或直接编辑 `~/.joytrunk/config.json` 的 `providers.custom`。
+1. 启动 `joytrunk server` 后，在浏览器打开 http://localhost:32901 → 进入 **设置**；或直接编辑 `~/.joytrunk/config.json` 的 `providers.custom`。
 2. 配置 **自有 LLM**：API Key、Base URL、模型名等，保存。
 
 ### 选项 B：使用 JoyTrunk Router
@@ -83,7 +83,7 @@ joytrunk chat abc-123-def
 
 **行为说明：**
 
-- 每次输入一句话（如「帮我截图」「读一下 SOUL.md」「列出当前目录」）后回车。
+- 每次输入一句话（如「帮我截图」「读一下 SYSTEM_PROMPT.md」「列出当前目录」）后回车。
 - CLI 会：
   1. 把你的**意图**（当前输入）+ 员工的**提示词**（SOUL/AGENTS/TOOLS/记忆等）+ **历史记录** 拼成完整提示；
   2. 发给大模型（自有 LLM 或 Router）；
@@ -94,13 +94,49 @@ joytrunk chat abc-123-def
 
 **自测建议：**
 
-- 输入：「帮我读一下 SOUL.md」→ 应触发 `read_file`，并返回文件内容或总结。
+- 输入：「帮我读一下 SYSTEM_PROMPT.md」→ 应触发 `read_file`，并返回文件内容或总结。
 - 输入：「列出当前目录」→ 应触发 `list_dir` 或 `exec`，并返回目录列表。
 - 再发一条与上面对话相关的追问 → 应能看出**历史**被带入（上下文连贯）。
 
 ---
 
-## 5. 其他常用命令
+## 5. 工具与 MCP
+
+对话时员工可使用以下工具（由 config 与 MCP 配置决定）：
+
+- **内置工具**：`read_file`、`write_file`、`list_dir`、`edit_file`、`exec`；**始终**提供 `web_search`、`web_fetch`（抓取 URL 正文）。
+- **网页搜索**：需配置 Brave Search API Key，否则调用 `web_search` 时会返回错误提示。
+  - 在 `~/.joytrunk/config.json` 中设置 `tools.web.search.apiKey`，或设置环境变量 `BRAVE_API_KEY`（config 优先）。
+- **MCP 服务器**：若配置了 `tools.mcp_servers`，对话启动时会连接这些 MCP 服务器，并将其提供的工具注册为 `mcp_<服务器名>_<工具名>`，供模型调用。
+- **记忆（save_memory / search_memory）**：若使用 MiniMax 作为 embedding 服务（`memory.embedding.base_url` 为 MiniMax 地址），必须在 config 的 `memory.embedding.group_id` 中填写 Group ID，或设置环境变量 `MINIMAX_GROUP_ID`，否则接口会返回 2013。Group ID 可在 MiniMax 开放平台账户/应用管理中查看。
+
+**config 示例（片段）：**
+
+```json
+{
+  "tools": {
+    "web": {
+      "search": { "apiKey": "你的Brave_API_Key" }
+    },
+    "mcp_servers": {
+      "brave": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": { "BRAVE_API_KEY": "你的Brave_API_Key" },
+        "tool_timeout": 30
+      }
+    }
+  }
+}
+```
+
+- **stdio 方式**：`command`、`args`、`env`（可选）、`tool_timeout`（可选，默认 30 秒）。
+- **HTTP 方式**：`url`、`headers`（可选）、`tool_timeout`（可选）。  
+员工级 config（`workspace/employees/<id>/config.json`）中的 `tools` 会覆盖全局配置，可为不同员工配置不同的搜索或 MCP 能力。
+
+---
+
+## 6. 其他常用命令
 
 | 命令 | 作用 |
 |------|------|
@@ -114,22 +150,22 @@ joytrunk chat abc-123-def
 
 ---
 
-## 6. 目录与配置位置
+## 7. 目录与配置位置
 
 - **根目录**：`%USERPROFILE%\.joytrunk`（Windows）或 `~/.joytrunk`（Linux/macOS）
 - **配置文件**：`~/.joytrunk/config.json`（**含员工列表、ownerId**，无 store.json）
 - **某员工工作区**：`~/.joytrunk/workspace/employees/<员工ID>/`
-- **CLI 对话历史**：`~/.joytrunk/workspace/employees/<员工ID>/sessions/cli_direct.json`
+- **与负责人的对话历史**：`~/.joytrunk/workspace/employees/<员工ID>/sessions/owner.json`（CLI 与网页共用，不按渠道分 session）
 
 ---
 
-## 7. 常见问题
+## 8. 常见问题
 
 - **“尚未绑定负责人”**  
-  先打开 http://localhost:32890，在网页里完成一次「登录/注册」或使用默认负责人，使 `config.json` 里有 `ownerId`。
+  先打开 http://localhost:32901，在网页里完成一次「登录/注册」或使用默认负责人，使 `config.json` 里有 `ownerId`。
 
-- **“无法连接 gateway”**  
-  先执行 `joytrunk gateway` 并保持运行，再执行 `joytrunk chat`。
+- **“无法连接 server”**  
+  先执行 `joytrunk server` 并保持运行，再执行 `joytrunk chat`。
 
 - **“JoyTrunk Router 未配置”**  
   要么在设置里配置**自有 LLM**，要么配置好 Router 的 `JOYTRUNK_ROUTER_URL` 或 `providers.joytrunk.apiBase` 后再用 chat。

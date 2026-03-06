@@ -9,8 +9,13 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
 
+    def _tool_name(self, tool: Tool) -> str:
+        """工具名称字符串，兼容子类用 @property 或普通方法实现 name。"""
+        n = tool.name
+        return n() if callable(n) else n
+
     def register(self, tool: Tool) -> None:
-        self._tools[tool.name] = tool
+        self._tools[self._tool_name(tool)] = tool
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
@@ -19,10 +24,11 @@ class ToolRegistry:
         return [t.to_schema() for t in self._tools.values()]
 
     async def execute(self, name: str, params: dict[str, Any]) -> str:
-        hint = "\n\n[Analyze the error and try a different approach if needed.]"
+        hint = "\n\n[Analyze the error and try again if needed.]"
         tool = self._tools.get(name)
         if not tool:
-            return f"Error: Tool '{name}' not found. Available: {', '.join(self._tools.keys())}"
+            available = ", ".join(str(k) for k in self._tools.keys())
+            return f"Error: Tool '{name}' not found. Available: {available}"
         try:
             errs = tool.validate_params(params)
             if errs:

@@ -1,6 +1,6 @@
 # joytrunk chat
 
-与员工对话（CLI 渠道）。**不连接 gateway**，从 `config.json` 与 workspace 读取设置。
+与员工对话（CLI 渠道）。**不连接 server**，从 `config.json` 与 workspace 读取设置。
 
 ## 用法
 
@@ -23,7 +23,7 @@ joytrunk chat [员工ID]
 ## 说明
 
 - 作为「CLI 渠道」与 JoyTrunk 员工对话：输入消息后回车发送，员工回复显示在终端。
-- **前置条件**：已执行 `joytrunk onboard`；员工列表与负责人 ID 存于 `config.json`，无需启动 gateway 即可选择/新建员工并对话。
+- **前置条件**：已执行 `joytrunk onboard`；员工列表与负责人 ID 存于 `config.json`，无需启动 server 即可选择/新建员工并对话。
 - TUI 行为：先检查是否有员工；无员工时仅显示「新建员工」「打开管理页」；有员工时列出所有员工，最后一项为「新建员工」，选择后进入对话。
 - 输入 `/exit` 或 `/quit` 退出对话。
 - 实际调用大模型时，若使用 JoyTrunk Router，需本机可访问 Router 或配置自有 LLM。

@@ -14,16 +14,19 @@ build/
 *.pyzz
 .venv/
 venv/
+app/.idea/
+.cursor/
+
 __pycache__/
 poetry.lock
 .pytest_cache/
 botpy.log
+.vscode
 
 # JoyTrunk
-nodejs/node_modules/
-nodejs/data/
-vue/node_modules/
-vue/dist/
 cli/joytrunk/ui/node_modules/
 cli/joytrunk/gateway/static/
 cli/joytrunk/gateway/node_modules/
+cli/joytrunk/server/node_modules/
+AGENTS.md
+deps/

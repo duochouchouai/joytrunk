@@ -1,4 +1,4 @@
-"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk gateway / joytrunk docs / joytrunk status / joytrunk language。"""
+"""JoyTrunk CLI 入口：joytrunk / joytrunk onboard / joytrunk server / joytrunk docs / joytrunk status / joytrunk language。"""
 
 import os
 import subprocess
@@ -20,8 +20,36 @@ app = typer.Typer(
 )
 console = Console()
 
-GATEWAY_PORT = 32890
-GATEWAY_URL = f"http://localhost:{GATEWAY_PORT}"
+# CLI 端口仅从 cli/.env 读取，默认与 nodejs 32891 分离
+DEFAULT_SERVER_PORT = 32901
+DEFAULT_A2A_PORT = 32900
+SERVER_URL = f"http://localhost:{DEFAULT_SERVER_PORT}"
+
+
+def _get_default_server_port() -> int:
+    """从 cli/.env 读取 JOYTRUNK_SERVER_PORT，无效或未设置时返回 DEFAULT_SERVER_PORT。"""
+    from joytrunk import paths
+    from joytrunk.env_loader import parse_dotenv
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_SERVER_PORT", "").strip()
+    if not raw:
+        return DEFAULT_SERVER_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_SERVER_PORT
+
+
+def _get_a2a_port_env() -> str:
+    """返回用于子进程的 JOYTRUNK_A2A_PORT 值（仅 .env 或当前环境），默认 32900。"""
+    from joytrunk import paths
+    from joytrunk.env_loader import parse_dotenv
+    raw = os.environ.get("JOYTRUNK_A2A_PORT", "").strip()
+    if raw:
+        return raw
+    parsed = parse_dotenv(paths.get_cli_root() / ".env")
+    raw = parsed.get("JOYTRUNK_A2A_PORT", "").strip()
+    return raw if raw else str(DEFAULT_A2A_PORT)
 
 
 def _safe_text_for_console(text: str) -> str:
@@ -93,47 +121,86 @@ def onboard_cmd() -> None:
     )
     if did_import:
         console.print("[green]✓[/green]", t("onboard.env_imported"))
-    console.print(Markdown(t("onboard.next", url=GATEWAY_URL)))
+    console.print(Markdown(t("onboard.next", url=SERVER_URL)))
 
 
-@app.command("gateway")
-def gateway_cmd(
-    port: int = typer.Option(GATEWAY_PORT, "--port", "-p", help="监听端口"),
+@app.command("server")
+def server_cmd(
+    port: int | None = typer.Option(None, "--port", "-p", help="监听端口"),
 ) -> None:
-    """启动本地常驻服务（cli 内本地管理后端），绑定 32890，提供网页管理界面与 API。"""
-    gateway_dir = Path(__file__).resolve().parent / "gateway"
-    if not (gateway_dir / "package.json").exists():
-        console.print("[red]" + t("gateway.not_found", path="[cyan]joytrunk/gateway/[/cyan]") + "[/red]")
-        console.print(t("gateway.upgrade"))
+    """启动本地常驻服务（cli 内本地管理后端），默认 32901，提供网页管理界面与 API。端口仅由 cli/.env 的 JOYTRUNK_SERVER_PORT 配置。"""
+    if port is None:
+        port = _get_default_server_port()
+    server_dir = Path(__file__).resolve().parent / "server"
+    if not (server_dir / "package.json").exists():
+        console.print("[red]" + t("server.not_found", path="[cyan]joytrunk/server/[/cyan]") + "[/red]")
+        console.print(t("server.upgrade"))
         raise typer.Exit(1)
-    server_js = gateway_dir / "server.js"
+    server_js = server_dir / "server.js"
     if not server_js.exists():
-        console.print("[red]" + t("gateway.server_missing") + "[/red]")
+        console.print("[red]" + t("server.server_missing") + "[/red]")
         raise typer.Exit(1)
-    node_modules = gateway_dir / "node_modules"
+    node_modules = server_dir / "node_modules"
     if not node_modules.exists():
-        console.print("[dim]" + t("gateway.installing") + "[/dim]")
+        console.print("[dim]" + t("server.installing") + "[/dim]")
         try:
-            subprocess.run(
-                ["npm", "install", "--omit=dev"],
-                cwd=str(gateway_dir),
-                env=dict(os.environ),
-                check=True,
-                capture_output=True,
-            )
+            # On Windows, npm is typically npm.cmd; shell=True lets the shell resolve it.
+            run_kw: dict = {
+                "cwd": str(server_dir),
+                "env": dict(os.environ),
+                "check": True,
+                "capture_output": True,
+            }
+            if sys.platform == "win32":
+                subprocess.run("npm install --omit=dev", shell=True, **run_kw)
+            else:
+                subprocess.run(["npm", "install", "--omit=dev"], **run_kw)
+        except FileNotFoundError:
+            console.print("[red]" + t("server.node_missing") + "[/red]")
+            raise typer.Exit(1)
         except subprocess.CalledProcessError:
-            console.print("[red]" + t("gateway.npm_failed") + "[/red]")
+            console.print("[red]" + t("server.npm_failed") + "[/red]")
             raise typer.Exit(1)
     try:
         env = dict(os.environ)
         env["PORT"] = str(port)
-        subprocess.run(["node", "server.js"], cwd=str(gateway_dir), env=env)
+        env["JOYTRUNK_A2A_PORT"] = _get_a2a_port_env()
+        if sys.platform == "win32":
+            subprocess.run("node server.js", shell=True, cwd=str(server_dir), env=env)
+        else:
+            subprocess.run(["node", "server.js"], cwd=str(server_dir), env=env)
     except FileNotFoundError:
-        console.print("[red]" + t("gateway.node_missing") + "[/red]")
+        console.print("[red]" + t("server.node_missing") + "[/red]")
         raise typer.Exit(1)
     except Exception as e:
-        console.print("[red]" + t("gateway.start_failed", error=e) + "[/red]")
+        console.print("[red]" + t("server.start_failed", error=e) + "[/red]")
         raise typer.Exit(1)
+
+
+gateway_app = typer.Typer(name="gateway", help="A2A Gateway：启动服务或查看状态")
+
+
+@gateway_app.callback(invoke_without_command=True)
+def gateway_callback(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.gateway.a2a_server import main
+    main()
+
+
+@gateway_app.command("status")
+def gateway_status_cmd() -> None:
+    """检测 Gateway 是否可用并打印 base URL（端口仅从 cli/.env 的 JOYTRUNK_A2A_PORT 读取）。"""
+    from joytrunk import a2a_client
+    base = a2a_client.get_gateway_base_url()
+    console.print("Gateway URL:", f"[cyan]{base}[/cyan]")
+    if a2a_client.gateway_available():
+        console.print("[green]✓[/green] Gateway 可用")
+    else:
+        console.print("[yellow]Gateway 未响应，请先运行 joytrunk gateway[/yellow]")
+
+
+app.add_typer(gateway_app)
 
 
 @app.command("docs")
@@ -171,9 +238,123 @@ def docs_cmd(
     console.print(t("docs.opened", url=f"[link={DOCS_OFFICIAL_URL}]{DOCS_OFFICIAL_URL}[/link]"))
 
 
+@app.command("bind")
+def bind_cmd(
+    force: bool = typer.Option(False, "--force", "-f", help="已绑定时仍执行绑定流程（覆盖现有 api_key）"),
+) -> None:
+    """绑定本机 JoyTrunk 到官网账号（打开浏览器授权，写入 official.api_key）。"""
+    import time
+    import httpx
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import load_config, save_config
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("bind.not_inited") + "[/yellow]")
+        raise typer.Exit(1)
+    config_path = get_config_path()
+    if not config_path.exists():
+        console.print("[yellow]" + t("bind.not_inited") + "[/yellow]")
+        raise typer.Exit(1)
+
+    config = load_config()
+    official = config.get("official") or {}
+    existing_key = (official.get("api_key") or "").strip()
+    if existing_key and not force:
+        console.print("[yellow]" + t("bind.already_bound") + "[/yellow]")
+        raise typer.Exit(0)
+
+    base_url = (official.get("url") or os.environ.get("JOYTRUNK_OFFICIAL_URL") or "http://localhost:32891").rstrip("/")
+    device_name = None
+    try:
+        import socket
+        device_name = socket.gethostname() or None
+    except Exception:
+        pass
+
+    def _post_start(url: str):
+        base = url.rstrip("/")
+        # 本地地址不走代理，避免 HTTP_PROXY 导致 502
+        trust_env = "localhost" not in base and "127.0.0.1" not in base
+        with httpx.Client(timeout=15.0, trust_env=trust_env) as client:
+            return client.post(
+                f"{base}/api/cli/bind/start",
+                json={"device_name": device_name},
+            )
+
+    try:
+        r = _post_start(base_url)
+        if r.status_code == 502 and "localhost" in base_url:
+            alt_url = base_url.replace("localhost", "127.0.0.1", 1)
+            console.print("[dim]" + t("bind.retry_127") + "[/dim]")
+            r = _post_start(alt_url)
+            if r.status_code in (200, 201):
+                base_url = alt_url
+        r.raise_for_status()
+        data = r.json()
+    except httpx.HTTPStatusError as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        if e.response.status_code == 502:
+            try:
+                body = (e.response.text or "").strip()
+                if body and len(body) <= 300:
+                    console.print("[dim]" + t("bind.help_502_body", body=body) + "[/dim]")
+            except Exception:
+                pass
+            console.print("[dim]" + t("bind.help_502") + "[/dim]")
+            console.print("[dim]" + t("bind.help_502_curl") + "[/dim]")
+        elif e.response.status_code == 503:
+            console.print("[dim]" + t("bind.help_503") + "[/dim]")
+        raise typer.Exit(1)
+    except httpx.ConnectError as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        console.print("[dim]" + t("bind.help_502") + "[/dim]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print("[red]" + t("bind.failed_start", error=str(e)) + "[/red]")
+        raise typer.Exit(1)
+
+    bind_code = data.get("bind_code") or ""
+    bind_url = data.get("bind_url") or f"{base_url.replace('/api', '')}/bind?code={bind_code}"
+    if not bind_code:
+        console.print("[red]" + t("bind.failed_start", error="bind_code missing") + "[/red]")
+        raise typer.Exit(1)
+
+    console.print("[dim]" + t("bind.opening_browser") + "[/dim]")
+    webbrowser.open(bind_url)
+
+    poll_url = f"{base_url}/api/cli/bind/poll"
+    deadline = time.monotonic() + 300  # 5 min
+    trust_env = "localhost" not in base_url and "127.0.0.1" not in base_url
+    while time.monotonic() < deadline:
+        try:
+            with httpx.Client(timeout=10.0, trust_env=trust_env) as client:
+                r = client.get(poll_url, params={"code": bind_code})
+                r.raise_for_status()
+                result = r.json()
+        except Exception as e:
+            console.print("[dim]" + t("bind.polling") + "[/dim]")
+            time.sleep(2)
+            continue
+        if result.get("status") == "authorized" and result.get("api_key"):
+            api_key = result["api_key"]
+            if "official" not in config or not isinstance(config["official"], dict):
+                config["official"] = {}
+            config["official"]["api_key"] = api_key
+            config["official"]["url"] = base_url
+            save_config(config)
+            console.print("[green]✓[/green]", t("bind.success"))
+            return
+        time.sleep(2)
+        console.print("[dim]" + t("bind.polling") + "[/dim]")
+
+    console.print("[red]" + t("bind.timeout") + "[/red]")
+    raise typer.Exit(1)
+
+
 @app.command("status")
 def status_cmd() -> None:
-    """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 gateway）。"""
+    """查看运行状态、当前员工列表等（从 config.json 读取，无需启动 server）。"""
     from joytrunk.paths import get_config_path, get_joytrunk_root
     from joytrunk.api_client import get_base_url
     from joytrunk.config_store import ensure_owner_id, list_employees_from_config
@@ -186,9 +367,9 @@ def status_cmd() -> None:
     if not config_path.exists():
         console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
         raise typer.Exit(1)
-    gateway_url = get_base_url()
+    server_url = get_base_url()
     console.print(t("status.root", path=f"[cyan]{root}[/cyan]"))
-    console.print(t("status.gateway", url=f"[link={gateway_url}]{gateway_url}[/link]"))
+    console.print(t("status.server", url=f"[link={server_url}]{server_url}[/link]"))
     owner_id = ensure_owner_id()
     employees = list_employees_from_config(owner_id)
     if employees:
@@ -204,7 +385,7 @@ def chat_cmd(
     employee_id: str = typer.Argument(None, help="员工 ID（不填则从配置或列表选择）"),
     no_tui: bool = typer.Option(False, "--no-tui", help="使用传统单行输入模式，不启动互动式 TUI"),
 ) -> None:
-    """与指定员工对话（CLI 渠道）。不连接 gateway，从 config.json 与 workspace 读取设置；不填员工 ID 时进入 TUI 显示员工列表（最后一项为新建员工）并选择后进入对话。"""
+    """与指定员工对话（CLI 渠道）。不连接 server，从 config.json 与 workspace 读取设置；不填员工 ID 时进入 TUI 显示员工列表（最后一项为新建员工）并选择后进入对话。"""
     import asyncio
     from joytrunk.paths import get_config_path, get_joytrunk_root
     from joytrunk.api_client import get_default_employee_id
@@ -281,25 +462,36 @@ def chat_cmd(
                 if s:
                     console.print("[dim]  [/dim]" + _safe_text_for_console(s[:200]) + ("…" if len(s) > 200 else ""))
 
-            reply, usage = asyncio.run(
-                run_employee_loop(
-                    eid,
-                    owner_id,
-                    text_input,
-                    session_key="cli:direct",
-                    on_progress=_progress,
+            from joytrunk import a2a_client
+            from joytrunk.agent.session import OWNER_CHAT_KEY
+            result = a2a_client.send_message(owner_id, eid, text_input, session_key=OWNER_CHAT_KEY)
+            if result is not None:
+                reply_text, usage = result
+                console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply_text))
+                if usage:
+                    console.print(
+                        "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
+                    )
+            else:
+                reply, usage = asyncio.run(
+                    run_employee_loop(
+                        eid,
+                        owner_id,
+                        text_input,
+                        session_key=OWNER_CHAT_KEY,
+                        on_progress=_progress,
+                    )
                 )
-            )
-            console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply))
-            if usage:
-                console.print(
-                    "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
-                )
+                console.print("[bold]" + t("chat.employee") + "[/bold]", _safe_text_for_console(reply))
+                if usage:
+                    console.print(
+                        "[dim]" + t("chat.usage", input=usage.get("prompt_tokens", 0), output=usage.get("completion_tokens", 0)) + "[/dim]"
+                    )
         except Exception as ex:
             console.print("[red]" + t("chat.send_failed", error=ex) + "[/red]")
 
 
-# employee 命令组：列出/新建/设置员工，无子命令时进入 clack 菜单（均从 config.json 读写，不连接 gateway）
+# employee 命令组：列出/新建/设置员工，无子命令时进入 clack 菜单（均从 config.json 读写，不连接 server）
 employee_app = typer.Typer(
     name="employee",
     help="员工管理：查看、新建、设置员工（config.json）。无子命令时进入互动菜单。",
@@ -416,6 +608,206 @@ def employee_set_cmd(
 
 
 app.add_typer(employee_app)
+
+
+# 记忆导出命令组
+memory_app = typer.Typer(
+    name="memory",
+    help="记忆管理：导出员工长期记忆为 Markdown 等。默认进入 TUI 选择员工与输出路径。",
+    no_args_is_help=False,
+)
+
+
+@memory_app.callback(invoke_without_command=True)
+def memory_callback(ctx: typer.Context) -> None:
+    """无子命令时进入记忆管理 TUI 菜单（导出记忆 / 返回）。"""
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_memory_export_flow
+    from python_clack import cancel, intro, is_cancel, select
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    intro(t("memory.tui.title"))
+    choice = select(
+        t("employee.menu.prompt"),
+        options=[
+            {"value": "export", "label": t("memory.tui.menu_export")},
+            {"value": "back", "label": t("memory.tui.menu_back")},
+        ],
+    )
+    if is_cancel(choice) or choice == "back":
+        cancel(t("tui.lang_picker.cancelled"))
+        return
+    if choice == "export":
+        run_memory_export_flow(owner_id)
+
+
+@memory_app.command("export")
+def memory_export_cmd(
+    employee_id: str | None = typer.Argument(None, help="员工 ID（不填则进入 TUI 选择）"),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        path_type=Path,
+        help="输出文件路径（默认：员工目录/outputs/memory_export.md）",
+    ),
+) -> None:
+    """将指定员工的长期记忆导出为 Markdown 文件。不填员工 ID 时进入 TUI 选择员工与输出路径。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root, get_employee_dir
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.agent.memory.export_md import export_memory_to_md
+    from joytrunk.tui.clack_flows import run_memory_export_flow
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id)
+    if not employees:
+        console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
+        raise typer.Exit(1)
+
+    # 未指定员工 ID：走 TUI
+    if employee_id is None or employee_id == "":
+        run_memory_export_flow(owner_id)
+        return
+
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    emp_dir = get_employee_dir(employee_id)
+    if not emp_dir.exists():
+        console.print("[red]员工目录不存在: " + str(emp_dir) + "[/red]")
+        raise typer.Exit(1)
+    try:
+        out_path = export_memory_to_md(employee_id, output_path=output)
+        console.print("[green]✓[/green]", t("memory.export_done", path=str(out_path)))
+    except FileNotFoundError as e:
+        console.print("[red]记忆库不存在或未初始化: " + str(e) + "[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print("[red]导出失败: " + str(e) + "[/red]")
+        raise typer.Exit(1)
+
+
+app.add_typer(memory_app)
+
+
+# 运行日志管理命令组
+log_app = typer.Typer(
+    name="log",
+    help="运行日志：查看、清空员工智能体运行日志（agent.jsonl）。默认进入 TUI 选择员工。",
+    no_args_is_help=False,
+)
+
+
+@log_app.callback(invoke_without_command=True)
+def log_callback(ctx: typer.Context) -> None:
+    """无子命令时进入运行日志 TUI 菜单（选择员工 → 查看/清空）。"""
+    if ctx.invoked_subcommand is not None:
+        return
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id
+    from joytrunk.tui.clack_flows import run_log_entry
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    run_log_entry(owner_id)
+
+
+@log_app.command("view")
+def log_view_cmd(
+    employee_id: str | None = typer.Argument(None, help="员工 ID（不填则进入 TUI 选择）"),
+    limit: int = typer.Option(30, "--limit", "-n", help="最多显示条数"),
+) -> None:
+    """查看指定员工的运行日志（最近 N 条）。不填员工 ID 时进入 TUI。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.log_reader import load_entries
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id) or []
+    if not employees:
+        console.print("[yellow]" + t("chat.no_employees") + "[/yellow]")
+        raise typer.Exit(1)
+    if employee_id is None or employee_id == "":
+        from joytrunk.tui.clack_flows import run_log_entry
+        run_log_entry(owner_id)
+        return
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    entries = load_entries(employee_id, sort_newest_first=True, limit=limit)
+    if not entries:
+        console.print("[dim]" + t("log.tui.empty") + "[/dim]")
+        return
+    for e in entries:
+        ts = e.get("ts") or ""
+        ev = e.get("event") or ""
+        rid = (e.get("run_id") or "")[:8]
+        console.print(f"  [dim]{ts}[/dim]  [cyan]{ev}[/cyan]  ({rid})")
+        payload = e.get("payload")
+        if payload and isinstance(payload, dict):
+            for k, v in list(payload.items())[:5]:
+                console.print(f"    [dim]{k}:[/dim] {str(v)[:80]}{'…' if len(str(v)) > 80 else ''}")
+
+
+@log_app.command("clear")
+def log_clear_cmd(
+    employee_id: str = typer.Argument(..., help="员工 ID"),
+) -> None:
+    """清空指定员工的运行日志（agent.jsonl）。"""
+    from joytrunk.paths import get_config_path, get_joytrunk_root
+    from joytrunk.config_store import ensure_owner_id, list_employees_from_config
+    from joytrunk.log_reader import clear_log
+
+    root = get_joytrunk_root()
+    if not root.exists():
+        console.print("[yellow]" + t("status.not_inited", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    if not get_config_path().exists():
+        console.print("[yellow]" + t("status.no_config", cmd="[cyan]joytrunk onboard[/cyan]") + "[/yellow]")
+        raise typer.Exit(1)
+    owner_id = ensure_owner_id()
+    employees = list_employees_from_config(owner_id) or []
+    if not any(e.get("id") == employee_id for e in employees):
+        console.print("[red]" + t("chat.employee_not_found", id=employee_id) + "[/red]")
+        raise typer.Exit(1)
+    if clear_log(employee_id):
+        console.print("[green]✓[/green]", t("log.tui.cleared"))
+    else:
+        console.print("[red]" + t("log.tui.clear_failed", error="unknown") + "[/red]")
+        raise typer.Exit(1)
+
+
+app.add_typer(log_app)
 
 
 @app.command("language")

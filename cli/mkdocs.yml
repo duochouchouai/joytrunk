@@ -11,7 +11,7 @@ site_dir: site
 nav:
   - 首页: index.md
   - joytrunk onboard: onboard.md
-  - joytrunk gateway: gateway.md
+  - joytrunk server: server.md
   - joytrunk chat: chat.md
   - joytrunk status: status.md
 

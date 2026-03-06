@@ -5,7 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [vue()],
   build: {
-    outDir: path.resolve(__dirname, '../gateway/static'),
+    outDir: path.resolve(__dirname, '../server/static'),
     emptyOutDir: true,
   },
   base: '/',
@@ -13,7 +13,7 @@ export default defineConfig({
     port: 32893,
     proxy: {
       '/api': {
-        target: 'http://localhost:32890',
+        target: 'http://localhost:32901',
         changeOrigin: true,
       },
     },

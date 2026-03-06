@@ -61,7 +61,31 @@
               <span v-if="entry.run_id" class="log-run-id" :title="entry.run_id">{{ entry.run_id.slice(0, 8) }}</span>
             </div>
             <div v-if="Object.keys(entry.payload || {}).length" class="log-payload">
-              <pre>{{ formatPayload(entry.payload) }}</pre>
+              <div
+                v-for="(val, key) in (entry.payload || {})"
+                :key="key"
+                class="log-payload-row"
+              >
+                <div class="log-payload-key">{{ key }}</div>
+                <div class="log-payload-value">
+                  <div
+                    v-if="key === 'messages' && isMessagesArray(val)"
+                    class="messages-readable"
+                  >
+                    <div
+                      v-for="(msg, msgIdx) in val"
+                      :key="msgIdx"
+                      class="message-item"
+                      :class="'message-role-' + (msg.role || 'user')"
+                    >
+                      <div class="message-role">{{ messageRoleLabel(msg.role) }}</div>
+                      <div class="message-content log-payload-markdown" v-html="renderMessageContent(msg)"></div>
+                    </div>
+                  </div>
+                  <div v-else-if="typeof val === 'string'" class="log-payload-markdown" v-html="renderMarkdown(val)"></div>
+                  <pre v-else class="log-payload-json">{{ formatPayloadValue(val) }}</pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -74,6 +98,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
 import { api } from '../api'
 
 const { t } = useI18n()
@@ -159,6 +184,71 @@ function formatTs(ts) {
 function formatPayload(payload) {
   if (!payload || typeof payload !== 'object') return ''
   return JSON.stringify(payload, null, 2)
+}
+
+function formatPayloadValue(val) {
+  if (val === null || val === undefined) return ''
+  if (typeof val !== 'object') return String(val)
+  return JSON.stringify(val, null, 2)
+}
+
+// 是否为 Chat API 的 messages 数组：元素为 { role, content } 形式
+function isMessagesArray(val) {
+  if (!Array.isArray(val) || val.length === 0) return false
+  return val.every((item) => item && typeof item === 'object' && typeof item.role === 'string')
+}
+
+function messageRoleLabel(role) {
+  const r = (role || 'user').toLowerCase()
+  if (r === 'system') return 'System（系统）'
+  if (r === 'assistant') return 'Assistant（助手）'
+  return 'User（用户）'
+}
+
+// 将单条 message 的 content 转为 HTML（content 可能为字符串或多模态数组）
+function renderMessageContent(msg) {
+  let text = ''
+  if (typeof msg.content === 'string') {
+    text = msg.content
+  } else if (Array.isArray(msg.content)) {
+    text = msg.content
+      .map((part) => (part && typeof part === 'object' && part.type === 'text' ? part.text : String(part)))
+      .join('\n')
+  } else if (msg.content != null) {
+    text = String(msg.content)
+  }
+  return renderMarkdown(text)
+}
+
+function renderMarkdown(str) {
+  if (typeof str !== 'string' || !str) return ''
+  const unescaped = str.replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+  const { text: textWithoutThink, parts } = extractThinkBlocks(unescaped)
+  let html = marked.parse(textWithoutThink, { async: false })
+  parts.forEach((inner) => {
+    const escaped = inner
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+    const span = `<span class="think-block" title="思考过程"><span class="think-block-label">思考过程</span>${escaped}</span>`
+    html = html.replace(THINK_PLACEHOLDER, span)
+  })
+  return html.replace(/<span data-think-placeholder><\/span>/g, '')
+}
+
+// 占位符：避免使用 __ 等会被 marked 解析的符号
+const THINK_PLACEHOLDER = '<span data-think-placeholder></span>'
+
+// 抽出 <think>...</think> 块，用占位符替代，返回新文本与块内容数组
+function extractThinkBlocks(text) {
+  const parts = []
+  const re = /<think>([\s\S]*?)<\/think>/gi
+  const textWithoutThink = text.replace(re, (_, inner) => {
+    parts.push(inner)
+    return '\n\n' + THINK_PLACEHOLDER + '\n\n'
+  })
+  return { text: textWithoutThink, parts }
 }
 
 async function loadLogs() {
@@ -281,7 +371,82 @@ watch(employeeId, () => {
 .log-event.event-append-turn-done { background: rgba(107, 114, 128, 0.15); color: #4b5563; }
 .log-run-id { font-family: ui-monospace, monospace; color: var(--jt-text-muted); font-size: 0.75rem; }
 .log-payload { margin-top: 0.5rem; }
-.log-payload pre {
+.log-payload-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--jt-border);
+}
+.log-payload-row:last-child { border-bottom: none; }
+.log-payload-key {
+  font-weight: 600;
+  color: var(--jt-text-muted);
+  font-size: 0.8125rem;
+  word-break: break-word;
+}
+.log-payload-value { min-width: 0; }
+.log-payload-markdown {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-payload-markdown :deep(pre),
+.log-payload-markdown :deep(code) {
+  background: var(--jt-bg);
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+.log-payload-markdown :deep(pre) { padding: 0.5rem; overflow-x: auto; }
+.log-payload-markdown :deep(.think-block) {
+  display: block;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(107, 114, 128, 0.12);
+  border-left: 3px solid #6b7280;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--jt-text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-payload-markdown :deep(.think-block-label) {
+  display: block;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+.messages-readable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.message-item {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--jt-border);
+}
+.message-role {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+}
+.message-item.message-role-system .message-role { background: rgba(14, 165, 233, 0.15); color: #0369a1; }
+.message-item.message-role-user .message-role { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.message-item.message-role-assistant .message-role { background: rgba(34, 197, 94, 0.12); color: #15803d; }
+.message-content {
+  padding: 0.5rem 0.75rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.message-content:empty { display: none; }
+.log-payload-json {
   margin: 0;
   padding: 0.5rem;
   background: var(--jt-bg);

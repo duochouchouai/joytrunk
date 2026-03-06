@@ -8,6 +8,11 @@ import pytest
 @pytest.fixture(autouse=True)
 def joytrunk_root(tmp_path, monkeypatch):
     """将 JoyTrunk 根目录指向临时目录，便于测试 paths/context/session/config 等。"""
+    try:
+        import joytrunk.agent.memory.store as memory_store
+        memory_store._store_cache.clear()
+    except Exception:
+        pass
     root = tmp_path / "joytrunk"
     root.mkdir()
     monkeypatch.setenv("JOYTRUNK_ROOT", str(root))
@@ -38,7 +43,7 @@ def config_with_custom_llm(joytrunk_root):
     c = {
         "version": 1,
         "ownerId": "owner-1",
-        "gateway": {"host": "localhost", "port": 32890},
+        "server": {"host": "localhost", "port": 32901},
         "agents": {"defaults": {"model": "gpt-3.5-turbo", "maxTokens": 2048, "temperature": 0.1}},
         "providers": {
             "joytrunk": {},
@@ -56,7 +61,7 @@ def config_without_custom_llm(joytrunk_root):
     c = {
         "version": 1,
         "ownerId": "owner-1",
-        "gateway": {"host": "localhost", "port": 32890},
+        "server": {"host": "localhost", "port": 32901},
         "agents": {"defaults": {"model": "gpt-3.5-turbo", "maxTokens": 2048}},
         "providers": {"joytrunk": {}, "custom": {"apiKey": "", "apiBase": None, "model": "gpt-3.5-turbo"}},
     }

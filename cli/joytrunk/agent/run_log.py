@@ -95,7 +95,7 @@ def prepare_messages_for_log(messages: list[dict[str, Any]]) -> list[dict[str, A
 
 
 def _serialize_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """确保 payload 可 JSON 序列化（Path -> str 等）。"""
+    """确保 payload 可 JSON 序列化（Path -> str、method/callable -> str 等）。"""
     out: dict[str, Any] = {}
     for k, v in payload.items():
         if v is None or isinstance(v, (str, int, float, bool)):
@@ -106,7 +106,9 @@ def _serialize_payload(payload: dict[str, Any]) -> dict[str, Any]:
             out[k] = _serialize_payload(v)
         elif isinstance(v, list):
             out[k] = [
-                _serialize_payload(x) if isinstance(x, dict) else str(x) if isinstance(x, Path) else x
+                _serialize_payload(x) if isinstance(x, dict) else str(x) if isinstance(x, Path) else (
+                    x if isinstance(x, (str, int, float, bool, type(None))) else str(x)
+                )
                 for x in v
             ]
         else:
@@ -149,7 +151,7 @@ def log(
         }
         if run_id is not None:
             entry["run_id"] = run_id
-        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
         with _log_path(employee_id).open("a", encoding="utf-8") as f:
             f.write(line)
     except Exception:
