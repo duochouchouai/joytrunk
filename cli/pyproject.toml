@@ -1,15 +1,15 @@
 [project]
 name = "joytrunk"
-version = "0.1.0"
-description = "JoyTrunk（喜象 Agent）- 本地 7×24 智能体员工，负责人通过即时通讯与员工交互"
+version = "1.0.0"
+description = "JoyTrunk CLI — 本地 7×24 智能体员工，像跟真人一样聊天，你的 AI 团队把事情做完"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "JoyTrunk contributors" }]
 keywords = ["ai", "agent", "joytrunk", "assistant"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: End Users/Desktop",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
