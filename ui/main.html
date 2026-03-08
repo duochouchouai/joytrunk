@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>主页面</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      background: #fff;
+      color: #1a1a1a;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .toolbar button {
+      padding: 6px 14px;
+      font-size: 0.875rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    .toolbar button:hover:not(:disabled) {
+      background: #eee;
+    }
+    .toolbar button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .agent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .agent-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .agent-card span {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .agent-card .controls {
+      display: flex;
+      gap: 6px;
+    }
+    .agent-card button {
+      padding: 4px 12px;
+      font-size: 0.8125rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .agent-card button:hover {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>主页面</h1>
+  <div class="toolbar">
+    <button type="button" id="btnAdd">增加 Agent</button>
+    <button type="button" id="btnRemove">减少 Agent</button>
+  </div>
+  <div class="agent-list" id="agentList"></div>
+  <script>
+    const MAX_AGENTS = 4;
+    const api = window.electronAPI;
+    if (!api) throw new Error('electronAPI not found');
+
+    const btnAdd = document.getElementById('btnAdd');
+    const btnRemove = document.getElementById('btnRemove');
+    const agentList = document.getElementById('agentList');
+
+    function renderAgents(count) {
+      agentList.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const card = document.createElement('div');
+        card.className = 'agent-card';
+        card.innerHTML =
+          '<span>Agent ' + (i + 1) + '</span>' +
+          '<div class="controls">' +
+          '<button type="button" data-action="play" data-index="' + i + '">播放</button>' +
+          '<button type="button" data-action="pause" data-index="' + i + '">暂停</button>' +
+          '</div>';
+        agentList.appendChild(card);
+      }
+      btnAdd.disabled = count >= MAX_AGENTS;
+      btnRemove.disabled = count <= 1;
+      agentList.querySelectorAll('button[data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const index = parseInt(btn.dataset.index, 10);
+          if (btn.dataset.action === 'play') api.agentPlay(index);
+          else api.agentPause(index);
+        });
+      });
+    }
+
+    api.onAgentCount(renderAgents);
+    api.getAgentCount().then(renderAgents);
+    btnAdd.addEventListener('click', () => api.addAgent());
+    btnRemove.addEventListener('click', () => api.removeAgent());
+  </script>
+</body>
+</html>

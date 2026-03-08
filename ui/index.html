@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src * file: blob:;">
+  <title>Video</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      background: transparent;
+      user-select: none;
+      outline: none;
+      border: none;
+    }
+    /* 悬浮窗根：质感灰底、圆角、网格布局 */
+    .overlay-root {
+      width: 100%; height: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background-color: #252525;
+      background-image:
+        linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%),
+        linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
+      display: grid;
+      gap: 0;
+      box-shadow: none;
+      outline: none; border: none;
+      cursor: pointer;
+    }
+    /* 1 格 */
+    .overlay-root[data-agent-count="1"] {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+    .overlay-root[data-agent-count="1"] .agent-slot:nth-child(n+2) { display: none; }
+    /* 2 格：横排 */
+    .overlay-root[data-agent-count="2"] {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+    }
+    .overlay-root[data-agent-count="2"] .agent-slot:nth-child(n+3) { display: none; }
+    /* 3-4 格：2×2 */
+    .overlay-root[data-agent-count="3"],
+    .overlay-root[data-agent-count="4"] {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(n+4) { display: none; }
+    /* 每格：分割线 + 按位置圆角 */
+    .agent-slot {
+      width: 100%; height: 100%;
+      min-width: 0; min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      border-right: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .overlay-root[data-agent-count="1"] .agent-slot { border: none; }
+    .overlay-root[data-agent-count="2"] .agent-slot { border-bottom: none; }
+    .overlay-root[data-agent-count="2"] .agent-slot:nth-child(2) { border-right: none; }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(2) { border-right: none; }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(3) { border-right: none; border-bottom: none; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(2n) { border-right: none; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(n+3) { border-bottom: none; }
+    .overlay-root[data-agent-count="1"] .agent-slot:first-child { border-radius: 12px; }
+    .overlay-root[data-agent-count="2"] .agent-slot:nth-child(1) { border-radius: 12px 0 0 12px; }
+    .overlay-root[data-agent-count="2"] .agent-slot:nth-child(2) { border-radius: 0 12px 12px 0; }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(1) { border-radius: 12px 0 0 0; }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(2) { border-radius: 0 12px 0 0; }
+    .overlay-root[data-agent-count="3"] .agent-slot:nth-child(3) { border-radius: 0 0 0 12px; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(1) { border-radius: 12px 0 0 0; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(2) { border-radius: 0 12px 0 0; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(3) { border-radius: 0 0 0 12px; }
+    .overlay-root[data-agent-count="4"] .agent-slot:nth-child(4) { border-radius: 0 0 12px 0; }
+    /* 视频缩放容器 */
+    .agent-slot .scaler {
+      flex-shrink: 0;
+      transform-origin: center center;
+      overflow: hidden;
+      border-radius: 8px;
+      position: relative;
+      opacity: 0;
+      transition: opacity 0.08s ease-out;
+    }
+    .agent-slot .scaler.ready { opacity: 1; }
+    .agent-slot video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  </style>
+</head>
+<body>
+  <div class="overlay-root" data-agent-count="1" title="点击打开主页面">
+    <div class="agent-slot"><div class="scaler"><video id="video0" muted playsinline></video></div></div>
+    <div class="agent-slot"><div class="scaler"><video id="video1" muted playsinline></video></div></div>
+    <div class="agent-slot"><div class="scaler"><video id="video2" muted playsinline></video></div></div>
+    <div class="agent-slot"><div class="scaler"><video id="video3" muted playsinline></video></div></div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
