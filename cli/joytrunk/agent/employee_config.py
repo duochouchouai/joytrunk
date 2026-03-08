@@ -115,6 +115,8 @@ def get_llm_params(employee_id: str, owner_id: str) -> dict[str, Any]:
         }
     # 使用 JoyTrunk Router（通过 server 代理）
     from joytrunk.api_client import get_base_url
+    joytrunk_provider = (config.get("providers") or {}).get("joytrunk") or {}
+    router_api_key = (joytrunk_provider.get("apiKey") or config.get("joytrunkApiKey") or "").strip() or None
     return {
         "source": "router",
         "server_base_url": get_base_url().rstrip("/"),
@@ -122,4 +124,5 @@ def get_llm_params(employee_id: str, owner_id: str) -> dict[str, Any]:
         "model": default_model,
         "max_tokens": max_tokens,
         "temperature": temperature,
+        "router_api_key": router_api_key,
     }

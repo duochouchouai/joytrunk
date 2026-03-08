@@ -31,6 +31,7 @@ async def _process_one(inbound: InboundMessage, store: TaskStore) -> None:
             session_key=inbound.session_key,
             channel=inbound.channel,
             chat_id=inbound.chat_id,
+            model_override=getattr(inbound, "model", None) or None,
         )
         agent_msg = Message(role="agent", parts=[Part(type="text", text=final_content or "")])
         await store.complete(task_id, "completed", agent_msg, usage=usage)

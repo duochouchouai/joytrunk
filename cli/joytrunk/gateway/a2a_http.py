@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 
 from joytrunk.a2a.models import (
     Message,
@@ -84,6 +84,7 @@ def create_app(
     out = FastAPI(title="JoyTrunk A2A Gateway", version="0.1.0", lifespan=lifespan)
     out.post("/a2a/v1/tenants/{owner_id}/employees/{employee_id}/message:send")(message_send)
     out.get("/a2a/v1/tenants/{owner_id}/tasks/{task_id}")(get_task)
+    out.get("/local-bind")(local_bind)
     return out
 
 
@@ -191,3 +192,68 @@ async def get_task(owner_id: str, task_id: str) -> Response:
     if task.owner_id != owner_id:
         return JSONResponse(status_code=404, content={"error": "TaskNotFoundError"})
     return JSONResponse(content=task_to_dict(task))
+
+
+def _local_bind_error_html(message: str) -> str:
+    return (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>写入本机 Config</title></head><body style='font-family:system-ui;max-width:420px;margin:2rem auto;padding:1.5rem'>"
+        f"<p style='color:#b91c1c'>{message}</p>"
+        "<p style='color:#64748b;font-size:0.875rem'>请关闭此页，在 Token 页重试；若 Gateway 未启动请先运行 <code>joytrunk gateway</code>。</p>"
+        "</body></html>"
+    )
+
+
+def _local_bind_success_html() -> str:
+    return (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>写入本机 Config</title></head><body style='font-family:system-ui;max-width:420px;margin:2rem auto;padding:1.5rem'>"
+        "<p style='color:#0d9488;font-weight:600'>✓ 本机 config 已更新</p>"
+        "<p style='color:#64748b;font-size:0.875rem'>official.api_key 与 official.url 已写入 ~/.joytrunk/config.json，可关闭此页。</p>"
+        "</body></html>"
+    )
+
+
+async def local_bind(request: Request) -> Response:
+    """前端「写入本机 Config」打开此 URL；Gateway 用 token 向后端兑换 api_key 后写入 config。"""
+    token = (request.query_params.get("token") or "").strip()
+    api_base = (request.query_params.get("api_base") or "").strip()
+    if not token:
+        return HTMLResponse(content=_local_bind_error_html("缺少 token"), status_code=400)
+    if not api_base:
+        from joytrunk.config_store import load_config as _load
+        cfg = _load()
+        official = cfg.get("official") or {}
+        api_base = (official.get("url") or "").strip() or "http://localhost:32891"
+        api_base = api_base.rstrip("/")
+    else:
+        api_base = api_base.rstrip("/")
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
+            r = await client.get(f"{api_base}/api/cli/local-config-redeem", params={"token": token})
+    except Exception as e:
+        return HTMLResponse(
+            content=_local_bind_error_html(f"请求官网失败: {e}"),
+            status_code=502,
+        )
+    if r.status_code != 200:
+        try:
+            err = r.json().get("error", r.text)
+        except Exception:
+            err = r.text or "兑换失败"
+        return HTMLResponse(content=_local_bind_error_html(err), status_code=r.status_code)
+    try:
+        data = r.json()
+    except Exception:
+        return HTMLResponse(content=_local_bind_error_html("官网返回无效"), status_code=502)
+    api_key = data.get("api_key")
+    official_url = (data.get("official_url") or api_base).rstrip("/")
+    if not api_key:
+        return HTMLResponse(content=_local_bind_error_html("未返回 api_key"), status_code=500)
+    from joytrunk.config_store import load_config, save_config
+    config = load_config()
+    if "official" not in config or not isinstance(config["official"], dict):
+        config["official"] = {}
+    config["official"]["api_key"] = api_key
+    config["official"]["url"] = official_url
+    save_config(config)
+    return HTMLResponse(content=_local_bind_success_html())

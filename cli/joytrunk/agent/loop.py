@@ -52,6 +52,7 @@ async def run_employee_loop(
     channel: str = "cli",
     chat_id: str = "direct",
     on_progress: Callable[[str], Awaitable[None]] | None = None,
+    model_override: str | None = None,
 ) -> tuple[str, dict[str, int] | None]:
     """
     运行员工智能体循环：意图 + 自身提示词 + 历史 → 大模型（自有或 JoyTrunk Router）→ 对返回的 tool_calls 执行 → 再问大模型直至无 tool_calls。
@@ -59,6 +60,8 @@ async def run_employee_loop(
     """
     params = get_llm_params(employee_id, owner_id)
     model = params["model"]
+    if model_override and model_override.strip():
+        model = model_override.strip()
     max_tokens = params["max_tokens"]
     temperature = params["temperature"]
 
@@ -150,6 +153,7 @@ async def run_employee_loop(
                     tools=tools_reg.get_definitions(),
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    router_api_key=params.get("router_api_key"),
                 )
             if response.usage:
                 total_usage["prompt_tokens"] += response.usage.get("prompt_tokens", 0)
@@ -269,6 +273,7 @@ def _memory_clients(employee_id: str, owner_id: str, llm_params: dict, memory_cf
             r = await chat_via_router(
                 llm_params["server_base_url"], llm_params["owner_id"], llm_params["model"], messages,
                 max_tokens=llm_params.get("max_tokens", 2048), temperature=llm_params.get("temperature", 0.1),
+                router_api_key=llm_params.get("router_api_key"),
             )
         return (r.content or "").strip()
     return embed_client, llm_chat

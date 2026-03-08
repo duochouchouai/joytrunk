@@ -544,17 +544,28 @@ app.post('/api/llm/chat/completions', async (req, res) => {
 
   // 优先使用 JoyTrunk Router
   if (routerUrlTrimmed) {
-    const ownerId = req.headers['x-owner-id'] || req.headers['authorization'] || c.ownerId;
+    const ownerId = req.headers['x-owner-id'] || c.ownerId;
     const url = routerUrlTrimmed.replace(/\/$/, '') + '/chat/completions';
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {}),
+      ...(ownerId && !req.headers['authorization'] ? { 'X-Owner-Id': ownerId } : {}),
+    };
     try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(ownerId ? { 'X-Owner-Id': ownerId } : {}),
-        },
-        body: JSON.stringify(req.body || {}),
-      });
+      const ROUTER_PROXY_TIMEOUT_MS = 60000;
+      const controller = new AbortController();
+      const to = setTimeout(() => controller.abort(), ROUTER_PROXY_TIMEOUT_MS);
+      let resp;
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(req.body || {}),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(to);
+      }
       const text = await resp.text();
       if (!resp.ok) {
         return res.status(resp.status).json({ error: text || 'Router 请求失败' });
@@ -567,7 +578,8 @@ app.post('/api/llm/chat/completions', async (req, res) => {
       }
       return res.json(data);
     } catch (e) {
-      return res.status(502).json({ error: e.message || '转发 JoyTrunk Router 失败' });
+      const msg = e.name === 'AbortError' ? 'Router 请求超时' : (e.message || '转发 JoyTrunk Router 失败');
+      return res.status(502).json({ error: msg });
     }
   }
 
