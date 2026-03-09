@@ -20,6 +20,7 @@ class InboundMessage:
     channel: str = "cli"
     chat_id: str = "direct"
     from_employee_id: str | None = None
+    model: str | None = None
 
 
 @dataclass

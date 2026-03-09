@@ -142,6 +142,7 @@ async def run_official_ws_client(
                         content = str(data.get("content", ""))
                         session_key = str(data.get("session_key", "owner"))
                         conversation_id = str(data.get("conversation_id", "direct"))
+                        model = (data.get("model") or "").strip() or None
                         inbound = InboundMessage(
                             task_id=task_id,
                             target_employee_id=employee_id,
@@ -150,6 +151,7 @@ async def run_official_ws_client(
                             session_key=session_key,
                             channel="official",
                             chat_id=conversation_id,
+                            model=model,
                         )
                         await bus.put(inbound)
                         logger.info("official_ws enqueued task %s", task_id)

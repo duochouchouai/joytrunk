@@ -199,8 +199,11 @@ async def chat_via_router(
     tools: list[dict[str, Any]] | None = None,
     max_tokens: int = 2048,
     temperature: float = 0.1,
+    router_api_key: str | None = None,
 ) -> ChatResponse:
-    """通过 server 代理调用 JoyTrunk Router（未配置自有 LLM 时使用）。"""
+    """通过 server 代理调用 JoyTrunk Router（未配置自有 LLM 时使用）。
+    若提供 router_api_key 则发送 Authorization: Bearer，否则仅发送 X-Owner-Id（统一 SK 优先）。
+    """
     url = server_base_url.rstrip("/") + "/api/llm/chat/completions"
     body: dict[str, Any] = {
         "model": model or "gpt-3.5-turbo",
@@ -213,15 +216,14 @@ async def chat_via_router(
         body["tool_choice"] = "auto"
     body["messages"] = _sanitize_empty_content(_reorder_tool_messages(body["messages"]))
 
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if router_api_key and router_api_key.strip():
+        headers["Authorization"] = f"Bearer {router_api_key.strip()}"
+    else:
+        headers["X-Owner-Id"] = owner_id
+
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            url,
-            headers={
-                "Content-Type": "application/json",
-                "X-Owner-Id": owner_id,
-            },
-            json=body,
-        )
+        r = await client.post(url, headers=headers, json=body)
         if not r.is_success:
             err_detail = _format_error_body(r)
             raise httpx.HTTPStatusError(
