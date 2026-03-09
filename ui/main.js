@@ -3,7 +3,7 @@
  * - overlay：无边框、圆角、透明、可拖拽；agentCount=0 时显示小菜单，1~4 时显示对应数量 agent 视频；尺寸随数量变化（0/1: 100×100, 2: 140×70, 3-4: 120×120）
  * - Windows 下使用 SetWindowRgn 实现圆角
  */
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -158,7 +158,12 @@ function createOverlay() {
       '*,*::before,*::after{outline:none!important}' +
       '::-webkit-scrollbar{width:0;height:0;display:none}'
     );
-    win.center();
+    const primary = screen.getPrimaryDisplay();
+    const workArea = primary.workArea || primary.bounds;
+    const margin = 16;
+    const x = workArea.x + workArea.width - w - margin;
+    const y = workArea.y + workArea.height - h - margin;
+    win.setPosition(x, y);
     win.show();
     setOverlayWindowRgn(win, w, h);
     win.focus();
@@ -188,14 +193,18 @@ ipcMain.on('open-main', () => {
     return;
   }
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 420,
-    frame: true,
+    width: 900,
+    height: 560,
+    minWidth: 640,
+    minHeight: 400,
+    frame: false,
     show: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
-      preload: path.join(__dirname, 'preload-main.js'),
+      preload: path.resolve(__dirname, 'preload-main.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
   mainWindow.loadFile(path.join(__dirname, 'main.html'));
@@ -315,6 +324,14 @@ ipcMain.on('overlay-drag-end', () => {
   draggingWindow = null;
   dragStartScreen = null;
   dragStartPos = null;
+});
+
+/** 主窗口：关闭、最小化（无边框时由渲染进程请求） */
+ipcMain.on('main-window-close', () => {
+  if (isWindowAlive(mainWindow)) mainWindow.close();
+});
+ipcMain.on('main-window-minimize', () => {
+  if (isWindowAlive(mainWindow)) mainWindow.minimize();
 });
 
 app.whenReady().then(() => {

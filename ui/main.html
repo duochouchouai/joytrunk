@@ -1,19 +1,617 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+<!-- 主窗口：标题栏 + 左侧导航 + 聊天（列表/详情/输入框）+ 其他（Agent/指示灯） -->
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>主页面</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:;">
+  <title>JoyTrunk</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    html, body {
+      height: 100%;
       font-family: system-ui, -apple-system, sans-serif;
-      padding: 20px;
-      background: #fff;
+      background: #f5f5f5;
       color: #1a1a1a;
       line-height: 1.5;
+      overflow: hidden;
     }
-    h1 {
+    /* 自定义细滚动条 */
+    .chat-list-body,
+    .chat-detail-body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+    .chat-list-body::-webkit-scrollbar,
+    .chat-detail-body::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .chat-list-body::-webkit-scrollbar-track,
+    .chat-detail-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .chat-list-body::-webkit-scrollbar-thumb,
+    .chat-detail-body::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .chat-list-body::-webkit-scrollbar-thumb:hover,
+    .chat-detail-body::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    /* ========== 标题栏：logo + 拖拽区 + 窗口按钮 ========== */
+    .app-title-bar {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      background: #252525;
+      color: #e0e0e0;
+      -webkit-app-region: drag;
+      flex-shrink: 0;
+    }
+    .title-bar-logo-wrap {
+      -webkit-app-region: no-drag;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      margin-left: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .title-bar-logo {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      object-position: center;
+      transform: scale(1.54);
+    }
+    .title-bar-drag {
+      flex: 1;
+      min-width: 0;
+    }
+    .title-bar-title {
+      font-size: 12px;
+      color: #fff;
+      margin-left: 6px;
+      flex-shrink: 0;
+    }
+    .title-bar-btns {
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+    }
+    .title-bar-btns button {
+      width: 42px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .title-bar-btns button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .title-bar-btns button.close:hover {
+      background: #e81123;
+      color: #fff;
+    }
+
+    /* ========== 主体：左侧菜单 + 右侧内容 ========== */
+    .app-body {
+      display: flex;
+      height: calc(100% - 36px);
+      min-height: 0;
+    }
+    .app-sidebar {
+      width: 64px;
+      background: #2d2d2d;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 12px;
+      padding-bottom: 12px;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .app-sidebar-nav {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .sidebar-item {
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: #b0b0b0;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e0e0e0;
+    }
+    .sidebar-item.active {
+      background: rgba(66, 165, 245, 0.25);
+      color: #42a5f5;
+    }
+    .sidebar-item .icon {
+      font-size: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: inherit;
+    }
+    .sidebar-item .icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .sidebar-user {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      margin-top: 4px;
+    }
+    .sidebar-user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #e0e0e0;
+    }
+    .sidebar-user-name {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.8);
+      max-width: 56px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .main-content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    /* ========== 聊天视图：左侧列表 + 右侧详情 ========== */
+    .main-content[data-panel="chat"] {
+      flex-direction: row;
+    }
+    .main-content[data-panel="chat"] .other-panel {
+      display: none;
+    }
+    .main-content[data-panel="other"] .chat-list,
+    .main-content[data-panel="other"] .chat-detail {
+      display: none;
+    }
+    .chat-list {
+      width: var(--chat-list-width, 260px);
+      min-width: 120px;
+      max-width: 480px;
+      border-right: none;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      background: #fafafa;
+    }
+    .chat-resizer {
+      width: 4px;
+      flex-shrink: 0;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.1s;
+    }
+    .chat-resizer:hover,
+    .chat-resizer.dragging {
+      background: rgba(66, 165, 245, 0.3);
+    }
+    .chat-list-search-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin: 8px 8px 0;
+      background: #fff;
+      height: 32px;
+      box-sizing: border-box;
+    }
+    .chat-list-search-logo {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+    }
+    .chat-list-search-logo svg {
+      width: 14px;
+      height: 14px;
+    }
+    .chat-list-search {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 0;
+      border: none;
+      font-size: 13px;
+      color: #333;
+      background: transparent;
+      outline: none;
+    }
+    .chat-list-search::placeholder {
+      color: #999;
+    }
+    .chat-list-search-add-wrap {
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .chat-list-search-add-btn {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(66, 165, 245, 0.15);
+      color: #42a5f5;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chat-list-search-add-btn:hover {
+      background: rgba(66, 165, 245, 0.3);
+      color: #1976d2;
+    }
+    .chat-list-search-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      min-width: 120px;
+      padding: 4px 0;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+      display: none;
+    }
+    .chat-list-search-dropdown.open {
+      display: block;
+    }
+    .chat-list-search-dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 8px 14px;
+      border: none;
+      background: none;
+      font-size: 13px;
+      color: #333;
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .chat-list-search-dropdown-item:hover {
+      background: #f5f5f5;
+    }
+    .chat-list-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .chat-list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .chat-list-item:hover {
+      background: #eee;
+      color: #333;
+    }
+    .chat-list-item.active {
+      background: rgba(66, 165, 245, 0.12);
+      color: #1976d2;
+    }
+    .chat-list-item-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+      background: rgba(66, 165, 245, 0.2);
+      color: #1976d2;
+    }
+    .chat-list-item.active .chat-list-item-avatar {
+      background: rgba(66, 165, 245, 0.35);
+      color: #1565c0;
+    }
+    .chat-list-item-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .chat-list-item-title {
+      font-weight: 500;
+      color: inherit;
+      margin-bottom: 2px;
+    }
+    .chat-list-item-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .chat-list-item-preview {
+      font-size: 12px;
+      color: #888;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .chat-list-item.active .chat-list-item-preview {
+      color: rgba(25, 118, 210, 0.85);
+    }
+    .chat-list-item-time {
+      font-size: 11px;
+      color: #aaa;
+      flex-shrink: 0;
+    }
+    .chat-list-placeholder {
+      padding: 20px;
+      font-size: 13px;
+      color: #999;
+      text-align: center;
+    }
+    .chat-detail {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      position: relative;
+    }
+    .chat-detail::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: var(--logo-bg-url, none);
+      background-size: 45%;
+      background-position: center;
+      background-repeat: no-repeat;
+      filter: grayscale(1);
+      opacity: 0.12;
+      pointer-events: none;
+    }
+    .chat-detail-header {
+      flex-shrink: 0;
+      padding: 12px 20px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a1a;
+      border-bottom: 1px solid #eee;
+      background: #fff;
+      position: relative;
+      z-index: 1;
+    }
+    .chat-detail-body {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px;
+      color: #333;
+      font-size: 13px;
+    }
+    .chat-msg {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      margin-bottom: 16px;
+      max-width: 90%;
+    }
+    .chat-msg-user {
+      margin-left: auto;
+      flex-direction: row-reverse;
+    }
+    .chat-msg-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .chat-msg-assistant .chat-msg-avatar {
+      background: rgba(66, 165, 245, 0.2);
+      color: #1976d2;
+    }
+    .chat-msg-user .chat-msg-avatar {
+      background: #e0e0e0;
+      color: #555;
+    }
+    .chat-msg-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .chat-msg-assistant .chat-msg-bubble {
+      background: #f0f0f0;
+      color: #333;
+      border-radius: 12px;
+      border-bottom-left-radius: 4px;
+      overflow: hidden;
+    }
+    .chat-msg-thinking {
+      margin-bottom: 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .chat-msg-thinking-header {
+      font-size: 11px;
+      color: #888;
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 14px 6px;
+    }
+    .chat-msg-thinking-header:hover {
+      color: #666;
+    }
+    .chat-msg-thinking-chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      font-size: 10px;
+    }
+    .chat-msg-thinking.open .chat-msg-thinking-chevron {
+      transform: rotate(-180deg);
+    }
+    .chat-msg-thinking-body {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+      padding: 8px 14px 10px;
+      background: rgba(0, 0, 0, 0.04);
+      display: none;
+    }
+    .chat-msg-thinking.open .chat-msg-thinking-body {
+      display: block;
+    }
+    .chat-msg-content {
+      padding: 10px 14px;
+      border-radius: 0;
+      line-height: 1.5;
+    }
+    .chat-msg-assistant .chat-msg-bubble .chat-msg-content {
+      background: transparent;
+    }
+    .chat-msg-user .chat-msg-content {
+      background: rgba(66, 165, 245, 0.15);
+      color: #1a1a1a;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-detail-footer {
+      flex-shrink: 0;
+      padding: 12px 20px;
+      border-top: 1px solid #eee;
+      background: #fff;
+      position: relative;
+      z-index: 1;
+    }
+    .chat-detail-input-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .chat-detail-input {
+      flex: 1;
+      min-height: 40px;
+      max-height: 120px;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      resize: none;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .chat-detail-input:focus {
+      border-color: #42a5f5;
+    }
+    .chat-detail-input::placeholder {
+      color: #999;
+    }
+    .chat-detail-send {
+      flex-shrink: 0;
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      background: #42a5f5;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .chat-detail-send:hover {
+      background: #1976d2;
+    }
+    .chat-detail-send:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    /* ========== 其他视图：单栏（Agent + 指示灯） ========== */
+    .main-content[data-panel="other"] .other-panel {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .main-content[data-panel="chat"] .other-panel {
+      display: none;
+    }
+
+    .other-panel h1 {
       font-size: 1.25rem;
       font-weight: 600;
       margin-bottom: 16px;
@@ -90,10 +688,7 @@
       border-radius: 8px;
       background: #fafafa;
     }
-    .agent-card .name-wrap {
-      flex: 1;
-      min-width: 0;
-    }
+    .agent-card .name-wrap { flex: 1; min-width: 0; }
     .agent-card .agent-name-input {
       width: 100%;
       padding: 4px 8px;
@@ -142,30 +737,395 @@
   </style>
 </head>
 <body>
-  <h1>主页面</h1>
-  <div class="toolbar">
-    <button type="button" id="btnAdd">增加 Agent</button>
-    <button type="button" id="btnRemove">减少 Agent</button>
-  </div>
-  <div class="indicator-controls">
-    <h3>指示灯</h3>
-    <div class="indicator-row">
-      <label>旋转速度</label>
-      <input type="range" id="spinSpeed" min="0.5" max="10" step="0.1" value="2" title="转一圈时间(秒)">
-      <span class="value" id="spinSpeedValue">2 s</span>
+  <header class="app-title-bar">
+    <span class="title-bar-logo-wrap">
+      <img class="title-bar-logo" id="titleBarLogo" src="" alt="Logo" onerror="this.style.display='none'">
+    </span>
+    <span class="title-bar-title">JoyTrunk</span>
+    <div class="title-bar-drag"></div>
+    <div class="title-bar-btns">
+      <button type="button" id="btnMinimize" title="最小化">−</button>
+      <button type="button" id="btnClose" class="close" title="关闭">×</button>
     </div>
-    <div class="indicator-row">
-      <label>呼吸间隔</label>
-      <input type="range" id="breatheInterval" min="0.3" max="5" step="0.1" value="1.6" title="呼吸周期(秒)">
-      <span class="value" id="breatheIntervalValue">1.6 s</span>
-    </div>
+  </header>
+  <div class="app-body">
+    <nav class="app-sidebar">
+      <div class="app-sidebar-nav">
+        <button type="button" class="sidebar-item active" data-panel="chat" title="聊天">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </span>
+          <span>聊天</span>
+        </button>
+        <button type="button" class="sidebar-item" data-panel="other" title="其他">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span>其他</span>
+        </button>
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar" title="用户">👤</div>
+        <span class="sidebar-user-name" id="sidebarUserName">我</span>
+      </div>
+    </nav>
+    <main class="main-content" data-panel="chat">
+      <aside class="chat-list">
+        <div class="chat-list-search-wrap">
+          <div class="chat-list-search-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <input type="text" class="chat-list-search" placeholder="搜索" aria-label="搜索会话">
+          <div class="chat-list-search-add-wrap">
+            <button type="button" class="chat-list-search-add-btn" id="chatSearchAddBtn" title="新建" aria-label="新建" aria-haspopup="true" aria-expanded="false">+</button>
+            <div class="chat-list-search-dropdown" id="chatSearchDropdown" role="menu">
+              <button type="button" class="chat-list-search-dropdown-item" role="menuitem" data-action="new-employee">新增员工</button>
+            </div>
+          </div>
+        </div>
+        <div class="chat-list-body" id="chatListBody">
+          <div class="chat-list-placeholder" id="chatListPlaceholder">暂无会话，后续可在此选择或新建</div>
+        </div>
+      </aside>
+      <div class="chat-resizer" id="chatResizer" title="拖动调整宽度"></div>
+      <section class="chat-detail">
+        <div class="chat-detail-header" id="chatDetailHeader">选择或开始一段对话</div>
+        <div class="chat-detail-body" id="chatDetailBody"></div>
+        <div class="chat-detail-footer">
+          <div class="chat-detail-input-wrap">
+            <textarea class="chat-detail-input" id="chatDetailInput" placeholder="输入消息…" rows="1" aria-label="输入消息"></textarea>
+            <button type="button" class="chat-detail-send" id="chatDetailSend">发送</button>
+          </div>
+        </div>
+      </section>
+      <div class="other-panel">
+        <h1>其他</h1>
+        <div class="toolbar">
+          <button type="button" id="btnAdd">增加 Agent</button>
+          <button type="button" id="btnRemove">减少 Agent</button>
+        </div>
+        <div class="indicator-controls">
+          <h3>指示灯</h3>
+          <div class="indicator-row">
+            <label>旋转速度</label>
+            <input type="range" id="spinSpeed" min="0.5" max="10" step="0.1" value="2" title="转一圈时间(秒)">
+            <span class="value" id="spinSpeedValue">2 s</span>
+          </div>
+          <div class="indicator-row">
+            <label>呼吸间隔</label>
+            <input type="range" id="breatheInterval" min="0.3" max="5" step="0.1" value="1.6" title="呼吸周期(秒)">
+            <span class="value" id="breatheIntervalValue">1.6 s</span>
+          </div>
+        </div>
+        <div class="agent-list" id="agentList"></div>
+      </div>
+    </main>
   </div>
-  <div class="agent-list" id="agentList"></div>
   <script>
     const MAX_AGENTS = 4;
     const api = window.electronAPI;
-    if (!api) throw new Error('electronAPI not found');
+    if (!api) {
+      document.body.innerHTML = '<div style="padding:20px;font-family:system-ui;color:#c00;">未检测到 electronAPI，请从 <b>ui</b> 目录运行 <code>npm run start</code>。</div>';
+    } else {
 
+    // 标题栏 logo：使用 logo-no-word.png
+    (function () {
+      const logoEl = document.getElementById('titleBarLogo');
+      const url = api.getLogoUrl?.();
+      if (logoEl && url) {
+        logoEl.src = url;
+        logoEl.style.display = '';
+      }
+      const bgUrl = api.getLogoBgUrl?.();
+      if (bgUrl) {
+        const chatDetail = document.querySelector('.chat-detail');
+        if (chatDetail) chatDetail.style.setProperty('--logo-bg-url', 'url(' + bgUrl + ')');
+      }
+    })();
+
+    // ---------- 标题栏窗口按钮 ----------
+    document.getElementById('btnMinimize').addEventListener('click', () => api.minimizeWindow());
+    document.getElementById('btnClose').addEventListener('click', () => api.closeWindow());
+
+    // ---------- 聊天列表搜索区：加号下拉（新增员工） ----------
+    (function () {
+      const addBtn = document.getElementById('chatSearchAddBtn');
+      const dropdown = document.getElementById('chatSearchDropdown');
+      if (!addBtn || !dropdown) return;
+      addBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const open = dropdown.classList.toggle('open');
+        addBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      dropdown.querySelectorAll('.chat-list-search-dropdown-item').forEach((item) => {
+        item.addEventListener('click', function () {
+          if (this.getAttribute('data-action') === 'new-employee') {
+            // TODO: 新增员工业务逻辑
+          }
+          dropdown.classList.remove('open');
+          addBtn.setAttribute('aria-expanded', 'false');
+        });
+      });
+      document.addEventListener('click', function () {
+        dropdown.classList.remove('open');
+        addBtn.setAttribute('aria-expanded', 'false');
+      });
+    })();
+
+    // ---------- 左侧菜单切换 ----------
+    const mainContent = document.querySelector('.main-content');
+    document.querySelectorAll('.sidebar-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const panel = btn.getAttribute('data-panel');
+        if (!panel) return;
+        mainContent.setAttribute('data-panel', panel);
+        document.querySelectorAll('.sidebar-item').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // ---------- Mock 聊天列表与详情 ----------
+    (function () {
+      const MOCK_AGENTS = [
+        { id: 'a1', name: '小Joy', avatar: 'J' },
+        { id: 'a2', name: 'Trunk 助手', avatar: 'T' },
+        { id: 'a3', name: '周报君', avatar: '周' },
+        { id: 'a4', name: '技术顾问', avatar: '技' },
+        { id: 'a5', name: '新人小导', avatar: '新' }
+      ];
+      const MOCK_CHATS = [
+        { id: '1', agentId: 'a1', preview: '不客气，有需要再叫我。', time: '10:30' },
+        { id: '2', agentId: 'a2', preview: '有问题随时说，我都在', time: '昨天' },
+        { id: '3', agentId: 'a3', preview: '好的，下周继续加油', time: '周三' },
+        { id: '4', agentId: 'a4', preview: '不客气，有需要再找我', time: '周一' },
+        { id: '5', agentId: 'a5', preview: '谢谢～', time: '3/1' }
+      ];
+      const MOCK_MESSAGES = {
+        '1': [
+          { role: 'user', content: '可以把这次产品评审的结论整理成文档吗？' },
+          { role: 'assistant', content: '好的，我整理一下会议纪要，稍后发到群里。', thinking: '用户需要产品评审结论的文档，重点是会议纪要。应包含主要结论、待确认项，并方便发到群里同步。' },
+          { role: 'user', content: '主要结论记得写清楚一点，特别是 V1 范围那块。' },
+          { role: 'assistant', content: '明白。我会把「V1 先上核心流程、埋点方案下周定稿」这些结论都写进去，再附上待确认的 3 个点。', thinking: '用户强调 V1 范围要写清楚，待确认的 3 点也要保留。回复要体现已理解并列出关键结论。' },
+          { role: 'user', content: '行，那等你发。' },
+          { role: 'assistant', content: '已经发到群了，你看下有没有要补充的。有的话直接改一版再发也行。' },
+          { role: 'user', content: '看了下，待确认那 3 点能不能再细化一下？现在有点笼统。' },
+          { role: 'assistant', content: '可以，我按「问题描述、可选方案、建议结论」拆开写，每点下面加一两句说明，这样评审时好拍板。', thinking: '用户希望待确认项更细化，需要给出可操作的结构：问题描述、可选方案、建议结论，便于评审决策。' },
+          { role: 'user', content: '对，就是这样。另外 V1 的优先级顺序也标一下，产品那边要排期。' },
+          { role: 'assistant', content: '好，我按 P0/P1/P2 标上，并注明「P0 必须首版上线」那种。' },
+          { role: 'user', content: '埋点方案里提到的「全量上报」和「抽样」两种方式，会议上有结论吗？' },
+          { role: 'assistant', content: '有，结论是先全量上报，等数据量上来再按 UV 抽样，具体比例下周和数仓对齐。我会把这条也写进纪要。', thinking: '用户在问埋点全量 vs 抽样的会议结论。需要明确写出结论（先全量后抽样）以及后续跟进（和数仓对齐比例）。' },
+          { role: 'user', content: '行。设计稿什么时候能定？' },
+          { role: 'assistant', content: '设计说本周五前给一版，评审通过后再补交互说明。需要的话我可以把「设计定稿」也加进后续待办里。' },
+          { role: 'user', content: '加一下吧，顺便写清楚对接人。' },
+          { role: 'assistant', content: '已加，对接人写的是设计的小林，需要我改成正式名字吗？' },
+          { role: 'user', content: '不用，小林就行。大家都能对上。' },
+          { role: 'assistant', content: '好，那就这样。纪要已经更新，我重新发一遍群。' },
+          { role: 'user', content: '运营那边有没有说首版要带哪些活动位？' },
+          { role: 'assistant', content: '会上提了「首页轮播」和「列表页顶部入口」两个，具体文案和跳转链接下周给。我也记在待确认里了。' },
+          { role: 'user', content: 'OK，那这版纪要先这样，后面有变更再补一版。' },
+          { role: 'assistant', content: '明白，有变更我直接更新文档并@相关人。' },
+          { role: 'user', content: '谢啦。' },
+          { role: 'assistant', content: '不客气，有需要再叫我。' }
+        ],
+        '2': [
+          { role: 'user', content: 'JoyTrunk 的 API 什么时候能对接？' },
+          { role: 'assistant', content: '这周已经上线了，API 文档在 Confluence，我昨天更新了一版。', thinking: '用户问对接时间，应直接说明已上线、文档位置和更新时间，减少对方反复确认。' },
+          { role: 'user', content: '认证方式还是 API Key 吗？' },
+          { role: 'assistant', content: '改成 Bearer Token 了，文档里有示例。示例代码在仓库的 examples 目录，跑一下就能调通。' },
+          { role: 'user', content: '我们这边可能要下周才能排期接，有问题再找你。' },
+          { role: 'assistant', content: '没问题，有问题随时说，我都在。' }
+        ],
+        '3': [
+          { role: 'user', content: '本周进度如何？' },
+          { role: 'assistant', content: '本周完成了 3 个需求：登录重构、列表分页、导出 Excel，都已经提测了。' },
+          { role: 'user', content: '还有别的在做的吗？' },
+          { role: 'assistant', content: '还有一个「消息中心」在进行中，预计明天能提测，下周可以一起回归。' },
+          { role: 'user', content: '下周优先级还是先保证消息中心上线，别的可以往后排。' },
+          { role: 'assistant', content: '好的，下周继续加油。' }
+        ],
+        '4': [
+          { role: 'user', content: '两个技术方案更推荐哪个？' },
+          { role: 'assistant', content: '更推荐方案 B。扩展性更好，后面加缓存、做分库也方便。方案 A 实现快，但和现有模块耦合比较紧。' },
+          { role: 'user', content: '方案 B 的工期大概多长？' },
+          { role: 'assistant', content: '按现在的排期大概多 3～5 个工作日，主要是抽象一层接口和写单测。' },
+          { role: 'user', content: '行，那就按方案 B 来，评审时一起过一下。' },
+          { role: 'assistant', content: '好的，评审时一起过，有需要再找我。' }
+        ],
+        '5': [
+          { role: 'assistant', content: '你好，欢迎加入团队！我是新人小导，入职相关的问题都可以问我。' },
+          { role: 'user', content: '你好，请问办公用品去哪里领？' },
+          { role: 'assistant', content: '在 3 楼前台登记领取，本子、笔、显示器支架都有。需要工卡。' },
+          { role: 'user', content: '好的，那内网和代码仓库的权限是找谁开？' },
+          { role: 'assistant', content: '内网找 IT 在钉钉提工单，代码仓库找你们组 Leader 在权限系统里加一下就行。' },
+          { role: 'user', content: '谢谢～' },
+          { role: 'assistant', content: '不客气，有任何问题可以随时在群里问或找我。' }
+        ]
+      };
+
+      function getAgent(agentId) {
+        for (var i = 0; i < MOCK_AGENTS.length; i++) {
+          if (MOCK_AGENTS[i].id === agentId) return MOCK_AGENTS[i];
+        }
+        return { id: '', name: 'Agent', avatar: '?' };
+      }
+
+      var chatListBody = document.getElementById('chatListBody');
+      var chatListPlaceholder = document.getElementById('chatListPlaceholder');
+      var chatDetailBody = document.querySelector('.chat-detail-body');
+      if (!chatListBody || !chatDetailBody) return;
+
+      function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function renderChatList(activeId) {
+        chatListPlaceholder.style.display = MOCK_CHATS.length ? 'none' : 'block';
+        var fragment = document.createDocumentFragment();
+        MOCK_CHATS.forEach(function (chat) {
+          var agent = getAgent(chat.agentId);
+          var item = document.createElement('div');
+          item.className = 'chat-list-item' + (chat.id === activeId ? ' active' : '');
+          item.dataset.chatId = chat.id;
+          item.innerHTML =
+            '<div class="chat-list-item-avatar">' + escapeHtml(agent.avatar) + '</div>' +
+            '<div class="chat-list-item-main">' +
+            '<div class="chat-list-item-title">' + escapeHtml(agent.name) + '</div>' +
+            '<div class="chat-list-item-meta">' +
+            '<span class="chat-list-item-preview">' + escapeHtml(chat.preview) + '</span>' +
+            '<span class="chat-list-item-time">' + escapeHtml(chat.time) + '</span>' +
+            '</div>' +
+            '</div>';
+          fragment.appendChild(item);
+        });
+        var existing = chatListBody.querySelectorAll('.chat-list-item');
+        existing.forEach(function (el) { el.remove(); });
+        chatListBody.insertBefore(fragment, chatListPlaceholder);
+
+        chatListBody.querySelectorAll('.chat-list-item').forEach(function (el) {
+          el.addEventListener('click', function () {
+            var id = this.dataset.chatId;
+            if (!id) return;
+            chatListBody.querySelectorAll('.chat-list-item').forEach(function (i) { i.classList.remove('active'); });
+            this.classList.add('active');
+            renderChatDetail(id);
+          });
+        });
+        chatListBody.scrollTop = chatListBody.scrollHeight;
+      }
+
+      function renderChatDetail(chatId) {
+        var chat = MOCK_CHATS.filter(function (c) { return c.id === chatId; })[0];
+        var agent = chat ? getAgent(chat.agentId) : { name: 'Agent', avatar: '?' };
+        var messages = MOCK_MESSAGES[chatId] || [];
+        var headerEl = document.getElementById('chatDetailHeader');
+        if (headerEl) headerEl.textContent = agent.name;
+        var html = '';
+        messages.forEach(function (m) {
+          var avatarChar = m.role === 'user' ? '我' : agent.avatar;
+          var bodyInner = '';
+          if (m.role === 'user') {
+            bodyInner = '<div class="chat-msg-content">' + escapeHtml(m.content) + '</div>';
+          } else {
+            var bubbleInner = '';
+            if (m.thinking) {
+              bubbleInner =
+                '<div class="chat-msg-thinking">' +
+                '<div class="chat-msg-thinking-header" role="button" tabindex="0" aria-expanded="false">' +
+                '思考 <span class="chat-msg-thinking-chevron">▼</span>' +
+                '</div>' +
+                '<div class="chat-msg-thinking-body">' + escapeHtml(m.thinking) + '</div>' +
+                '</div>';
+            }
+            bubbleInner += '<div class="chat-msg-content">' + escapeHtml(m.content) + '</div>';
+            bodyInner = '<div class="chat-msg-bubble">' + bubbleInner + '</div>';
+          }
+          html +=
+            '<div class="chat-msg chat-msg-' + m.role + '">' +
+            '<div class="chat-msg-avatar">' + escapeHtml(avatarChar) + '</div>' +
+            '<div class="chat-msg-body">' + bodyInner + '</div>' +
+            '</div>';
+        });
+        chatDetailBody.innerHTML = html || '<div class="chat-list-placeholder">暂无消息</div>';
+
+        chatDetailBody.querySelectorAll('.chat-msg-thinking-header').forEach(function (header) {
+          header.addEventListener('click', function () {
+            var block = this.closest('.chat-msg-thinking');
+            if (!block) return;
+            var open = block.classList.toggle('open');
+            this.setAttribute('aria-expanded', open ? 'true' : 'false');
+          });
+        });
+        chatDetailBody.scrollTop = chatDetailBody.scrollHeight;
+      }
+
+      renderChatList('1');
+      renderChatDetail('1');
+
+      var chatDetailInput = document.getElementById('chatDetailInput');
+      var chatDetailSend = document.getElementById('chatDetailSend');
+      if (chatDetailInput && chatDetailSend && chatDetailBody) {
+        function sendMessage() {
+          var text = (chatDetailInput.value || '').trim();
+          if (!text) return;
+          var div = document.createElement('div');
+          div.className = 'chat-msg chat-msg-user';
+          div.innerHTML =
+            '<div class="chat-msg-avatar">我</div>' +
+            '<div class="chat-msg-body"><div class="chat-msg-content">' + escapeHtml(text) + '</div></div>';
+          chatDetailBody.appendChild(div);
+          chatDetailInput.value = '';
+          chatDetailBody.scrollTop = chatDetailBody.scrollHeight;
+        }
+        chatDetailSend.addEventListener('click', sendMessage);
+        chatDetailInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+      }
+    })();
+
+    // ---------- 聊天列表与详情之间的分隔条可拖动调整宽度 ----------
+    (function () {
+      const chatList = document.querySelector('.chat-list');
+      const resizer = document.getElementById('chatResizer');
+      if (!chatList || !resizer || !mainContent) return;
+      const minW = 120;
+      const maxW = 480;
+      resizer.addEventListener('mousedown', function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const startX = e.clientX;
+        const startW = parseFloat(getComputedStyle(chatList).width) || 260;
+        resizer.classList.add('dragging');
+        function onMove(ev) {
+          const dx = ev.clientX - startX;
+          let w = Math.round(startW + dx);
+          w = Math.max(minW, Math.min(maxW, w));
+          mainContent.style.setProperty('--chat-list-width', w + 'px');
+        }
+        function onUp() {
+          resizer.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    })();
+
+    // ---------- Agent 列表与指示灯（与原逻辑一致） ----------
     const btnAdd = document.getElementById('btnAdd');
     const btnRemove = document.getElementById('btnRemove');
     const agentList = document.getElementById('agentList');
@@ -178,7 +1138,6 @@
       return div.innerHTML;
     }
 
-    /** 根据当前 count/names/states 渲染 agent 卡片并绑定事件 */
     function renderAgents(count, names, states) {
       const namesToUse = names || agentNamesState;
       const statesToUse = states || agentStatesState;
@@ -273,7 +1232,6 @@
     const breatheInterval = document.getElementById('breatheInterval');
     const breatheIntervalValue = document.getElementById('breatheIntervalValue');
 
-    /** 根据 config 更新指示灯滑动条与显示值；sendToMain 为 false 时仅更新 UI 不通知主进程 */
     function syncIndicatorUI(config, sendToMain) {
       if (!config) return;
       if (typeof config.spinDuration === 'number') {
@@ -311,6 +1269,7 @@
 
     api.onIndicatorConfig((config) => syncIndicatorUI(config, false));
     api.getIndicatorConfig().then((config) => syncIndicatorUI(config, false));
+    }
   </script>
 </body>
 </html>
