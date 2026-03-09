@@ -38,6 +38,43 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .indicator-controls {
+      margin-bottom: 16px;
+      padding: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .indicator-controls h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .indicator-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .indicator-row:last-child { margin-bottom: 0; }
+    .indicator-row label {
+      font-size: 0.8125rem;
+      color: #555;
+      min-width: 72px;
+    }
+    .indicator-row input[type="range"] {
+      flex: 1;
+      min-width: 80px;
+      height: 6px;
+      accent-color: #555;
+    }
+    .indicator-row .value {
+      font-size: 0.8125rem;
+      color: #333;
+      min-width: 36px;
+      text-align: right;
+    }
     .agent-list {
       display: flex;
       flex-direction: column;
@@ -47,18 +84,49 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
       padding: 10px 12px;
       border: 1px solid #e0e0e0;
       border-radius: 8px;
       background: #fafafa;
     }
-    .agent-card span {
+    .agent-card .name-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+    .agent-card .agent-name-input {
+      width: 100%;
+      padding: 4px 8px;
       font-size: 0.875rem;
       font-weight: 500;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #1a1a1a;
+    }
+    .agent-card .agent-name-input:hover {
+      border-color: #ddd;
+      background: #fff;
+    }
+    .agent-card .agent-name-input:focus {
+      outline: none;
+      border-color: #888;
+      background: #fff;
     }
     .agent-card .controls {
       display: flex;
       gap: 6px;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .agent-card .state-select {
+      padding: 2px 6px;
+      font-size: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      color: #1a1a1a;
+      cursor: pointer;
     }
     .agent-card button {
       padding: 4px 12px;
@@ -79,6 +147,19 @@
     <button type="button" id="btnAdd">增加 Agent</button>
     <button type="button" id="btnRemove">减少 Agent</button>
   </div>
+  <div class="indicator-controls">
+    <h3>指示灯</h3>
+    <div class="indicator-row">
+      <label>旋转速度</label>
+      <input type="range" id="spinSpeed" min="0.5" max="10" step="0.1" value="2" title="转一圈时间(秒)">
+      <span class="value" id="spinSpeedValue">2 s</span>
+    </div>
+    <div class="indicator-row">
+      <label>呼吸间隔</label>
+      <input type="range" id="breatheInterval" min="0.3" max="5" step="0.1" value="1.6" title="呼吸周期(秒)">
+      <span class="value" id="breatheIntervalValue">1.6 s</span>
+    </div>
+  </div>
   <div class="agent-list" id="agentList"></div>
   <script>
     const MAX_AGENTS = 4;
@@ -88,15 +169,35 @@
     const btnAdd = document.getElementById('btnAdd');
     const btnRemove = document.getElementById('btnRemove');
     const agentList = document.getElementById('agentList');
+    let agentNamesState = ['Agent 1', 'Agent 2', 'Agent 3', 'Agent 4'];
+    let agentStatesState = ['idle', 'idle', 'idle', 'idle'];
 
-    function renderAgents(count) {
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    /** 根据当前 count/names/states 渲染 agent 卡片并绑定事件 */
+    function renderAgents(count, names, states) {
+      const namesToUse = names || agentNamesState;
+      const statesToUse = states || agentStatesState;
       agentList.innerHTML = '';
       for (let i = 0; i < count; i++) {
         const card = document.createElement('div');
         card.className = 'agent-card';
+        const displayName = (namesToUse[i] || '').trim() || ('Agent ' + (i + 1));
+        const state = statesToUse[i] || 'idle';
         card.innerHTML =
-          '<span>Agent ' + (i + 1) + '</span>' +
+          '<div class="name-wrap">' +
+          '<input type="text" class="agent-name-input" data-index="' + i + '" value="' + escapeHtml(displayName) + '" placeholder="Agent ' + (i + 1) + '" maxlength="32" />' +
+          '</div>' +
           '<div class="controls">' +
+          '<select class="state-select" data-index="' + i + '" title="状态">' +
+          '<option value="idle"' + (state === 'idle' ? ' selected' : '') + '>空闲</option>' +
+          '<option value="thinking"' + (state === 'thinking' ? ' selected' : '') + '>思考中</option>' +
+          '<option value="running"' + (state === 'running' ? ' selected' : '') + '>执行中</option>' +
+          '</select>' +
           '<button type="button" data-action="play" data-index="' + i + '">播放</button>' +
           '<button type="button" data-action="pause" data-index="' + i + '">暂停</button>' +
           '</div>';
@@ -104,6 +205,30 @@
       }
       btnAdd.disabled = count >= MAX_AGENTS;
       btnRemove.disabled = count <= 1;
+
+      agentList.querySelectorAll('.agent-name-input').forEach((input) => {
+        const index = parseInt(input.dataset.index, 10);
+        input.addEventListener('change', () => {
+          const val = input.value.trim() || ('Agent ' + (index + 1));
+          agentNamesState[index] = val;
+          api.setAgentName(index, val);
+        });
+        input.addEventListener('blur', () => {
+          const val = input.value.trim() || ('Agent ' + (index + 1));
+          if (agentNamesState[index] !== val) {
+            agentNamesState[index] = val;
+            api.setAgentName(index, val);
+          }
+        });
+      });
+      agentList.querySelectorAll('.state-select').forEach((sel) => {
+        const index = parseInt(sel.dataset.index, 10);
+        sel.addEventListener('change', () => {
+          const val = sel.value;
+          agentStatesState[index] = val;
+          api.setAgentState(index, val);
+        });
+      });
       agentList.querySelectorAll('button[data-action]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const index = parseInt(btn.dataset.index, 10);
@@ -113,10 +238,79 @@
       });
     }
 
-    api.onAgentCount(renderAgents);
-    api.getAgentCount().then(renderAgents);
+    api.onAgentCount((count) => {
+      Promise.all([api.getAgentNames(), api.getAgentStates()]).then(([names, states]) => {
+        if (names && names.length) agentNamesState = names.slice(0, MAX_AGENTS);
+        if (states && states.length) agentStatesState = states.slice(0, MAX_AGENTS);
+        renderAgents(count, agentNamesState, agentStatesState);
+      });
+    });
+    api.onAgentNames((names) => {
+      if (names && names.length) agentNamesState = names.slice(0, MAX_AGENTS);
+      agentList.querySelectorAll('.agent-name-input').forEach((input) => {
+        const index = parseInt(input.dataset.index, 10);
+        if (agentNamesState[index] !== undefined) input.value = agentNamesState[index];
+      });
+    });
+    api.onAgentStates((states) => {
+      if (states && states.length) agentStatesState = states.slice(0, MAX_AGENTS);
+      agentList.querySelectorAll('.state-select').forEach((sel) => {
+        const index = parseInt(sel.dataset.index, 10);
+        if (agentStatesState[index] !== undefined) sel.value = agentStatesState[index];
+      });
+    });
+
+    Promise.all([api.getAgentCount(), api.getAgentNames(), api.getAgentStates()]).then(([count, names, states]) => {
+      if (names && names.length) agentNamesState = names.slice(0, MAX_AGENTS);
+      if (states && states.length) agentStatesState = states.slice(0, MAX_AGENTS);
+      renderAgents(count, agentNamesState, agentStatesState);
+    });
     btnAdd.addEventListener('click', () => api.addAgent());
     btnRemove.addEventListener('click', () => api.removeAgent());
+
+    const spinSpeed = document.getElementById('spinSpeed');
+    const spinSpeedValue = document.getElementById('spinSpeedValue');
+    const breatheInterval = document.getElementById('breatheInterval');
+    const breatheIntervalValue = document.getElementById('breatheIntervalValue');
+
+    /** 根据 config 更新指示灯滑动条与显示值；sendToMain 为 false 时仅更新 UI 不通知主进程 */
+    function syncIndicatorUI(config, sendToMain) {
+      if (!config) return;
+      if (typeof config.spinDuration === 'number') {
+        spinSpeed.value = config.spinDuration;
+        spinSpeedValue.textContent = config.spinDuration + ' s';
+      }
+      if (typeof config.breatheDuration === 'number') {
+        breatheInterval.value = config.breatheDuration;
+        breatheIntervalValue.textContent = config.breatheDuration + ' s';
+      }
+      if (sendToMain !== false) {
+        api.setIndicatorConfig({
+          spinDuration: parseFloat(spinSpeed.value),
+          breatheDuration: parseFloat(breatheInterval.value)
+        });
+      }
+    }
+
+    spinSpeed.addEventListener('input', () => {
+      spinSpeedValue.textContent = spinSpeed.value + ' s';
+      api.setIndicatorConfig({ spinDuration: parseFloat(spinSpeed.value) });
+    });
+    spinSpeed.addEventListener('change', () => syncIndicatorUI({
+      spinDuration: parseFloat(spinSpeed.value),
+      breatheDuration: parseFloat(breatheInterval.value)
+    }));
+    breatheInterval.addEventListener('input', () => {
+      breatheIntervalValue.textContent = breatheInterval.value + ' s';
+      api.setIndicatorConfig({ breatheDuration: parseFloat(breatheInterval.value) });
+    });
+    breatheInterval.addEventListener('change', () => syncIndicatorUI({
+      spinDuration: parseFloat(spinSpeed.value),
+      breatheDuration: parseFloat(breatheInterval.value)
+    }));
+
+    api.onIndicatorConfig((config) => syncIndicatorUI(config, false));
+    api.getIndicatorConfig().then((config) => syncIndicatorUI(config, false));
   </script>
 </body>
 </html>
