@@ -1,7 +1,7 @@
 /**
  * Electron 主进程：悬浮窗 overlay + 主窗口，多 agent 视频网格。
- * - overlay：无边框、圆角、透明、可拖拽；agentCount=0 时显示小菜单，1~4 时显示对应数量 agent 视频；尺寸随数量变化（0/1: 100×100, 2: 140×70, 3-4: 120×120）
- * - Windows 下使用 SetWindowRgn 实现圆角
+ * - overlay：无边框、圆角、透明、可拖拽；agentCount=0 时显示小菜单，1~4 时显示对应数量 agent 视频；尺寸随数量变化（0/1: 100×100, 2: 140×70, 3-4: 120×120）；Windows 下使用 SetWindowRgn 实现圆角。
+ * - 主窗口：黄金比例默认尺寸、居中、Windows 下圆角与任务栏圆角图标（logo-white-rounded.png）；图标由 ui/scripts/round-icon.js 从 logo-white.png 生成。
  */
 const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
@@ -10,12 +10,25 @@ const { pathToFileURL } = require('url');
 
 // --- 常量 ---
 const ASSETS_DIR = path.join(__dirname, 'assets');
+/** 应用图标（任务栏/标题栏），Windows 下使用；优先使用圆角版 logo-white-rounded.png，否则用 logo-white.png */
+function getAppIconPath() {
+  const imgsDir = path.join(__dirname, '..', 'imgs');
+  const rounded = path.join(imgsDir, 'logo-white-rounded.png');
+  const normal = path.join(imgsDir, 'logo-white.png');
+  try {
+    if (fs.existsSync(rounded)) return rounded;
+  } catch (_) { /* ignore */ }
+  return normal;
+}
+const APP_ICON_PATH = getAppIconPath();
 const MAX_AGENTS = 4;
 /** 每格像素：1 格 | 2 格 | 3-4 格 */
 const CELL_1 = 100;
 const CELL_2 = 70;
 const CELL_3_4 = 60;
 const OVERLAY_RADIUS = 24;
+/** 主窗口圆角半径（Windows SetWindowRgn） */
+const MAIN_WINDOW_RADIUS = 12;
 
 let mainWindow = null;
 let overlayWindow = null;
@@ -31,6 +44,32 @@ let breatheDuration = 1.6;
 let draggingWindow = null;
 let dragStartScreen = null;
 let dragStartPos = null;
+
+/** 黄金比例 φ ≈ 1.618，主窗口宽高比 width/height */
+const GOLDEN_RATIO = 1.618;
+/** 主窗口占工作区最大宽度比例（约为原来的 65%） */
+const MAIN_WINDOW_MAX_WIDTH_FRACTION = 0.72 * 0.65;
+/** 主窗口占工作区最大高度比例（约为原来的 65%） */
+const MAIN_WINDOW_MAX_HEIGHT_FRACTION = 0.88 * 0.65;
+
+/** 根据当前屏幕工作区计算主窗口默认宽高（黄金比例，且不超过工作区比例） */
+function getDefaultMainWindowSize() {
+  const primary = screen.getPrimaryDisplay();
+  const workArea = primary.workArea;
+  const maxW = Math.floor(workArea.width * MAIN_WINDOW_MAX_WIDTH_FRACTION);
+  const maxH = Math.floor(workArea.height * MAIN_WINDOW_MAX_HEIGHT_FRACTION);
+  let w = maxW;
+  let h = Math.round(w / GOLDEN_RATIO);
+  if (h > maxH) {
+    h = maxH;
+    w = Math.round(h * GOLDEN_RATIO);
+    if (w > workArea.width) {
+      w = Math.floor(workArea.width * 0.9);
+      h = Math.round(w / GOLDEN_RATIO);
+    }
+  }
+  return [Math.max(640, w), Math.max(400, h)];
+}
 
 function isWindowAlive(win) {
   return win && !win.isDestroyed();
@@ -91,6 +130,23 @@ function clearOverlayWindowRgn(win) {
     SetWindowRgn(win.getNativeWindowHandle(), null, 1);
   } catch (err) {
     console.error('ClearWindowRgn failed:', err);
+  }
+}
+
+/** 主窗口圆角（Windows）；窗口缩放时需重新设置，最大化时清除 */
+function setMainWindowRgn(win) {
+  if (process.platform !== 'win32' || !win || win.isDestroyed()) return;
+  try {
+    const koffi = require('koffi');
+    const user32 = koffi.load('user32.dll');
+    const gdi32 = koffi.load('gdi32.dll');
+    const CreateRoundRectRgn = gdi32.func('CreateRoundRectRgn', 'void*', ['int', 'int', 'int', 'int', 'int', 'int']);
+    const SetWindowRgn = user32.func('SetWindowRgn', 'int', ['void*', 'void*', 'int']);
+    const [width, height] = win.getSize();
+    const rgn = CreateRoundRectRgn(0, 0, width + 1, height + 1, MAIN_WINDOW_RADIUS, MAIN_WINDOW_RADIUS);
+    SetWindowRgn(win.getNativeWindowHandle(), rgn, 1);
+  } catch (err) {
+    console.error('SetMainWindowRgn failed:', err);
   }
 }
 
@@ -192,11 +248,19 @@ ipcMain.on('open-main', () => {
     mainWindow.focus();
     return;
   }
+  const [defaultWidth, defaultHeight] = getDefaultMainWindowSize();
+  const primary = screen.getPrimaryDisplay();
+  const workArea = primary.workArea;
+  const x = Math.round(workArea.x + (workArea.width - defaultWidth) / 2);
+  const y = Math.round(workArea.y + (workArea.height - defaultHeight) / 2);
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 560,
+    width: defaultWidth,
+    height: defaultHeight,
+    x,
+    y,
     minWidth: 640,
     minHeight: 400,
+    icon: APP_ICON_PATH,
     frame: false,
     show: false,
     titleBarStyle: 'hidden',
@@ -220,6 +284,15 @@ ipcMain.on('open-main', () => {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
+    if (process.platform === 'win32') setMainWindowRgn(mainWindow);
+  });
+  mainWindow.on('resize', () => {
+    if (process.platform !== 'win32' || !isWindowAlive(mainWindow)) return;
+    if (mainWindow.isMaximized()) clearOverlayWindowRgn(mainWindow);
+    else setMainWindowRgn(mainWindow);
+  });
+  mainWindow.on('unmaximize', () => {
+    if (process.platform === 'win32' && isWindowAlive(mainWindow)) setMainWindowRgn(mainWindow);
   });
 });
 
