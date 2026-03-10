@@ -43,6 +43,18 @@ async def _process_one(inbound: InboundMessage, store: TaskStore) -> None:
             preview += "..."
         logger.info("task_id=%s completed reply_len=%d preview=%s", task_id, len(final_content or ""), preview)
     except Exception as e:
+        # 502 等 HTTP 错误时打出响应体，便于排查是 Node 还是上游 LLM 的问题
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                body_preview = (e.response.text or '')[:500]
+                logger.error(
+                    "Worker run_employee_loop failed task_id=%s status=%s body=%s",
+                    task_id,
+                    getattr(e.response, 'status_code', None),
+                    body_preview,
+                )
+            except Exception:
+                pass
         logger.exception("Worker run_employee_loop failed for task_id=%s", task_id)
         agent_msg = Message(role="agent", parts=[Part(type="text", text="")])
         await store.complete(task_id, "failed", agent_msg, error=str(e))
