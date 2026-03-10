@@ -1,0 +1,616 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "JoyTrunk Server API",
+    "description": "JoyTrunk 本地管理后端 API，供 Desktop 与 CLI 调用。鉴权：请求头可带 `X-Owner-Id` 或 `Authorization`（值为 ownerId），不传则使用本地默认负责人。",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:32901",
+      "description": "本地开发"
+    }
+  ],
+  "tags": [
+    { "name": "健康与认证", "description": "健康检查、注册、登录" },
+    { "name": "负责人", "description": "当前负责人信息" },
+    { "name": "员工", "description": "员工 CRUD 与配置" },
+    { "name": "聊天与记忆", "description": "聊天记录、记忆库、系统提示词" },
+    { "name": "配置与用量", "description": "全局配置、LLM 配置、用量" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["健康与认证"],
+        "summary": "健康检查",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "service": { "type": "string" },
+                    "port": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["健康与认证"],
+        "summary": "注册负责人",
+        "description": "本地尚无负责人时调用，创建后返回 owner 与 token（即 ownerId）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "创建成功" },
+          "400": { "description": "已存在负责人" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["健康与认证"],
+        "summary": "登录",
+        "description": "返回当前负责人与 token（ownerId）",
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "尚未注册" }
+        }
+      }
+    },
+    "/api/owners/me": {
+      "get": {
+        "tags": ["负责人"],
+        "summary": "当前负责人",
+        "parameters": [
+          {
+            "name": "X-Owner-Id",
+            "in": "header",
+            "description": "可选，不传则用本地默认",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "负责人不存在" }
+        }
+      }
+    },
+    "/api/employees": {
+      "get": {
+        "tags": ["员工"],
+        "summary": "员工列表",
+        "parameters": [
+          { "name": "X-Owner-Id", "in": "header", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "员工数组" }
+        }
+      },
+      "post": {
+        "tags": ["员工"],
+        "summary": "新建员工",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "创建成功" }
+        }
+      }
+    },
+    "/api/employees/{id}": {
+      "get": {
+        "tags": ["员工"],
+        "summary": "员工详情",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "员工不存在" }
+        }
+      },
+      "patch": {
+        "tags": ["员工"],
+        "summary": "更新员工",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "员工不存在" }
+        }
+      }
+    },
+    "/api/employees/{id}/config": {
+      "get": {
+        "tags": ["员工"],
+        "summary": "员工配置（只读，apiKey 脱敏）",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "员工不存在" }
+        }
+      },
+      "patch": {
+        "tags": ["员工"],
+        "summary": "更新员工配置",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "员工不存在" }
+        }
+      }
+    },
+    "/api/employees/{id}/chat-history": {
+      "get": {
+        "tags": ["聊天与记忆"],
+        "summary": "与负责人的聊天记录",
+        "description": "仅返回 session_key 为 owner 的最近 300 条消息，按时间正序。无记忆库时返回空数组。",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "聊天消息列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatHistoryResponse" },
+                "example": {
+                  "messages": [
+                    {
+                      "id": "msg-001",
+                      "created_at": "2025-03-10T08:00:00.000Z",
+                      "session_key": "owner",
+                      "role": "user",
+                      "content": "你好，介绍一下你自己"
+                    },
+                    {
+                      "id": "msg-002",
+                      "created_at": "2025-03-10T08:00:05.000Z",
+                      "session_key": "owner",
+                      "role": "assistant",
+                      "content": "我是 JoyTrunk 员工助手，可以帮你处理任务和记忆信息。"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "员工不存在或无权",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "员工不存在或无权访问" }
+              }
+            }
+          },
+          "500": {
+            "description": "读取聊天记录失败",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "读取聊天记录失败" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employees/{id}/chat": {
+      "post": {
+        "tags": ["聊天与记忆"],
+        "summary": "发送消息并等待回复",
+        "description": "经 A2A Gateway 执行 agent，需先启动 joytrunk gateway。阻塞直到 agent 返回或超时。",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": { "type": "string", "description": "用户消息正文" },
+                  "contextId": { "type": "string", "nullable": true, "description": "可选会话上下文 ID" }
+                },
+                "required": ["content"]
+              },
+              "example": { "content": "你好，请介绍一下你自己" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "agent 回复与用量",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatResponse" },
+                "example": {
+                  "reply": "我是 JoyTrunk 员工助手，可以帮你处理任务和记忆信息。",
+                  "usage": { "input_tokens": 120, "output_tokens": 28 }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "员工不存在",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "员工不存在" }
+              }
+            }
+          },
+          "503": {
+            "description": "Gateway 未启动或不可达",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "A2A Gateway 未启动或不可达，请先在另一终端运行：joytrunk gateway" }
+              }
+            }
+          },
+          "504": {
+            "description": "请求超时",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "A2A 请求超时" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employees/{id}/memory": {
+      "get": {
+        "tags": ["聊天与记忆"],
+        "summary": "员工记忆库内容（dump_memory）",
+        "description": "导出该员工 memory.db 的完整内容（分类、条目、资源、分类-条目关联、全部聊天消息），不含 embedding 向量。",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "记忆库完整导出",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MemoryDumpResponse" },
+                "example": {
+                  "employee_id": "emp-001",
+                  "category_order": ["facts", "preferences", "contacts"],
+                  "categories": [
+                    {
+                      "id": "cat-001",
+                      "created_at": "2025-03-10T00:00:00.000Z",
+                      "updated_at": "2025-03-10T00:00:00.000Z",
+                      "name": "facts",
+                      "description": "事实类记忆",
+                      "summary": null
+                    }
+                  ],
+                  "items": [
+                    {
+                      "id": "item-001",
+                      "created_at": "2025-03-10T08:00:00.000Z",
+                      "updated_at": "2025-03-10T08:00:00.000Z",
+                      "resource_id": null,
+                      "memory_type": "text",
+                      "summary": "用户喜欢喝咖啡",
+                      "happened_at": null,
+                      "extra": {}
+                    }
+                  ],
+                  "resources": [],
+                  "category_item_relations": [
+                    {
+                      "id": "rel-001",
+                      "created_at": "2025-03-10T08:00:00.000Z",
+                      "updated_at": "2025-03-10T08:00:00.000Z",
+                      "item_id": "item-001",
+                      "category_id": "cat-001"
+                    }
+                  ],
+                  "chat_messages": [
+                    {
+                      "id": "msg-001",
+                      "created_at": "2025-03-10T08:00:00.000Z",
+                      "session_key": "owner",
+                      "role": "user",
+                      "content": "我喜欢喝咖啡"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "员工不存在或暂无记忆库",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "员工不存在或无权访问" }
+              }
+            }
+          },
+          "500": {
+            "description": "读取 memory 失败",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiError" },
+                "example": { "error": "读取 memory 失败" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employees/{id}/logs": {
+      "get": {
+        "tags": ["员工"],
+        "summary": "员工运行时日志（JSONL）",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "{ entries: [...] }" },
+          "404": { "description": "员工不存在" }
+        }
+      }
+    },
+    "/api/teams/current": {
+      "get": {
+        "tags": ["负责人"],
+        "summary": "当前团队（负责人 + 全体员工）",
+        "responses": {
+          "200": { "description": "{ owner, employees }" },
+          "404": { "description": "负责人不存在" }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": ["配置与用量"],
+        "summary": "全局配置（只读，apiKey 脱敏）",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/config/custom-llm": {
+      "patch": {
+        "tags": ["配置与用量"],
+        "summary": "更新自有 LLM 配置",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiBase": { "type": "string" },
+                  "apiKey": { "type": "string" },
+                  "model": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "403": { "description": "无权修改" }
+        }
+      },
+      "delete": {
+        "tags": ["配置与用量"],
+        "summary": "清除自有 LLM 配置",
+        "responses": {
+          "200": { "description": "OK" },
+          "403": { "description": "无权" }
+        }
+      }
+    },
+    "/api/usage": {
+      "get": {
+        "tags": ["配置与用量"],
+        "summary": "用量占位（Router/自有 LLM）",
+        "responses": {
+          "200": { "description": "{ usage: [...] }" }
+        }
+      }
+    },
+    "/api/llm/chat/completions": {
+      "post": {
+        "tags": ["配置与用量"],
+        "summary": "JoyTrunk Router 或自有 LLM 代理",
+        "description": "与 OpenAI 兼容的 chat completions 请求体",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "上游 JSON" },
+          "502": { "description": "转发失败" },
+          "503": { "description": "未配置 Router/LLM" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ownerId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Owner-Id",
+        "description": "当前负责人 ID，不传则使用本地默认"
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "接口错误时返回",
+        "properties": {
+          "error": { "type": "string", "description": "错误信息" }
+        },
+        "required": ["error"]
+      },
+      "ChatHistoryMessage": {
+        "type": "object",
+        "description": "单条聊天消息（与负责人 session 内，最多返回最近 300 条）",
+        "properties": {
+          "id": { "type": "string", "description": "消息 ID" },
+          "created_at": { "type": "string", "format": "date-time", "description": "创建时间 ISO8601" },
+          "session_key": { "type": "string", "description": "会话键，owner 表示与负责人的对话" },
+          "role": { "type": "string", "enum": ["user", "assistant", "system", "tool"], "description": "角色" },
+          "content": { "type": "string", "nullable": true, "description": "正文" },
+          "extra": { "type": "object", "description": "扩展（如 tool_calls、tool_call_id 等）" }
+        }
+      },
+      "ChatHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ChatHistoryMessage" }
+          }
+        },
+        "required": ["messages"]
+      },
+      "ChatUsage": {
+        "type": "object",
+        "description": "本次对话 token 用量（来自 A2A Gateway）",
+        "properties": {
+          "input_tokens": { "type": "integer", "description": "输入 token 数" },
+          "output_tokens": { "type": "integer", "description": "输出 token 数" }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "reply": { "type": "string", "description": "agent 回复正文" },
+          "usage": {
+            "oneOf": [{ "$ref": "#/components/schemas/ChatUsage" }, { "type": "null" }],
+            "description": "用量，Gateway 未返回时为 null"
+          }
+        },
+        "required": ["reply"]
+      },
+      "MemoryCategory": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "summary": { "type": "string", "nullable": true }
+        }
+      },
+      "MemoryItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "resource_id": { "type": "string", "nullable": true },
+          "memory_type": { "type": "string" },
+          "summary": { "type": "string" },
+          "happened_at": { "type": "string", "format": "date-time", "nullable": true },
+          "extra": { "type": "object" }
+        }
+      },
+      "MemoryResource": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "url": { "type": "string" },
+          "modality": { "type": "string" },
+          "local_path": { "type": "string" },
+          "caption": { "type": "string", "nullable": true }
+        }
+      },
+      "CategoryItemRelation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "item_id": { "type": "string" },
+          "category_id": { "type": "string" }
+        }
+      },
+      "MemoryDumpResponse": {
+        "type": "object",
+        "description": "员工记忆库完整导出（dump_memory），不含 embedding 向量",
+        "properties": {
+          "employee_id": { "type": "string" },
+          "category_order": { "type": "array", "items": { "type": "string" } },
+          "categories": { "type": "array", "items": { "$ref": "#/components/schemas/MemoryCategory" } },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/MemoryItem" } },
+          "resources": { "type": "array", "items": { "$ref": "#/components/schemas/MemoryResource" } },
+          "category_item_relations": { "type": "array", "items": { "$ref": "#/components/schemas/CategoryItemRelation" } },
+          "chat_messages": { "type": "array", "items": { "$ref": "#/components/schemas/ChatHistoryMessage" }, "description": "全部 session 的聊天消息" }
+        },
+        "required": ["employee_id", "categories", "items", "resources", "category_item_relations", "chat_messages"]
+      }
+    }
+  },
+  "security": []
+}

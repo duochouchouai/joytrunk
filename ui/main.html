@@ -1,122 +1,162 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+<!-- 主窗口：标题栏 + 左侧导航 + 聊天（列表/详情/输入框）+ 其他（Agent/指示灯） -->
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>主页面</title>
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 20px;
-      background: #fff;
-      color: #1a1a1a;
-      line-height: 1.5;
-    }
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .toolbar button {
-      padding: 6px 14px;
-      font-size: 0.875rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #f5f5f5;
-      cursor: pointer;
-    }
-    .toolbar button:hover:not(:disabled) {
-      background: #eee;
-    }
-    .toolbar button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .agent-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .agent-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      background: #fafafa;
-    }
-    .agent-card span {
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
-    .agent-card .controls {
-      display: flex;
-      gap: 6px;
-    }
-    .agent-card button {
-      padding: 4px 12px;
-      font-size: 0.8125rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #fff;
-      cursor: pointer;
-    }
-    .agent-card button:hover {
-      background: #f0f0f0;
-    }
-  </style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:; connect-src 'self' http://127.0.0.1:32901 http://localhost:32901 https://127.0.0.1:32901 https://localhost:32901 ws://127.0.0.1:32901 ws://localhost:32901;">
+  <title>JoyTrunk</title>
+  <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-  <h1>主页面</h1>
-  <div class="toolbar">
-    <button type="button" id="btnAdd">增加 Agent</button>
-    <button type="button" id="btnRemove">减少 Agent</button>
+  <!-- 未绑定提示弹窗 -->
+  <div class="user-modal-overlay" id="userModalOverlay" role="dialog" aria-modal="true" aria-labelledby="userModalTitle" style="display: none;">
+    <div class="user-modal">
+      <h3 class="user-modal-title" id="userModalTitle">设备未绑定</h3>
+      <p class="user-modal-text">需要登录 JoyTrunk 进行设备绑定</p>
+      <button type="button" class="user-modal-btn" id="userModalConfirm">确定</button>
+    </div>
   </div>
-  <div class="agent-list" id="agentList"></div>
-  <script>
-    const MAX_AGENTS = 4;
-    const api = window.electronAPI;
-    if (!api) throw new Error('electronAPI not found');
+  <!-- 已绑定：个人信息浮层 -->
+  <div class="user-popover" id="userPopover" style="display: none;">
+    <div class="user-popover-avatar" id="userPopoverAvatar">👤</div>
+    <div class="user-popover-name" id="userPopoverName">我</div>
+    <div class="user-popover-meta" id="userPopoverMeta">未设置</div>
+    <button type="button" class="user-popover-logout" id="userPopoverLogout">退出登录</button>
+  </div>
+  <header class="app-title-bar">
+    <span class="title-bar-logo-wrap">
+      <img class="title-bar-logo" id="titleBarLogo" src="" alt="Logo" onerror="this.style.display='none'">
+    </span>
+    <span class="title-bar-title">JoyTrunk</span>
+    <div class="title-bar-drag"></div>
+    <div class="title-bar-btns">
+      <button type="button" id="btnMinimize" title="最小化">−</button>
+      <button type="button" id="btnClose" class="close" title="关闭">×</button>
+    </div>
+  </header>
+  <div class="app-body">
+    <nav class="app-sidebar">
+      <div class="app-sidebar-nav">
+        <button type="button" class="sidebar-item active" data-panel="chat" title="聊天">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </span>
+          <span>聊天</span>
+        </button>
+        <button type="button" class="sidebar-item" data-panel="other" title="其他">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span>其他</span>
+        </button>
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar" title="用户">👤</div>
+        <span class="sidebar-user-name" id="sidebarUserName">我</span>
+      </div>
+    </nav>
+    <main class="main-content" data-panel="chat">
+      <aside class="chat-list">
+        <div class="chat-list-search-wrap">
+          <div class="chat-list-search-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <input type="text" class="chat-list-search" placeholder="搜索" aria-label="搜索会话">
+          <div class="chat-list-search-add-wrap">
+            <button type="button" class="chat-list-search-add-btn" id="chatSearchAddBtn" title="新建" aria-label="新建" aria-haspopup="true" aria-expanded="false">+</button>
+            <div class="chat-list-search-dropdown" id="chatSearchDropdown" role="menu">
+              <button type="button" class="chat-list-search-dropdown-item" role="menuitem" data-action="new-employee">新增员工</button>
+            </div>
+          </div>
+        </div>
+        <div class="chat-list-body" id="chatListBody">
+          <div class="chat-list-placeholder" id="chatListPlaceholder">暂无会话，后续可在此选择或新建</div>
+        </div>
+      </aside>
+      <div class="chat-resizer" id="chatResizer" title="拖动调整宽度"></div>
+      <section class="chat-detail">
+        <div class="chat-detail-header">
+          <div class="chat-detail-header-name-wrap" id="chatDetailNameWrap">
+            <span class="chat-detail-header-title" id="chatDetailHeader">选择或开始一段对话</span>
+            <input type="text" class="chat-detail-header-name-input" id="chatDetailNameInput" maxlength="32" placeholder="昵称" aria-label="编辑昵称">
+            <button type="button" class="chat-detail-header-edit" id="chatDetailEditNameBtn" title="修改昵称" aria-label="修改昵称">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+          </div>
+          <button type="button" class="chat-detail-header-settings" id="chatDetailSettingsBtn" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          <button type="button" class="chat-detail-header-history" id="chatDetailHistoryBtn" title="记忆" aria-label="查看记忆">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-detail-body" id="chatDetailBody"></div>
+        <div class="chat-detail-footer">
+          <div class="chat-detail-preview" id="chatDetailPreview">
+            <div class="chat-detail-preview-img-wrap">
+              <img class="chat-detail-preview-img" id="chatDetailPreviewImg" src="" alt="">
+              <button type="button" class="chat-detail-preview-remove" id="chatDetailPreviewRemove" title="移除图片" aria-label="移除图片">×</button>
+            </div>
+          </div>
+          <div class="chat-detail-input-wrap">
+            <input type="file" id="chatDetailFileInput" accept="image/*" style="display: none;">
+            <button type="button" class="chat-detail-image-btn" id="chatDetailImageBtn" title="发送图片" aria-label="发送图片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </button>
+            <textarea class="chat-detail-input" id="chatDetailInput" placeholder="输入消息…" rows="1" aria-label="输入消息"></textarea>
+            <button type="button" class="chat-detail-send" id="chatDetailSend">发送</button>
+          </div>
+        </div>
+      </section>
+      <div class="other-panel">
+        <h1>其他</h1>
+        <div class="toolbar">
+          <button type="button" id="btnAdd">增加 Agent</button>
+          <button type="button" id="btnRemove">减少 Agent</button>
+        </div>
+        <div class="indicator-controls">
+          <h3>指示灯</h3>
+          <div class="indicator-row">
+            <label>旋转速度</label>
+            <input type="range" id="spinSpeed" min="0.5" max="10" step="0.1" value="2" title="转一圈时间(秒)">
+            <span class="value" id="spinSpeedValue">2 s</span>
+          </div>
+          <div class="indicator-row">
+            <label>呼吸间隔</label>
+            <input type="range" id="breatheInterval" min="0.3" max="5" step="0.1" value="1.6" title="呼吸周期(秒)">
+            <span class="value" id="breatheIntervalValue">1.6 s</span>
+          </div>
+        </div>
+        <div class="agent-list" id="agentList"></div>
+      </div>
+    </main>
+  </div>
+  <script src="js/utils.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/agents.js"></script>
+  <script src="js/main-init.js"></script>
 
-    const btnAdd = document.getElementById('btnAdd');
-    const btnRemove = document.getElementById('btnRemove');
-    const agentList = document.getElementById('agentList');
-
-    function renderAgents(count) {
-      agentList.innerHTML = '';
-      for (let i = 0; i < count; i++) {
-        const card = document.createElement('div');
-        card.className = 'agent-card';
-        card.innerHTML =
-          '<span>Agent ' + (i + 1) + '</span>' +
-          '<div class="controls">' +
-          '<button type="button" data-action="play" data-index="' + i + '">播放</button>' +
-          '<button type="button" data-action="pause" data-index="' + i + '">暂停</button>' +
-          '</div>';
-        agentList.appendChild(card);
-      }
-      btnAdd.disabled = count >= MAX_AGENTS;
-      btnRemove.disabled = count <= 1;
-      agentList.querySelectorAll('button[data-action]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const index = parseInt(btn.dataset.index, 10);
-          if (btn.dataset.action === 'play') api.agentPlay(index);
-          else api.agentPause(index);
-        });
-      });
-    }
-
-    api.onAgentCount(renderAgents);
-    api.getAgentCount().then(renderAgents);
-    btnAdd.addEventListener('click', () => api.addAgent());
-    btnRemove.addEventListener('click', () => api.removeAgent());
-  </script>
 </body>
 </html>
