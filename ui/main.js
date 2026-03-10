@@ -4,15 +4,18 @@
  * - 主窗口：黄金比例默认尺寸、居中、Windows 下圆角与任务栏圆角图标（logo-white-rounded.png）；图标由 ui/scripts/round-icon.js 从 logo-white.png 生成。
  */
 const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 // --- 常量 ---
 const ASSETS_DIR = path.join(__dirname, 'assets');
-/** 应用图标（任务栏/标题栏），Windows 下使用；优先使用圆角版 logo-white-rounded.png，否则用 logo-white.png */
+/** 应用图标（任务栏/标题栏），Windows 下使用；优先使用圆角版 logo-white-rounded.png，否则用 logo-white.png。打包后从 extraResources 的 imgs 读取 */
 function getAppIconPath() {
-  const imgsDir = path.join(__dirname, '..', 'imgs');
+  const imgsDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'imgs')
+    : path.join(__dirname, '..', 'imgs');
   const rounded = path.join(imgsDir, 'logo-white-rounded.png');
   const normal = path.join(imgsDir, 'logo-white.png');
   try {
@@ -44,6 +47,55 @@ let breatheDuration = 1.6;
 let draggingWindow = null;
 let dragStartScreen = null;
 let dragStartPos = null;
+
+/** joytrunk server / gateway 子进程（UI 启动时 spawn，退出时 kill） */
+let serverProcess = null;
+let gatewayProcess = null;
+
+/**
+ * 发布态：返回捆绑的 joytrunk 可执行文件路径（extraResources/bin 下）。
+ * @param {string} name - 如 'joytrunk-server'、'joytrunk-gateway'
+ * @returns {string}
+ */
+function getBundledJoytrunkBin(name) {
+  const base = path.join(process.resourcesPath, 'bin', name);
+  return process.platform === 'win32' ? base + '.exe' : base;
+}
+
+/**
+ * 启动 joytrunk server 或 gateway 子进程。开发态从 PATH  spawn joytrunk；发布态从 resources/bin spawn 捆绑的可执行文件。
+ * @param {'server'|'gateway'} subcommand
+ * @returns {import('child_process').ChildProcess | null} 成功返回 ChildProcess，失败返回 null
+ */
+function spawnJoytrunkCommand(subcommand) {
+  const isPackaged = app.isPackaged;
+  const opts = {
+    env: { ...process.env },
+    stdio: 'ignore',
+  };
+
+  if (isPackaged) {
+    const binName = subcommand === 'server' ? 'joytrunk-server' : 'joytrunk-gateway';
+    const binPath = getBundledJoytrunkBin(binName);
+    if (!fs.existsSync(binPath)) {
+      console.error('[joytrunk] Bundled binary not found:', binPath);
+      return null;
+    }
+    try {
+      return spawn(binPath, [], opts);
+    } catch (err) {
+      console.error('[joytrunk] Failed to spawn', binName, err);
+      return null;
+    }
+  }
+
+  try {
+    return spawn('joytrunk', [subcommand], opts);
+  } catch (err) {
+    console.error('[joytrunk] Failed to spawn joytrunk', subcommand, err);
+    return null;
+  }
+}
 
 /** 黄金比例 φ ≈ 1.618，主窗口宽高比 width/height */
 const GOLDEN_RATIO = 1.618;
@@ -409,6 +461,34 @@ ipcMain.on('main-window-minimize', () => {
 
 app.whenReady().then(() => {
   createOverlay();
+  // 后台启动 joytrunk server 与 gateway，便于设备连接
+  serverProcess = spawnJoytrunkCommand('server');
+  if (serverProcess) {
+    serverProcess.on('error', (err) => console.error('[joytrunk server] error', err));
+    serverProcess.on('exit', (code, sig) => {
+      if (code != null && code !== 0) console.error('[joytrunk server] exit', code, sig);
+      serverProcess = null;
+    });
+  }
+  gatewayProcess = spawnJoytrunkCommand('gateway');
+  if (gatewayProcess) {
+    gatewayProcess.on('error', (err) => console.error('[joytrunk gateway] error', err));
+    gatewayProcess.on('exit', (code, sig) => {
+      if (code != null && code !== 0) console.error('[joytrunk gateway] exit', code, sig);
+      gatewayProcess = null;
+    });
+  }
+});
+
+app.on('before-quit', () => {
+  if (serverProcess && !serverProcess.killed) {
+    serverProcess.kill('SIGTERM');
+    serverProcess = null;
+  }
+  if (gatewayProcess && !gatewayProcess.killed) {
+    gatewayProcess.kill('SIGTERM');
+    gatewayProcess = null;
+  }
 });
 
 app.on('window-all-closed', () => {
