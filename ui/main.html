@@ -86,13 +86,14 @@
       align-items: center;
     }
     .title-bar-btns button {
-      width: 42px;
+      width: 46px;
       height: 36px;
       border: none;
       background: transparent;
       color: #e0e0e0;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 18px;
+      line-height: 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -175,6 +176,10 @@
       padding: 8px 4px 0;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       margin-top: 4px;
+      cursor: pointer;
+    }
+    .sidebar-user:hover .sidebar-user-avatar {
+      transform: scale(1.15);
     }
     .sidebar-user-avatar {
       width: 32px;
@@ -186,6 +191,7 @@
       justify-content: center;
       font-size: 14px;
       color: #e0e0e0;
+      transition: transform 0.2s ease;
     }
     .sidebar-user-name {
       font-size: 10px;
@@ -436,6 +442,10 @@
     }
     .chat-detail-header {
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
       padding: 12px 20px;
       font-size: 15px;
       font-weight: 700;
@@ -444,6 +454,117 @@
       background: #fff;
       position: relative;
       z-index: 1;
+    }
+    .chat-detail-header-title {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chat-detail-header-name-input {
+      flex: 0 0 auto;
+      min-width: 60px;
+      padding: 2px 6px;
+      font-size: 15px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #1a1a1a;
+      font-family: inherit;
+      display: none;
+    }
+    .chat-detail-header-name-wrap.editing .chat-detail-header-title {
+      display: none;
+    }
+    .chat-detail-header-name-wrap.editing .chat-detail-header-name-input {
+      display: block;
+    }
+    .chat-detail-header-name-input:hover,
+    .chat-detail-header-name-input:focus {
+      outline: none;
+      border-color: #ddd;
+      background: #fff;
+    }
+    .chat-detail-header-name-input:focus {
+      border-color: #42a5f5;
+    }
+    .chat-detail-header-name-wrap {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .chat-detail-header-edit {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #999;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chat-detail-header-edit:hover {
+      background: #f0f0f0;
+      color: #555;
+    }
+    .chat-detail-header-edit svg {
+      width: 14px;
+      height: 14px;
+    }
+    .chat-detail-header-history {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chat-detail-header-history:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .chat-detail-header-history svg {
+      width: 20px;
+      height: 20px;
+    }
+    .chat-detail-header-settings {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chat-detail-header-settings:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .chat-detail-header-settings svg {
+      width: 20px;
+      height: 20px;
     }
     .chat-detail-body {
       position: relative;
@@ -486,14 +607,14 @@
       color: #555;
     }
     .chat-msg-body {
-      flex: 1;
+      flex: 0 1 auto;
       min-width: 0;
+      max-width: 78%;
     }
     .chat-msg-assistant .chat-msg-bubble {
       background: #f0f0f0;
       color: #333;
-      border-radius: 12px;
-      border-bottom-left-radius: 4px;
+      border-radius: 16px 16px 16px 4px;
       overflow: hidden;
     }
     .chat-msg-thinking {
@@ -508,7 +629,7 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 8px 14px 6px;
+      padding: 6px 12px 4px;
     }
     .chat-msg-thinking-header:hover {
       color: #666;
@@ -525,7 +646,7 @@
       font-size: 12px;
       color: #666;
       line-height: 1.5;
-      padding: 8px 14px 10px;
+      padding: 6px 12px 8px;
       background: rgba(0, 0, 0, 0.04);
       display: none;
     }
@@ -533,8 +654,7 @@
       display: block;
     }
     .chat-msg-content {
-      padding: 10px 14px;
-      border-radius: 0;
+      padding: 8px 12px;
       line-height: 1.5;
     }
     .chat-msg-assistant .chat-msg-bubble .chat-msg-content {
@@ -543,7 +663,7 @@
     .chat-msg-user .chat-msg-content {
       background: rgba(66, 165, 245, 0.15);
       color: #1a1a1a;
-      border-bottom-right-radius: 4px;
+      border-radius: 16px 16px 4px 16px;
     }
 
     .chat-detail-footer {
@@ -553,6 +673,9 @@
       background: #fff;
       position: relative;
       z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
     }
     .chat-detail-input-wrap {
       display: flex;
@@ -596,6 +719,79 @@
     .chat-detail-send:disabled {
       background: #ccc;
       cursor: not-allowed;
+    }
+    .chat-detail-image-btn {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .chat-detail-image-btn:hover {
+      background: #f0f0f0;
+      color: #555;
+    }
+    .chat-detail-image-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+    .chat-detail-preview {
+      display: none;
+      padding: 8px 0;
+    }
+    .chat-detail-preview.has-image {
+      display: block;
+    }
+    .chat-detail-preview-img-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .chat-detail-preview-img {
+      display: block;
+      max-width: 64px;
+      max-height: 64px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+    .chat-detail-preview-remove {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .chat-detail-preview-remove:hover {
+      background: rgba(0, 0, 0, 0.75);
+    }
+    .chat-msg-content img.chat-msg-image {
+      max-width: 100%;
+      max-height: 240px;
+      border-radius: 8px;
+      display: block;
+      margin-top: 6px;
+    }
+    .chat-msg-content > img.chat-msg-image:first-child {
+      margin-top: 0;
     }
 
     /* ========== 其他视图：单栏（Agent + 指示灯） ========== */
@@ -734,9 +930,124 @@
     .agent-card button:hover {
       background: #f0f0f0;
     }
+
+    /* 未绑定提示弹窗 */
+    .user-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .user-modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 280px;
+      max-width: 90%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+    .user-modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+    }
+    .user-modal-text {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .user-modal-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 16px;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      background: #42a5f5;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .user-modal-btn:hover {
+      background: #1976d2;
+    }
+
+    /* 已绑定：个人信息浮层 */
+    .user-popover {
+      position: fixed;
+      left: 72px;
+      bottom: 24px;
+      width: 200px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      z-index: 999;
+      border: 1px solid #eee;
+    }
+    .user-popover-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin: 0 auto 8px;
+    }
+    .user-popover-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a1a;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .user-popover-meta {
+      font-size: 12px;
+      color: #888;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .user-popover-logout {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 13px;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .user-popover-logout:hover {
+      background: #f5f5f5;
+      color: #333;
+    }
   </style>
 </head>
 <body>
+  <!-- 未绑定提示弹窗 -->
+  <div class="user-modal-overlay" id="userModalOverlay" role="dialog" aria-modal="true" aria-labelledby="userModalTitle" style="display: none;">
+    <div class="user-modal">
+      <h3 class="user-modal-title" id="userModalTitle">设备未绑定</h3>
+      <p class="user-modal-text">需要登录 JoyTrunk 进行设备绑定</p>
+      <button type="button" class="user-modal-btn" id="userModalConfirm">确定</button>
+    </div>
+  </div>
+  <!-- 已绑定：个人信息浮层 -->
+  <div class="user-popover" id="userPopover" style="display: none;">
+    <div class="user-popover-avatar" id="userPopoverAvatar">👤</div>
+    <div class="user-popover-name" id="userPopoverName">我</div>
+    <div class="user-popover-meta" id="userPopoverMeta">未设置</div>
+    <button type="button" class="user-popover-logout" id="userPopoverLogout">退出登录</button>
+  </div>
   <header class="app-title-bar">
     <span class="title-bar-logo-wrap">
       <img class="title-bar-logo" id="titleBarLogo" src="" alt="Logo" onerror="this.style.display='none'">
@@ -797,10 +1108,47 @@
       </aside>
       <div class="chat-resizer" id="chatResizer" title="拖动调整宽度"></div>
       <section class="chat-detail">
-        <div class="chat-detail-header" id="chatDetailHeader">选择或开始一段对话</div>
+        <div class="chat-detail-header">
+          <div class="chat-detail-header-name-wrap" id="chatDetailNameWrap">
+            <span class="chat-detail-header-title" id="chatDetailHeader">选择或开始一段对话</span>
+            <input type="text" class="chat-detail-header-name-input" id="chatDetailNameInput" maxlength="32" placeholder="昵称" aria-label="编辑昵称">
+            <button type="button" class="chat-detail-header-edit" id="chatDetailEditNameBtn" title="修改昵称" aria-label="修改昵称">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+          </div>
+          <button type="button" class="chat-detail-header-settings" id="chatDetailSettingsBtn" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          <button type="button" class="chat-detail-header-history" id="chatDetailHistoryBtn" title="记忆" aria-label="查看记忆">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+            </svg>
+          </button>
+        </div>
         <div class="chat-detail-body" id="chatDetailBody"></div>
         <div class="chat-detail-footer">
+          <div class="chat-detail-preview" id="chatDetailPreview">
+            <div class="chat-detail-preview-img-wrap">
+              <img class="chat-detail-preview-img" id="chatDetailPreviewImg" src="" alt="">
+              <button type="button" class="chat-detail-preview-remove" id="chatDetailPreviewRemove" title="移除图片" aria-label="移除图片">×</button>
+            </div>
+          </div>
           <div class="chat-detail-input-wrap">
+            <input type="file" id="chatDetailFileInput" accept="image/*" style="display: none;">
+            <button type="button" class="chat-detail-image-btn" id="chatDetailImageBtn" title="发送图片" aria-label="发送图片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </button>
             <textarea class="chat-detail-input" id="chatDetailInput" placeholder="输入消息…" rows="1" aria-label="输入消息"></textarea>
             <button type="button" class="chat-detail-send" id="chatDetailSend">发送</button>
           </div>
@@ -855,6 +1203,29 @@
     document.getElementById('btnMinimize').addEventListener('click', () => api.minimizeWindow());
     document.getElementById('btnClose').addEventListener('click', () => api.closeWindow());
 
+    // ---------- 聊天详情标题栏：记忆按钮（暂未实现） ----------
+    (function () {
+      const btn = document.getElementById('chatDetailHistoryBtn');
+      if (btn) btn.addEventListener('click', function () {
+        // TODO: 查看记忆
+      });
+    })();
+
+    // ---------- 聊天详情标题栏：设置按钮（当前会话对应 agent） ----------
+    (function () {
+      const btn = document.getElementById('chatDetailSettingsBtn');
+      const nameWrap = document.getElementById('chatDetailNameWrap');
+      if (btn && nameWrap) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var agentId = nameWrap.dataset.agentId;
+          var chatId = nameWrap.dataset.chatId;
+          if (!agentId) return;
+          // TODO: 打开该 agent 设置（chatId / agentId）
+        });
+      }
+    })();
+
     // ---------- 聊天列表搜索区：加号下拉（新增员工） ----------
     (function () {
       const addBtn = document.getElementById('chatSearchAddBtn');
@@ -892,6 +1263,69 @@
       });
     });
 
+    // ---------- 左侧个人信息：hover 放大、点击未绑定弹窗 / 已绑定浮层 ----------
+    (function () {
+      const sidebarUser = document.querySelector('.sidebar-user');
+      const modalOverlay = document.getElementById('userModalOverlay');
+      const modalConfirm = document.getElementById('userModalConfirm');
+      const popover = document.getElementById('userPopover');
+      const popoverName = document.getElementById('userPopoverName');
+      const popoverMeta = document.getElementById('userPopoverMeta');
+      const popoverLogout = document.getElementById('userPopoverLogout');
+      const sidebarUserName = document.getElementById('sidebarUserName');
+      /** 是否已绑定 JoyTrunk 账号（mock：默认未绑定） */
+      let userBound = false;
+      /** 已绑定时展示的用户信息（mock） */
+      const boundUserInfo = { name: '张三', account: 'zhangsan@example.com', avatar: '👤' };
+
+      if (!sidebarUser || !modalOverlay) return;
+
+      function showModal() {
+        modalOverlay.style.display = 'flex';
+      }
+      function hideModal() {
+        modalOverlay.style.display = 'none';
+      }
+      function showPopover() {
+        if (popoverName) popoverName.textContent = boundUserInfo.name;
+        if (popoverMeta) popoverMeta.textContent = boundUserInfo.account || '已绑定';
+        if (sidebarUserName) sidebarUserName.textContent = boundUserInfo.name;
+        if (popover) popover.style.display = 'block';
+      }
+      function hidePopover() {
+        if (popover) popover.style.display = 'none';
+      }
+
+      sidebarUser.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (userBound) {
+          hidePopover();
+          showPopover();
+        } else {
+          showModal();
+        }
+      });
+
+      if (modalConfirm) modalConfirm.addEventListener('click', hideModal);
+      modalOverlay.addEventListener('click', function (e) {
+        if (e.target === modalOverlay) hideModal();
+      });
+
+      if (popoverLogout) {
+        popoverLogout.addEventListener('click', function () {
+          userBound = false;
+          if (sidebarUserName) sidebarUserName.textContent = '我';
+          hidePopover();
+        });
+      }
+
+      document.addEventListener('click', function (e) {
+        if (popover && popover.style.display === 'block' && !popover.contains(e.target) && !sidebarUser.contains(e.target)) {
+          hidePopover();
+        }
+      });
+    })();
+
     // ---------- Mock 聊天列表与详情 ----------
     (function () {
       const MOCK_AGENTS = [
@@ -915,58 +1349,58 @@
           { role: 'user', content: '主要结论记得写清楚一点，特别是 V1 范围那块。' },
           { role: 'assistant', content: '明白。我会把「V1 先上核心流程、埋点方案下周定稿」这些结论都写进去，再附上待确认的 3 个点。', thinking: '用户强调 V1 范围要写清楚，待确认的 3 点也要保留。回复要体现已理解并列出关键结论。' },
           { role: 'user', content: '行，那等你发。' },
-          { role: 'assistant', content: '已经发到群了，你看下有没有要补充的。有的话直接改一版再发也行。' },
+          { role: 'assistant', content: '已经发到群了，你看下有没有要补充的。有的话直接改一版再发也行。', thinking: '纪要已整理并发出，提醒用户可补充或修改后再发一版。' },
           { role: 'user', content: '看了下，待确认那 3 点能不能再细化一下？现在有点笼统。' },
           { role: 'assistant', content: '可以，我按「问题描述、可选方案、建议结论」拆开写，每点下面加一两句说明，这样评审时好拍板。', thinking: '用户希望待确认项更细化，需要给出可操作的结构：问题描述、可选方案、建议结论，便于评审决策。' },
           { role: 'user', content: '对，就是这样。另外 V1 的优先级顺序也标一下，产品那边要排期。' },
-          { role: 'assistant', content: '好，我按 P0/P1/P2 标上，并注明「P0 必须首版上线」那种。' },
+          { role: 'assistant', content: '好，我按 P0/P1/P2 标上，并注明「P0 必须首版上线」那种。', thinking: '用户要求标出 V1 优先级供排期，用 P0/P1/P2 并强调 P0 首版上线。' },
           { role: 'user', content: '埋点方案里提到的「全量上报」和「抽样」两种方式，会议上有结论吗？' },
           { role: 'assistant', content: '有，结论是先全量上报，等数据量上来再按 UV 抽样，具体比例下周和数仓对齐。我会把这条也写进纪要。', thinking: '用户在问埋点全量 vs 抽样的会议结论。需要明确写出结论（先全量后抽样）以及后续跟进（和数仓对齐比例）。' },
           { role: 'user', content: '行。设计稿什么时候能定？' },
-          { role: 'assistant', content: '设计说本周五前给一版，评审通过后再补交互说明。需要的话我可以把「设计定稿」也加进后续待办里。' },
+          { role: 'assistant', content: '设计说本周五前给一版，评审通过后再补交互说明。需要的话我可以把「设计定稿」也加进后续待办里。', thinking: '用户问设计稿时间，回复周五前+待办项，并主动提议加入待办。' },
           { role: 'user', content: '加一下吧，顺便写清楚对接人。' },
-          { role: 'assistant', content: '已加，对接人写的是设计的小林，需要我改成正式名字吗？' },
+          { role: 'assistant', content: '已加，对接人写的是设计的小林，需要我改成正式名字吗？', thinking: '已加入待办并写对接人，询问是否需要正式姓名。' },
           { role: 'user', content: '不用，小林就行。大家都能对上。' },
-          { role: 'assistant', content: '好，那就这样。纪要已经更新，我重新发一遍群。' },
+          { role: 'assistant', content: '好，那就这样。纪要已经更新，我重新发一遍群。', thinking: '用户确认小林即可，回复会更新纪要并重发群。' },
           { role: 'user', content: '运营那边有没有说首版要带哪些活动位？' },
-          { role: 'assistant', content: '会上提了「首页轮播」和「列表页顶部入口」两个，具体文案和跳转链接下周给。我也记在待确认里了。' },
+          { role: 'assistant', content: '会上提了「首页轮播」和「列表页顶部入口」两个，具体文案和跳转链接下周给。我也记在待确认里了。', thinking: '回答活动位问题并说明已记入待确认。' },
           { role: 'user', content: 'OK，那这版纪要先这样，后面有变更再补一版。' },
-          { role: 'assistant', content: '明白，有变更我直接更新文档并@相关人。' },
+          { role: 'assistant', content: '明白，有变更我直接更新文档并@相关人。', thinking: '确认后续变更会更新文档并通知相关人。' },
           { role: 'user', content: '谢啦。' },
-          { role: 'assistant', content: '不客气，有需要再叫我。' }
+          { role: 'assistant', content: '不客气，有需要再叫我。', thinking: '礼貌收尾，保持可被随时召唤。' }
         ],
         '2': [
           { role: 'user', content: 'JoyTrunk 的 API 什么时候能对接？' },
           { role: 'assistant', content: '这周已经上线了，API 文档在 Confluence，我昨天更新了一版。', thinking: '用户问对接时间，应直接说明已上线、文档位置和更新时间，减少对方反复确认。' },
           { role: 'user', content: '认证方式还是 API Key 吗？' },
-          { role: 'assistant', content: '改成 Bearer Token 了，文档里有示例。示例代码在仓库的 examples 目录，跑一下就能调通。' },
+          { role: 'assistant', content: '改成 Bearer Token 了，文档里有示例。示例代码在仓库的 examples 目录，跑一下就能调通。', thinking: '说明认证改为 Bearer Token，并指向文档与示例代码位置。' },
           { role: 'user', content: '我们这边可能要下周才能排期接，有问题再找你。' },
-          { role: 'assistant', content: '没问题，有问题随时说，我都在。' }
+          { role: 'assistant', content: '没问题，有问题随时说，我都在。', thinking: '表示接受排期，并保持可联系。' }
         ],
         '3': [
           { role: 'user', content: '本周进度如何？' },
-          { role: 'assistant', content: '本周完成了 3 个需求：登录重构、列表分页、导出 Excel，都已经提测了。' },
+          { role: 'assistant', content: '本周完成了 3 个需求：登录重构、列表分页、导出 Excel，都已经提测了。', thinking: '汇总本周完成项并说明已提测。' },
           { role: 'user', content: '还有别的在做的吗？' },
-          { role: 'assistant', content: '还有一个「消息中心」在进行中，预计明天能提测，下周可以一起回归。' },
+          { role: 'assistant', content: '还有一个「消息中心」在进行中，预计明天能提测，下周可以一起回归。', thinking: '补充进行中需求及提测、回归时间。' },
           { role: 'user', content: '下周优先级还是先保证消息中心上线，别的可以往后排。' },
-          { role: 'assistant', content: '好的，下周继续加油。' }
+          { role: 'assistant', content: '好的，下周继续加油。', thinking: '确认优先级，简短收尾。' }
         ],
         '4': [
           { role: 'user', content: '两个技术方案更推荐哪个？' },
-          { role: 'assistant', content: '更推荐方案 B。扩展性更好，后面加缓存、做分库也方便。方案 A 实现快，但和现有模块耦合比较紧。' },
+          { role: 'assistant', content: '更推荐方案 B。扩展性更好，后面加缓存、做分库也方便。方案 A 实现快，但和现有模块耦合比较紧。', thinking: '对比两方案优劣，给出明确推荐及理由。' },
           { role: 'user', content: '方案 B 的工期大概多长？' },
-          { role: 'assistant', content: '按现在的排期大概多 3～5 个工作日，主要是抽象一层接口和写单测。' },
+          { role: 'assistant', content: '按现在的排期大概多 3～5 个工作日，主要是抽象一层接口和写单测。', thinking: '估算工期并说明主要工作量。' },
           { role: 'user', content: '行，那就按方案 B 来，评审时一起过一下。' },
-          { role: 'assistant', content: '好的，评审时一起过，有需要再找我。' }
+          { role: 'assistant', content: '好的，评审时一起过，有需要再找我。', thinking: '确认方案并约定评审，保持可跟进。' }
         ],
         '5': [
-          { role: 'assistant', content: '你好，欢迎加入团队！我是新人小导，入职相关的问题都可以问我。' },
+          { role: 'assistant', content: '你好，欢迎加入团队！我是新人小导，入职相关的问题都可以问我。', thinking: '开场问候并说明身份与可提供的帮助。' },
           { role: 'user', content: '你好，请问办公用品去哪里领？' },
-          { role: 'assistant', content: '在 3 楼前台登记领取，本子、笔、显示器支架都有。需要工卡。' },
+          { role: 'assistant', content: '在 3 楼前台登记领取，本子、笔、显示器支架都有。需要工卡。', thinking: '直接回答地点、可领物品及所需凭证。' },
           { role: 'user', content: '好的，那内网和代码仓库的权限是找谁开？' },
-          { role: 'assistant', content: '内网找 IT 在钉钉提工单，代码仓库找你们组 Leader 在权限系统里加一下就行。' },
+          { role: 'assistant', content: '内网找 IT 在钉钉提工单，代码仓库找你们组 Leader 在权限系统里加一下就行。', thinking: '分别说明内网与代码仓库的申请途径。' },
           { role: 'user', content: '谢谢～' },
-          { role: 'assistant', content: '不客气，有任何问题可以随时在群里问或找我。' }
+          { role: 'assistant', content: '不客气，有任何问题可以随时在群里问或找我。', thinking: '礼貌回应并保持可联系。' }
         ]
       };
 
@@ -1028,7 +1462,14 @@
         var agent = chat ? getAgent(chat.agentId) : { name: 'Agent', avatar: '?' };
         var messages = MOCK_MESSAGES[chatId] || [];
         var headerEl = document.getElementById('chatDetailHeader');
+        var nameWrap = document.getElementById('chatDetailNameWrap');
+        var nameInput = document.getElementById('chatDetailNameInput');
         if (headerEl) headerEl.textContent = agent.name;
+        if (nameWrap) {
+          nameWrap.dataset.agentId = (agent && agent.id) ? agent.id : '';
+          nameWrap.dataset.chatId = chatId || '';
+        }
+        if (nameInput) nameInput.value = agent.name;
         var html = '';
         messages.forEach(function (m) {
           var avatarChar = m.role === 'user' ? '我' : agent.avatar;
@@ -1074,16 +1515,65 @@
       var chatDetailInput = document.getElementById('chatDetailInput');
       var chatDetailSend = document.getElementById('chatDetailSend');
       if (chatDetailInput && chatDetailSend && chatDetailBody) {
+        var fileInput = document.getElementById('chatDetailFileInput');
+        var imageBtn = document.getElementById('chatDetailImageBtn');
+        var previewWrap = document.getElementById('chatDetailPreview');
+        var previewImg = document.getElementById('chatDetailPreviewImg');
+        var previewRemove = document.getElementById('chatDetailPreviewRemove');
+        /** 当前待发送的图片 DataURL，无则为 null */
+        var pendingImageDataUrl = null;
+
+        function clearPendingImage() {
+          pendingImageDataUrl = null;
+          if (previewImg) previewImg.removeAttribute('src');
+          if (previewWrap) previewWrap.classList.remove('has-image');
+          if (fileInput) fileInput.value = '';
+        }
+
+        if (imageBtn && fileInput) {
+          imageBtn.addEventListener('click', function () { fileInput.click(); });
+          fileInput.addEventListener('change', function () {
+            var file = this.files && this.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+              pendingImageDataUrl = reader.result;
+              if (previewImg) {
+                previewImg.src = pendingImageDataUrl;
+                previewImg.alt = file.name;
+              }
+              if (previewWrap) previewWrap.classList.add('has-image');
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+        if (previewRemove) previewRemove.addEventListener('click', clearPendingImage);
+
         function sendMessage() {
           var text = (chatDetailInput.value || '').trim();
-          if (!text) return;
+          if (!text && !pendingImageDataUrl) return;
           var div = document.createElement('div');
           div.className = 'chat-msg chat-msg-user';
-          div.innerHTML =
-            '<div class="chat-msg-avatar">我</div>' +
-            '<div class="chat-msg-body"><div class="chat-msg-content">' + escapeHtml(text) + '</div></div>';
+          var contentEl = document.createElement('div');
+          contentEl.className = 'chat-msg-content';
+          if (text) {
+            var textEl = document.createElement('div');
+            textEl.className = 'chat-msg-text';
+            textEl.textContent = text;
+            contentEl.appendChild(textEl);
+          }
+          if (pendingImageDataUrl) {
+            var img = document.createElement('img');
+            img.className = 'chat-msg-image';
+            img.src = pendingImageDataUrl;
+            img.alt = '';
+            contentEl.appendChild(img);
+          }
+          div.innerHTML = '<div class="chat-msg-avatar">我</div><div class="chat-msg-body"></div>';
+          div.querySelector('.chat-msg-body').appendChild(contentEl);
           chatDetailBody.appendChild(div);
           chatDetailInput.value = '';
+          clearPendingImage();
           chatDetailBody.scrollTop = chatDetailBody.scrollHeight;
         }
         chatDetailSend.addEventListener('click', sendMessage);
@@ -1093,6 +1583,46 @@
             sendMessage();
           }
         });
+      }
+
+      // ---------- 昵称：仅点击编辑图标显示输入框 ----------
+      var nameWrap = document.getElementById('chatDetailNameWrap');
+      var titleEl = document.getElementById('chatDetailHeader');
+      var nameInput = document.getElementById('chatDetailNameInput');
+      var editBtn = document.getElementById('chatDetailEditNameBtn');
+      if (nameWrap && titleEl && nameInput) {
+        function saveName() {
+          var val = (nameInput.value || '').trim();
+          var agentId = nameWrap.dataset.agentId;
+          var chatId = nameWrap.dataset.chatId;
+          if (val && agentId) {
+            var agent = getAgent(agentId);
+            if (agent && agent.id) agent.name = val;
+            titleEl.textContent = val;
+            var listItem = document.querySelector('.chat-list-item[data-chat-id="' + chatId + '"]');
+            var titleInList = listItem && listItem.querySelector('.chat-list-item-title');
+            if (titleInList) titleInList.textContent = val;
+          }
+          nameWrap.classList.remove('editing');
+        }
+        nameInput.addEventListener('blur', saveName);
+        nameInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            nameInput.blur();
+          }
+        });
+        if (editBtn) {
+          editBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            nameWrap.classList.add('editing');
+            nameInput.value = titleEl.textContent || '';
+            var w = titleEl.offsetWidth;
+            if (!w) w = Math.max(80, (nameInput.value.length + 1) * 10);
+            nameInput.style.width = w + 'px';
+            nameInput.focus();
+          });
+        }
       }
     })();
 
