@@ -9,6 +9,19 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
+/** Windows 下控制台多为 GBK，将 UTF-8 字符串转为 GBK Buffer 再写入可避免乱码 */
+function writeConsoleWin(stream, text) {
+  if (process.platform === 'win32') {
+    try {
+      const iconv = require('iconv-lite');
+      const buf = iconv.encode(text, 'gbk');
+      stream.write(buf);
+      return;
+    } catch (_) { /* 无 iconv 时回退到直接写 */ }
+  }
+  stream.write(text);
+}
+
 // --- 常量 ---
 const ASSETS_DIR = path.join(__dirname, 'assets');
 /** 应用图标（任务栏/标题栏），Windows 下使用；优先使用圆角版 logo-white-rounded.png，否则用 logo-white.png。打包后从 extraResources 的 imgs 读取 */
@@ -63,18 +76,23 @@ function getBundledJoytrunkBin(name) {
 }
 
 /**
- * 启动 joytrunk server 或 gateway 子进程。开发态从 PATH  spawn joytrunk；发布态从 resources/bin spawn 捆绑的可执行文件。
+ * 启动 joytrunk server 或 gateway 子进程。
+ * 开发态从 PATH 拉取 joytrunk；发布态从 resources/bin 使用捆绑可执行文件。
+ * 子进程 stdout/stderr 会转发到当前控制台，便于排查错误。
  * @param {'server'|'gateway'} subcommand
- * @returns {import('child_process').ChildProcess | null} 成功返回 ChildProcess，失败返回 null
+ * @returns {import('child_process').ChildProcess | null}
  */
 function spawnJoytrunkCommand(subcommand) {
-  const isPackaged = app.isPackaged;
+  const prefix = `[joytrunk ${subcommand}]`;
   const opts = {
-    env: { ...process.env },
-    stdio: 'ignore',
+    env: {
+      ...process.env,
+      ...(process.platform === 'win32' ? { PYTHONIOENCODING: 'utf-8' } : {}),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
   };
 
-  if (isPackaged) {
+  if (app.isPackaged) {
     const binName = subcommand === 'server' ? 'joytrunk-server' : 'joytrunk-gateway';
     const binPath = getBundledJoytrunkBin(binName);
     if (!fs.existsSync(binPath)) {
@@ -82,7 +100,9 @@ function spawnJoytrunkCommand(subcommand) {
       return null;
     }
     try {
-      return spawn(binPath, [], opts);
+      const child = spawn(binPath, [], opts);
+      pipeChildOutput(child, prefix);
+      return child;
     } catch (err) {
       console.error('[joytrunk] Failed to spawn', binName, err);
       return null;
@@ -90,10 +110,29 @@ function spawnJoytrunkCommand(subcommand) {
   }
 
   try {
-    return spawn('joytrunk', [subcommand], opts);
+    const child = spawn('joytrunk', [subcommand], opts);
+    pipeChildOutput(child, prefix);
+    return child;
   } catch (err) {
     console.error('[joytrunk] Failed to spawn joytrunk', subcommand, err);
     return null;
+  }
+}
+
+/**
+ * 将子进程 stdout/stderr 转发到当前进程控制台。
+ * Windows 下按 GBK 编码写入，避免中文乱码。
+ * @param {import('child_process').ChildProcess} child
+ * @param {string} prefix - 如 '[joytrunk server]'
+ */
+function pipeChildOutput(child, prefix) {
+  if (child.stdout) {
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => writeConsoleWin(process.stdout, `${prefix} ${chunk}`));
+  }
+  if (child.stderr) {
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => writeConsoleWin(process.stderr, `${prefix} ${chunk}`));
   }
 }
 

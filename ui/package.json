@@ -20,6 +20,9 @@
     "koffi": "^2.8.0",
     "sharp": "^0.33.5"
   },
+  "dependencies": {
+    "iconv-lite": "^0.6.3"
+  },
   "build": {
     "appId": "com.joytrunk.desktop",
     "productName": "JoyTrunk",
@@ -38,7 +41,10 @@
       "assets"
     ],
     "extraResources": [
-      { "from": "../imgs", "to": "imgs" }
+      {
+        "from": "../imgs",
+        "to": "imgs"
+      }
     ],
     "win": {
       "signAndEditExecutable": false
