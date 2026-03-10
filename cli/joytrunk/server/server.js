@@ -551,7 +551,6 @@ app.post('/api/llm/chat/completions', async (req, res) => {
       ...(req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {}),
       ...(ownerId && !req.headers['authorization'] ? { 'X-Owner-Id': ownerId } : {}),
     };
-    console.log('[Router proxy] forwarding to url=%s hasAuth=%s hasXOwnerId=%s', url, !!headers.Authorization, !!headers['X-Owner-Id']);
     try {
       const ROUTER_PROXY_TIMEOUT_MS = 60000;
       const controller = new AbortController();
@@ -569,20 +568,17 @@ app.post('/api/llm/chat/completions', async (req, res) => {
       }
       const text = await resp.text();
       if (!resp.ok) {
-        console.error('[Router proxy] upstream responded status=%s body_preview=%s', resp.status, (text || '').slice(0, 300));
         return res.status(resp.status).json({ error: text || 'Router 请求失败' });
       }
       let data;
       try {
         data = JSON.parse(text);
-      } catch (parseErr) {
-        console.error('[Router proxy] upstream returned non-JSON body_preview=%s', (text || '').slice(0, 300));
+      } catch {
         return res.status(502).json({ error: 'Router 返回非 JSON' });
       }
       return res.json(data);
     } catch (e) {
       const msg = e.name === 'AbortError' ? 'Router 请求超时' : (e.message || '转发 JoyTrunk Router 失败');
-      console.error('[Router proxy] fetch error: %s', e.message || e);
       return res.status(502).json({ error: msg });
     }
   }
