@@ -672,9 +672,24 @@ app.get('/api/usage', (req, res) => {
   res.json({ usage: [{ source: 'router', tokens: 0 }, { source: 'custom', tokens: 0 }] });
 });
 
+// ---------- Swagger API 文档（调试用）----------
+const swaggerUi = require('swagger-ui-express');
+const openapiSpec = require('./openapi.json');
+
+// 挂载于 /api-docs（无尾斜杠），避免 express.static 对目录请求追加 / 造成重定向循环
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+  swaggerOptions: { persistAuthorization: true },
+  customSiteTitle: 'JoyTrunk Server API',
+}));
+
 // ---------- 未匹配的 /api 返回 JSON 404（避免前端拿到非 JSON 的 "Not Found"）----------
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '接口不存在', path: req.path });
+});
+
+// ---------- Chrome DevTools：避免请求 .well-known 时落到 SPA 并触发其 CSP ----------
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
+  res.type('application/json').send('{}');
 });
 
 // ---------- 静态与 SPA（本地 UI 来自 cli/joytrunk/ui 构建到 server/static）----------
@@ -699,7 +714,7 @@ ensureStatic();
 if (fs.existsSync(path.join(STATIC_DIR, 'index.html'))) {
   app.use(express.static(STATIC_DIR, { index: false }));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
+    if (req.path.startsWith('/api') && !req.path.startsWith('/api-docs')) return next();
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
   });
 } else {
@@ -713,6 +728,7 @@ if (fs.existsSync(path.join(STATIC_DIR, 'index.html'))) {
   <p>本地管理页占位。端口: ${PORT}</p>
   <p>请先构建本地 UI：<code>cd joytrunk/ui && npm install && npm run build</code></p>
   <p><a href="/api/health">API 健康检查</a> | <a href="/api/teams/current">当前团队</a></p>
+  <p><a href="/api-docs">Swagger API 文档</a></p>
 </body>
 </html>
   `);
