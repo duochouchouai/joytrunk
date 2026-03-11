@@ -1,7 +1,7 @@
 """JoyTrunk 员工智能体工具集。"""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from joytrunk.tools.base import Tool
 from joytrunk.tools.exec_tool import ExecTool
@@ -49,6 +49,7 @@ def create_default_registry(
     restrict_to_workspace: bool = True,
     tools_config: dict[str, Any] | None = None,
     owner_id: str | None = None,
+    on_agent_reply: Callable[[str, str], Any] | None = None,
 ) -> ToolRegistry:
     """创建默认工具注册表：文件系统、exec、web_search（始终注册）、web_fetch。若提供 owner_id 则注册 send_message_to_employee（Agent 间消息）。MCP 在 loop 内通过 connect_mcp_servers 注册。"""
     allowed = workspace if restrict_to_workspace else None
@@ -74,7 +75,7 @@ def create_default_registry(
     reg.register(WebFetchTool(max_chars=max_chars))
     if owner_id:
         reg.register(ListTeamEmployeesTool(workspace, allowed, employee_id, owner_id))
-        reg.register(SendMessageToEmployeeTool(workspace, allowed, employee_id, owner_id))
+        reg.register(SendMessageToEmployeeTool(workspace, allowed, employee_id, owner_id, on_agent_reply=on_agent_reply))
     try:
         reg.register(SaveMemoryTool(workspace, allowed, employee_id))
         reg.register(SearchMemoryTool(workspace, allowed, employee_id))

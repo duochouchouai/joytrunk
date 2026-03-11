@@ -53,6 +53,7 @@ async def run_employee_loop(
     chat_id: str = "direct",
     on_progress: Callable[[str], Awaitable[None]] | None = None,
     model_override: str | None = None,
+    on_agent_reply: Callable[[str, str], Awaitable[None]] | None = None,
 ) -> tuple[str, dict[str, int] | None]:
     """
     运行员工智能体循环：意图 + 自身提示词 + 历史 → 大模型（自有或 JoyTrunk Router）→ 对返回的 tool_calls 执行 → 再问大模型直至无 tool_calls。
@@ -71,7 +72,8 @@ async def run_employee_loop(
     tools_config = config.get("tools")
     from joytrunk.tools import create_default_registry
     tools_reg = create_default_registry(
-        workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config, owner_id=owner_id
+        workspace, employee_id, restrict_to_workspace=True, tools_config=tools_config, owner_id=owner_id,
+        on_agent_reply=on_agent_reply,
     )
 
     history = load_history(employee_id, session_key, limit=MEMORY_WINDOW)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from joytrunk.tools.base import Tool
 
@@ -22,11 +22,13 @@ class SendMessageToEmployeeTool(Tool):
         allowed_dir: Path | None,
         from_employee_id: str,
         owner_id: str,
+        on_agent_reply: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> None:
         self._workspace = workspace
         self._allowed_dir = allowed_dir
         self._from_employee_id = from_employee_id
         self._owner_id = owner_id
+        self._on_agent_reply = on_agent_reply
 
     def name(self) -> str:
         return "send_message_to_employee"
@@ -76,6 +78,13 @@ class SendMessageToEmployeeTool(Tool):
             pass  # 下面用直连 run_employee_loop 兜底
         if result is not None:
             reply, _usage = result
+            if self._on_agent_reply:
+                try:
+                    ret = self._on_agent_reply(resolved_id, reply or "（无回复内容）")
+                    if asyncio.iscoroutine(ret):
+                        await ret
+                except Exception:
+                    pass
             return reply or "（无回复内容）"
 
         from joytrunk.agent.loop import run_employee_loop
@@ -86,6 +95,14 @@ class SendMessageToEmployeeTool(Tool):
                 content or "",
                 session_key="agent:" + self._from_employee_id,
             )
-            return reply or "（无回复内容）"
+            reply = reply or "（无回复内容）"
+            if self._on_agent_reply:
+                try:
+                    ret = self._on_agent_reply(resolved_id, reply)
+                    if asyncio.iscoroutine(ret):
+                        await ret
+                except Exception:
+                    pass
+            return reply
         except Exception as e:
             return f"错误：向员工 {target_employee_id} 发送消息时失败（{e}）。若需通过 Gateway 转发，请先运行 joytrunk gateway；否则请确认目标员工配置正常。"

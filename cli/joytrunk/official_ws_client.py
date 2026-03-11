@@ -63,6 +63,31 @@ async def send_task_result(
             logger.warning("official_ws send_task_result failed: %s", e)
 
 
+async def send_agent_reply_to_official(
+    conversation_id: str,
+    owner_id: str,
+    employee_id: str,
+    content: str,
+) -> None:
+    """每次 send_message_to_employee 工具返回后调用，将 agent 回复同步到官网 IM（多 Agent 协作）。"""
+    payload = {
+        "type": "agent_reply",
+        "conversation_id": conversation_id or "",
+        "owner_id": owner_id or "",
+        "employee_id": employee_id or "",
+        "content": content or "",
+    }
+    async with _lock:
+        if _ws is None:
+            logger.warning("official_ws send_agent_reply skipped: no connection (conv_id=%s)", conversation_id)
+            return
+        try:
+            await _ws.send(json.dumps(payload))
+            logger.info("official_ws send_agent_reply ok conv_id=%s employee_id=%s", conversation_id, employee_id)
+        except Exception as e:
+            logger.warning("official_ws send_agent_reply failed: %s", e)
+
+
 async def run_official_ws_client(
     api_key: str,
     base_url: str,

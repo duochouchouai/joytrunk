@@ -24,9 +24,9 @@ const HOST = (cfg.server && cfg.server.host) || '127.0.0.1';
 app.use(cors());
 app.use(express.json());
 
-/** 当前负责人 ID：无 header 时使用本地默认负责人（自动创建若不存在），用户默认即可用、无需登录；登录仅用于即时通讯绑定。 */
+/** 当前负责人 ID：仅使用 X-Owner-Id 或本地 config/store，不使用 Authorization（避免将 Bearer token 误写为 ownerId）。 */
 function getOwnerId(req) {
-  const headerId = req.headers['x-owner-id'] || req.headers['authorization'] || null;
+  const headerId = req.headers['x-owner-id'] || null;
   if (headerId) return headerId;
   const c = config.loadConfig();
   if (c.ownerId) return c.ownerId;
@@ -551,6 +551,7 @@ app.post('/api/llm/chat/completions', async (req, res) => {
       ...(req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {}),
       ...(ownerId && !req.headers['authorization'] ? { 'X-Owner-Id': ownerId } : {}),
     };
+    console.log('[Router proxy] forwarding to url=%s hasAuth=%s hasXOwnerId=%s', url, !!headers.Authorization, !!headers['X-Owner-Id']);
     try {
       const ROUTER_PROXY_TIMEOUT_MS = 60000;
       const controller = new AbortController();
@@ -568,17 +569,20 @@ app.post('/api/llm/chat/completions', async (req, res) => {
       }
       const text = await resp.text();
       if (!resp.ok) {
+        console.error('[Router proxy] upstream responded status=%s body_preview=%s', resp.status, (text || '').slice(0, 300));
         return res.status(resp.status).json({ error: text || 'Router 请求失败' });
       }
       let data;
       try {
         data = JSON.parse(text);
-      } catch {
+      } catch (parseErr) {
+        console.error('[Router proxy] upstream returned non-JSON body_preview=%s', (text || '').slice(0, 300));
         return res.status(502).json({ error: 'Router 返回非 JSON' });
       }
       return res.json(data);
     } catch (e) {
       const msg = e.name === 'AbortError' ? 'Router 请求超时' : (e.message || '转发 JoyTrunk Router 失败');
+      console.error('[Router proxy] fetch error: %s', e.message || e);
       return res.status(502).json({ error: msg });
     }
   }
